@@ -2,6 +2,14 @@
 
 FastAPI, SQLAlchemy, Alembic, and SQLite를 사용하는 사내용 태스크·티켓 관리 시스템입니다.
 
+## 문서
+
+- [요구사항](REQUIREMENTS.md)
+- [구현 로드맵 및 진척도](IMPLEMENTATION_ROADMAP.md)
+- [의사결정 기록](docs/decisions/README.md)
+- [기존 프로젝트 참조 및 차용 가이드](REFERENCE_IMPLEMENTATION.md)
+- [DB 설계 규칙](docs/database_conventions.md)
+
 ## Docker로 실행
 
 ```bash
@@ -47,4 +55,3 @@ ruff check .
 중첩 설정은 `TTMS__섹션__필드` 형식의 환경 변수로 재정의할 수 있습니다. 예: `TTMS__AUDIT__RETENTION_DAYS=60`.
 
 비밀번호와 서명 키 등의 비밀값은 TOML 파일에 저장하지 않고 환경 변수나 컨테이너 secret으로 주입합니다.
-
