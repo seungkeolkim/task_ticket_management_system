@@ -1,0 +1,52 @@
+[app]
+name = "Task Ticket Management System"
+environment = "development"
+debug = false
+timezone = "Asia/Seoul"
+log_level = "INFO"
+
+[server]
+host = "0.0.0.0"
+port = 8000
+workers = 1
+
+[storage]
+data_root = "./data"
+database_dir = "database"
+attachments_dir = "attachments"
+backups_dir = "backups"
+
+[database]
+# When omitted, SQLite is created under storage.data_root/database_dir.
+# url = "postgresql+psycopg://user:password@database/task_tickets"
+echo = false
+pool_pre_ping = true
+
+[attachments]
+max_file_size_mb = 25
+deleted_file_retention_days = 30
+allowed_extensions = ["png", "jpg", "jpeg", "gif", "webp", "pdf", "txt", "md", "csv", "docx", "xlsx", "pptx", "zip"]
+blocked_extensions = ["exe", "com", "bat", "cmd", "ps1", "sh", "js", "vbs", "msi", "dll", "scr"]
+
+[audit]
+retention_days = 30
+cleanup_interval_hours = 24
+
+[ticket_trash]
+retention_days = 30
+cleanup_interval_hours = 24
+
+[session]
+lifetime_minutes = 480
+cookie_name = "ttms_session"
+cookie_secure = false
+cookie_samesite = "lax"
+
+[pagination]
+default_size = 20
+allowed_sizes = [10, 20, 50]
+
+[backup]
+retention_days = 30
+max_archives = 10
+
