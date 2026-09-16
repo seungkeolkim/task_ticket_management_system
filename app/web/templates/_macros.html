@@ -1,0 +1,22 @@
+{% macro avatar(initials, size='md', tone='violet') -%}
+<span class="avatar avatar-{{ size }} avatar-{{ tone }}" aria-hidden="true">{{ initials }}</span>
+{%- endmacro %}
+
+{% macro status_badge(label, code) -%}
+<span class="status-badge status-{{ code }}"><span class="status-dot"></span>{{ label }}</span>
+{%- endmacro %}
+
+{% macro priority_badge(label, code) -%}
+<span class="priority priority-{{ code }}"><span class="priority-mark">◆</span>{{ label }}</span>
+{%- endmacro %}
+
+{% macro ticket_type(ticket_type) -%}
+<span class="ticket-type type-{{ ticket_type | lower }}" title="{{ ticket_type }}">
+  {% if ticket_type == 'Epic' %}◆{% elif ticket_type == 'Subtask' %}↳{% else %}✓{% endif %}
+</span>
+{%- endmacro %}
+
+{% macro project_mark(project, size='md') -%}
+<span class="project-mark project-mark-{{ size }} mark-{{ project.color }}">{{ project.key[:2] }}</span>
+{%- endmacro %}
+

@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ page_title }} · Taskflow</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='app.css') }}">
+</head>
+<body class="auth-body">
+  <div class="auth-shell">
+    <section class="auth-brand-panel">
+      <a class="brand brand-light" href="/">
+        <span class="brand-symbol"><span></span><span></span><span></span></span>
+        <span>taskflow</span>
+      </a>
+      <div class="auth-brand-copy">
+        <span class="eyebrow light">WORK, CLEARLY ORGANIZED</span>
+        <h1>팀의 일이<br>한눈에 흐르도록.</h1>
+        <p>프로젝트와 티켓, 협업의 맥락을 하나의 공간에서 관리하세요.</p>
+      </div>
+      <div class="auth-preview-card">
+        <div class="mini-card-head"><span>이번 주 진행률</span><strong>68%</strong></div>
+        <div class="progress-track"><span style="width: 68%"></span></div>
+        <div class="mini-bars"><i style="height: 45%"></i><i style="height: 68%"></i><i style="height: 54%"></i><i style="height: 82%"></i><i style="height: 73%"></i></div>
+      </div>
+    </section>
+    <main class="auth-form-panel">
+      <span class="mock-chip auth-mock-chip">MOCKUP</span>
+      {% block auth_content %}{% endblock %}
+      <p class="auth-footnote">© 2026 Taskflow · Internal workspace</p>
+    </main>
+  </div>
+</body>
+</html>
+

@@ -16,12 +16,14 @@ FastAPI, SQLAlchemy, Alembic, and SQLite를 사용하는 사내용 태스크·�
 docker compose up --build
 ```
 
-- API: <http://localhost:8000>
+- 웹 UI 목업: <http://localhost:8000>
 - API 문서: <http://localhost:8000/docs>
 - 상태 확인: <http://localhost:8000/health>
 - DB 연결 확인: <http://localhost:8000/health/ready>
 
 Docker Compose는 호스트의 `data` 디렉터리를 컨테이너의 `/app/data`에 마운트합니다. 설정은 `data/config/application.toml`에서 변경하고 컨테이너를 재시작하면 적용됩니다.
+
+현재 루트 화면은 인증 및 실제 도메인 API가 연결되기 전의 탐색 가능한 UI 목업입니다. 로그인 없이 내 작업 대시보드가 열리며, 화면에 표시되는 데이터와 쓰기 버튼은 실제 데이터를 변경하지 않습니다.
 
 ## 로컬 개발
 

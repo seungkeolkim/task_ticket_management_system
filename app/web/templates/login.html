@@ -1,0 +1,33 @@
+{% extends "auth_base.html" %}
+
+{% block auth_content %}
+<div class="auth-form-wrap">
+  <div class="auth-heading">
+    <span class="eyebrow">WELCOME BACK</span>
+    <h2>워크스페이스에 로그인</h2>
+    <p>사내 계정으로 업무 공간에 접속하세요.</p>
+  </div>
+  <form class="auth-form" action="/" method="get">
+    <label class="field">
+      <span>로그인 ID</span>
+      <input name="login_id" value="minjun.kim" autocomplete="username">
+    </label>
+    <label class="field">
+      <span>비밀번호</span>
+      <input name="password" type="password" value="mock-password" autocomplete="current-password">
+    </label>
+    <div class="form-between">
+      <label class="check-row"><input type="checkbox" checked><span>로그인 상태 유지</span></label>
+      <span class="muted-link">관리자에게 초기화 요청</span>
+    </div>
+    <button class="button primary button-wide" type="submit">로그인</button>
+  </form>
+  <div class="auth-divider"><span>목업 바로가기</span></div>
+  <a class="button secondary button-wide" href="/">인증 없이 화면 둘러보기</a>
+  <div class="info-callout compact">
+    <span class="callout-icon">i</span>
+    <p>현재 목업 단계에서는 서버 기동 후 로그인 없이 메인 화면이 바로 열립니다.</p>
+  </div>
+</div>
+{% endblock %}
+

@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+
+{% block content %}
+<header class="page-header">
+  <div>
+    <span class="eyebrow">PROJECTS</span>
+    <h1>내 프로젝트</h1>
+    <p>참여 중인 프로젝트를 선택해 업무 공간으로 이동하세요.</p>
+  </div>
+  <div class="page-actions">
+    <a class="button secondary" href="/admin/projects">전체 프로젝트 관리</a>
+  </div>
+</header>
+
+<div class="toolbar-card">
+  <label class="search-field grow"><span>⌕</span><input placeholder="프로젝트 이름 또는 키 검색"></label>
+  <div class="segmented"><button class="is-selected" type="button">활성</button><button type="button">전체</button></div>
+  <select class="select-control" aria-label="정렬"><option>최근 활동순</option><option>이름순</option></select>
+</div>
+
+<section class="project-card-grid">
+  {% for item in projects %}
+  <article class="project-card">
+    <div class="project-card-head">
+      {{ ui.project_mark(item, 'lg') }}
+      <span class="role-pill">{{ item.role }}</span>
+    </div>
+    <div class="project-card-copy">
+      <span class="ticket-key">{{ item.key }}</span>
+      <h2>{{ item.name }}</h2>
+      <p>{{ item.description }}</p>
+    </div>
+    <div class="project-stats">
+      <div><strong>{{ item.open_count }}</strong><span>열린 티켓</span></div>
+      <div><strong>{{ item.member_count }}</strong><span>구성원</span></div>
+      <div><strong>{{ item.progress }}%</strong><span>진행률</span></div>
+    </div>
+    <div class="project-progress"><i style="width: {{ item.progress }}%"></i></div>
+    <div class="project-card-foot"><span>최근 활동 {{ item.updated }}</span><a href="/projects/{{ item.key }}/tickets">프로젝트 열기 →</a></div>
+  </article>
+  {% endfor %}
+</section>
+
+<section class="panel list-panel">
+  <div class="panel-header"><div><h2>최근 본 티켓</h2><p>프로젝트를 넘나들며 이어서 작업하세요.</p></div></div>
+  <div class="simple-table">
+    <div class="simple-table-head"><span>티켓</span><span>프로젝트</span><span>상태</span><span>담당자</span><span>수정</span></div>
+    {% for ticket in [
+      {'key':'OPS-142','title':'배포 승인 흐름에 검토 단계 추가','project':'운영 플랫폼 고도화','status':'진행중','status_code':'progress','assignee':'김민준','updated':'12분 전'},
+      {'key':'WEB-87','title':'검색 결과 필터 사용성 개선','project':'고객 포털 개편','status':'등록','status_code':'todo','assignee':'박서연','updated':'2시간 전'},
+      {'key':'DATA-39','title':'일별 정합성 리포트 자동화','project':'데이터 품질 개선','status':'보류','status_code':'hold','assignee':'최유진','updated':'어제'}
+    ] %}
+    <a class="simple-table-row" href="{% if ticket.key == 'OPS-142' %}/projects/OPS/tickets/OPS-142{% else %}/projects{% endif %}">
+      <span><b>{{ ticket.key }}</b>{{ ticket.title }}</span><span>{{ ticket.project }}</span><span>{{ ui.status_badge(ticket.status, ticket.status_code) }}</span><span>{{ ticket.assignee }}</span><span>{{ ticket.updated }}</span>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}
+

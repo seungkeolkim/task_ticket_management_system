@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+
+{% block content %}
+<header class="page-header compact-header">
+  <div><div class="breadcrumbs"><a href="/projects">프로젝트</a><span>›</span><strong>{{ project.key }}</strong><span>›</span><span>구성원</span></div><h1>구성원과 역할</h1><p>프로젝트 접근 권한과 관리 책임을 구성원별로 지정합니다.</p></div>
+  <div class="page-actions"><button class="button primary" type="button">＋ 구성원 추가</button></div>
+</header>
+
+<nav class="tab-nav"><a href="/projects/{{ project.key }}/settings">기본 정보</a><a class="is-active" href="/projects/{{ project.key }}/members">구성원과 역할</a><a href="/projects/{{ project.key }}/trash">휴지통</a></nav>
+
+<section class="member-summary-grid">
+  <div class="summary-stat"><span class="summary-stat-icon violet">♧</span><div><strong>{{ members | length }}</strong><span>전체 구성원</span></div></div>
+  <div class="summary-stat"><span class="summary-stat-icon blue">✦</span><div><strong>2</strong><span>프로젝트 관리자</span></div></div>
+  <div class="summary-stat"><span class="summary-stat-icon emerald">✓</span><div><strong>3</strong><span>프로젝트 사용자</span></div></div>
+</section>
+
+<section class="panel data-panel">
+  <div class="data-panel-toolbar"><label class="search-field grow"><span>⌕</span><input placeholder="이름, 로그인 ID 또는 조직 검색"></label><select class="select-control"><option>모든 역할</option><option>프로젝트 관리자</option><option>프로젝트 사용자</option></select></div>
+  <div class="data-table member-table">
+    <div class="data-table-head"><span>구성원</span><span>소속 조직</span><span>프로젝트 역할</span><span>담당 티켓</span><span>상태</span><span></span></div>
+    {% for member in members %}
+    <div class="data-table-row">
+      <span class="user-cell">{{ ui.avatar(member.initials, 'md', 'slate') }}<span><strong>{{ member.name }}</strong><small>{{ member.login_id }}</small></span></span>
+      <span>{{ member.organization }}</span>
+      <span><button class="role-select" type="button">{{ member.role }} <i>▾</i></button></span>
+      <span><a href="/projects/{{ project.key }}/tickets?assignee={{ member.login_id }}">{{ member.tickets }}개</a></span>
+      <span><i class="active-dot"></i>활성</span>
+      <span><button class="icon-button" type="button">•••</button></span>
+    </div>
+    {% endfor %}
+  </div>
+  <footer class="data-panel-foot"><span>총 {{ members | length }}명의 구성원</span><p><b>안내</b> 조직 소속은 프로젝트 접근 권한과 자동으로 연동되지 않습니다.</p></footer>
+</section>
+{% endblock %}
+

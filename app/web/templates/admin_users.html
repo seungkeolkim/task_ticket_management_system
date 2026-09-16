@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+
+{% block content %}
+<header class="page-header compact-header">
+  <div><span class="eyebrow">SYSTEM ADMIN</span><h1>사용자 관리</h1><p>사용자 계정, 시스템 역할과 로그인 가능 상태를 관리합니다.</p></div>
+  <div class="page-actions"><button class="button primary" type="button">＋ 사용자 생성</button></div>
+</header>
+
+<section class="member-summary-grid four">
+  <div class="summary-stat"><span class="summary-stat-icon violet">♙</span><div><strong>46</strong><span>전체 사용자</span></div></div>
+  <div class="summary-stat"><span class="summary-stat-icon blue">✦</span><div><strong>3</strong><span>시스템 관리자</span></div></div>
+  <div class="summary-stat"><span class="summary-stat-icon emerald">✓</span><div><strong>44</strong><span>활성 사용자</span></div></div>
+  <div class="summary-stat"><span class="summary-stat-icon amber">!</span><div><strong>2</strong><span>비밀번호 변경 대기</span></div></div>
+</section>
+
+<div class="admin-split">
+  <section class="panel data-panel admin-list-panel">
+    <div class="data-panel-toolbar"><label class="search-field grow"><span>⌕</span><input placeholder="이름, 로그인 ID 또는 이메일 검색"></label><button class="filter-button" type="button">상태: 전체 ▾</button><button class="filter-button" type="button">역할 ▾</button></div>
+    <div class="data-table user-table">
+      <div class="data-table-head"><span>사용자</span><span>조직</span><span>시스템 역할</span><span>상태</span><span>최근 로그인</span><span></span></div>
+      {% for user in users %}
+      <div class="data-table-row {% if loop.first %}is-selected{% endif %}">
+        <span class="user-cell">{{ ui.avatar(user.initials, 'md', 'slate') }}<span><strong>{{ user.name }}</strong><small>{{ user.login_id }} · {{ user.email }}</small></span></span>
+        <span>{{ user.organization }}</span><span><span class="role-pill">{{ user.system_role }}</span></span><span><i class="active-dot"></i>활성</span><span>{% if loop.first %}방금 전{% else %}{{ loop.index }}일 전{% endif %}</span><span><a class="icon-button" href="/admin/users?selected={{ user.login_id }}">›</a></span>
+      </div>
+      {% endfor %}
+    </div>
+    <footer class="data-panel-foot"><span>1–5 / 전체 46명</span><div class="pagination compact"><button>←</button><button class="is-current">1</button><button>2</button><button>→</button></div></footer>
+  </section>
+
+  <aside class="panel user-inspector">
+    <header><div class="profile-avatar">김민</div><div><h2>김민준</h2><p>minjun.kim</p></div><button class="icon-button">•••</button></header>
+    <div class="profile-status"><span><i class="active-dot"></i>활성 계정</span><span class="role-pill accent">시스템 관리자</span></div>
+    <dl class="inspector-list"><div><dt>이메일</dt><dd>minjun.kim@example.com</dd></div><div><dt>소속 조직</dt><dd>테크놀로지 본부 / 플랫폼개발팀</dd></div><div><dt>참여 프로젝트</dt><dd><a href="/projects/OPS/tickets">3개 프로젝트 보기</a></dd></div><div><dt>최근 로그인</dt><dd>2026.09.16 14:30</dd></div><div><dt>생성일</dt><dd>2026.06.10</dd></div></dl>
+    <div class="inspector-actions"><button class="button secondary button-wide" type="button">사용자 정보 편집</button><button class="button secondary button-wide" type="button">임시 비밀번호로 초기화</button></div>
+    <div class="inspector-warning"><span>!</span><p>마지막 활성 시스템 관리자는 비활성화하거나 관리자 역할을 해제할 수 없습니다.</p></div>
+  </aside>
+</div>
+{% endblock %}
+

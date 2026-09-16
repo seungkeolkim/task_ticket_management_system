@@ -1,0 +1,110 @@
+{% import "_macros.html" as ui %}
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>{{ page_title }} · Taskflow</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='app.css') }}">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="sidebar-top">
+        <a class="brand" href="/" aria-label="Taskflow 홈">
+          <span class="brand-symbol"><span></span><span></span><span></span></span>
+          <span>taskflow</span>
+        </a>
+        <span class="mock-chip">MOCKUP</span>
+      </div>
+
+      <nav class="sidebar-nav" aria-label="주 메뉴">
+        <p class="nav-label">워크스페이스</p>
+        <a class="nav-item {% if active == 'dashboard' %}is-active{% endif %}" href="/">
+          <span class="nav-glyph">⌂</span><span>내 작업</span>
+        </a>
+        <a class="nav-item {% if active == 'projects' %}is-active{% endif %}" href="/projects">
+          <span class="nav-glyph">◇</span><span>내 프로젝트</span>
+        </a>
+
+        {% if project %}
+        <div class="nav-project-head">
+          {{ ui.project_mark(project, 'sm') }}
+          <div><strong>{{ project.key }}</strong><span>{{ project.name }}</span></div>
+        </div>
+        <a class="nav-item {% if active == 'tickets' %}is-active{% endif %}" href="/projects/{{ project.key }}/tickets">
+          <span class="nav-glyph">☷</span><span>티켓</span><span class="nav-count">24</span>
+        </a>
+        <a class="nav-item {% if active == 'board' %}is-active{% endif %}" href="/projects/{{ project.key }}/board">
+          <span class="nav-glyph">▦</span><span>칸반 보드</span>
+        </a>
+
+        <p class="nav-label nav-label-spaced">프로젝트 관리</p>
+        <a class="nav-item {% if active == 'project-settings' %}is-active{% endif %}" href="/projects/{{ project.key }}/settings">
+          <span class="nav-glyph">⚙</span><span>기본 정보</span>
+        </a>
+        <a class="nav-item {% if active == 'project-members' %}is-active{% endif %}" href="/projects/{{ project.key }}/members">
+          <span class="nav-glyph">♧</span><span>구성원과 역할</span>
+        </a>
+        <a class="nav-item {% if active == 'trash' %}is-active{% endif %}" href="/projects/{{ project.key }}/trash">
+          <span class="nav-glyph">♲</span><span>휴지통</span>
+        </a>
+        {% endif %}
+
+        <p class="nav-label nav-label-spaced">시스템 관리</p>
+        <a class="nav-item {% if active == 'admin-users' %}is-active{% endif %}" href="/admin/users">
+          <span class="nav-glyph">♙</span><span>사용자</span>
+        </a>
+        <a class="nav-item {% if active == 'admin-organizations' %}is-active{% endif %}" href="/admin/organizations">
+          <span class="nav-glyph">⌘</span><span>조직</span>
+        </a>
+        <a class="nav-item {% if active == 'admin-projects' %}is-active{% endif %}" href="/admin/projects">
+          <span class="nav-glyph">▱</span><span>전체 프로젝트</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-user">
+        {{ ui.avatar(current_user.initials, 'md') }}
+        <div class="sidebar-user-copy">
+          <strong>{{ current_user.display_name }}</strong>
+          <span>{{ current_user.organization }}</span>
+        </div>
+        <a class="icon-button subtle" href="/account/password" aria-label="계정 설정">•••</a>
+      </div>
+    </aside>
+
+    <section class="workspace">
+      <header class="topbar">
+        <div class="topbar-context">
+          {% if project %}
+          <a href="/projects" class="context-back">프로젝트</a><span>/</span>
+          <strong>{{ project.name }}</strong>
+          {% else %}
+          <strong>사내 업무 워크스페이스</strong>
+          {% endif %}
+        </div>
+        <div class="topbar-actions">
+          <form class="global-search" action="{% if project %}/projects/{{ project.key }}/tickets{% else %}/projects{% endif %}" method="get">
+            <span>⌕</span>
+            <input name="q" aria-label="빠른 검색" placeholder="티켓 키 또는 제목 검색">
+            <kbd>/</kbd>
+          </form>
+          <a class="icon-button" href="/" aria-label="알림"><span>♢</span><i></i></a>
+          <a class="avatar-link" href="/account/password">{{ ui.avatar(current_user.initials, 'md') }}</a>
+        </div>
+      </header>
+
+      <div class="prototype-note">
+        <span class="prototype-dot"></span>
+        화면 구조 검토용 목업입니다. 표시된 데이터는 저장되지 않습니다.
+      </div>
+
+      <main class="page-content">
+        {% block content %}{% endblock %}
+      </main>
+    </section>
+  </div>
+</body>
+</html>
+

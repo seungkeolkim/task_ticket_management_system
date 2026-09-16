@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+
+{% block content %}
+<div class="detail-page-head">
+  <div class="breadcrumbs"><a href="/projects">프로젝트</a><span>›</span><a href="/projects/{{ project.key }}/tickets">{{ project.key }} 티켓</a><span>›</span><strong>{{ ticket.key }}</strong></div>
+  <div class="page-actions">
+    <button class="button secondary" type="button">공유</button>
+    <a class="button secondary" href="/projects/{{ project.key }}/tickets/{{ ticket.key }}/edit">편집</a>
+    <button class="icon-button" type="button">•••</button>
+  </div>
+</div>
+
+<div class="ticket-detail-layout">
+  <article class="ticket-detail-main">
+    <header class="ticket-detail-title">
+      <div class="ticket-identity">{{ ui.ticket_type(ticket.type) }}<span>{{ ticket.key }}</span><span>·</span><span>{{ ticket.type }}</span></div>
+      <h1>{{ ticket.title }}</h1>
+      <div class="ticket-state-row">
+        <button class="state-button state-{{ ticket.status_code }}" type="button"><span class="status-dot"></span>{{ ticket.status }} <span>▾</span></button>
+        {{ ui.priority_badge(ticket.priority, ticket.priority_code) }}
+        <span class="version-note">버전 {{ ticket.version }} · {{ ticket.updated }} 수정</span>
+      </div>
+    </header>
+
+    <section class="content-section">
+      <div class="section-title"><h2>설명</h2><a href="/projects/{{ project.key }}/tickets/{{ ticket.key }}/edit">편집</a></div>
+      <div class="formatted-content">
+        <p>운영 배포 전에 서비스 담당자와 보안 담당자가 순서대로 검토할 수 있도록 승인 흐름을 확장합니다.</p>
+        <h3>완료 조건</h3>
+        <ul>
+          <li>서비스 담당자 승인 후 보안 검토 단계로 이동합니다.</li>
+          <li>각 단계의 반려 사유가 활동 이력에 기록됩니다.</li>
+          <li>동시 수정 시 마지막 상태를 다시 확인하도록 안내합니다.</li>
+        </ul>
+        <blockquote>완료 상태 전이는 <strong>{{ ticket.dependency }}</strong> 작업이 완료된 뒤에만 가능합니다.</blockquote>
+      </div>
+    </section>
+
+    <section class="content-section">
+      <div class="section-title"><h2>하위 작업</h2><button type="button">＋ 추가</button></div>
+      <div class="subtask-summary"><div class="progress-line"><i style="width: 50%"></i></div><span>2/4 완료</span></div>
+      <div class="subtask-list">
+        <a href="/projects/{{ project.key }}/tickets/OPS-136"><span class="check-circle is-done">✓</span><div><small>OPS-133</small><strong>승인 상태 모델 정의</strong></div>{{ ui.status_badge('완료', 'done') }}<span>이수진</span></a>
+        <a href="/projects/{{ project.key }}/tickets/OPS-136"><span class="check-circle is-done">✓</span><div><small>OPS-134</small><strong>승인 이력 API 초안</strong></div>{{ ui.status_badge('완료', 'done') }}<span>김민준</span></a>
+        <a href="/projects/{{ project.key }}/tickets/OPS-136"><span class="check-circle"></span><div><small>OPS-136</small><strong>세션 만료 시나리오 통합 테스트</strong></div>{{ ui.status_badge('보류', 'hold') }}<span>최유진</span></a>
+      </div>
+    </section>
+
+    <section class="content-section">
+      <div class="section-title"><h2>티켓 관계</h2><button type="button">＋ 관계 추가</button></div>
+      <div class="relation-list">
+        <a href="/projects/{{ project.key }}/tickets/OPS-131"><span class="relation-kind">의존함</span><b>OPS-131</b><strong>감사 로그 이벤트 카탈로그 정의</strong>{{ ui.status_badge('완료', 'done') }}</a>
+        <a href="/projects/{{ project.key }}/tickets/OPS-139"><span class="relation-kind">관계 있음</span><b>OPS-139</b><strong>첨부파일 악성 확장자 정책 정리</strong>{{ ui.status_badge('등록', 'todo') }}</a>
+      </div>
+    </section>
+
+    <section class="content-section" id="comments">
+      <div class="section-title"><h2>활동</h2><div class="segmented small"><button class="is-selected">댓글</button><button>이력</button></div></div>
+      <div class="comment-composer">
+        {{ ui.avatar(current_user.initials, 'md') }}
+        <div><div class="editor-toolbar"><span>H</span><b>B</b><i>I</i><span>☷</span><span>&lt;/&gt;</span><span>⌘</span></div><textarea placeholder="댓글을 입력하세요. @로 프로젝트 구성원을 멘션할 수 있습니다."></textarea><div class="composer-actions"><span>Markdown 지원 · 첨부파일 최대 25MB</span><button class="button primary small-button" type="button">댓글 등록</button></div></div>
+      </div>
+      <div class="comment-list">
+        <article class="comment">{{ ui.avatar('이수', 'md', 'blue') }}<div><header><strong>이수진</strong><span>오늘 14:08</span><button>•••</button></header><p><a class="mention">@김민준</a> 승인 단계별 실패 처리도 이번 범위에 포함될까요? 감사 로그에는 반려 사유까지 남겨야 할 것 같습니다.</p><footer>답글</footer></div></article>
+        <article class="comment">{{ ui.avatar('김민', 'md') }}<div><header><strong>김민준</strong><span>오늘 14:21</span><button>•••</button></header><p>네, 실패와 반려를 모두 포함하겠습니다. 이벤트 구조는 <a>OPS-131</a>에서 먼저 확정한 뒤 연결할게요.</p><footer>답글 · 수정됨</footer></div></article>
+      </div>
+    </section>
+  </article>
+
+  <aside class="ticket-properties">
+    <section class="property-card">
+      <div class="section-title"><h3>세부 정보</h3><a href="/projects/{{ project.key }}/tickets/{{ ticket.key }}/edit">편집</a></div>
+      <dl class="property-list roomy">
+        <div><dt>담당자</dt><dd>{{ ui.avatar(ticket.assignee_initials, 'sm', 'slate') }}{{ ticket.assignee }}</dd></div>
+        <div><dt>생성자</dt><dd>{{ ticket.creator }}</dd></div>
+        <div><dt>중요도</dt><dd>{{ ui.priority_badge(ticket.priority, ticket.priority_code) }}</dd></div>
+        <div><dt>Epic</dt><dd><span class="epic-mark">◆</span>{{ ticket.epic }}</dd></div>
+        <div><dt>마감일</dt><dd class="due-danger">{{ ticket.due }}</dd></div>
+        <div><dt>생성</dt><dd>2026.09.10 09:32</dd></div>
+        <div><dt>수정</dt><dd>오늘 14:21</dd></div>
+      </dl>
+    </section>
+    <section class="property-card dependency-card">
+      <span class="property-card-icon">↳</span><div><h3>완료 조건이 있어요</h3><p><a href="/projects/{{ project.key }}/tickets/OPS-131">OPS-131</a>이 완료되어 현재 완료 전이가 가능합니다.</p></div>
+    </section>
+    <section class="property-card">
+      <div class="section-title"><h3>첨부파일 <span>2</span></h3><button type="button">＋ 추가</button></div>
+      <div class="attachment-list">
+        <div class="attachment"><span class="file-icon">PDF</span><div><strong>approval-flow.pdf</strong><small>1.8 MB · 이수진</small></div><button>↓</button></div>
+        <div class="attachment"><span class="file-icon image">PNG</span><div><strong>state-diagram.png</strong><small>842 KB · 김민준</small></div><button>↓</button></div>
+      </div>
+    </section>
+    <section class="property-card watch-card"><div><span>◉</span><p><strong>지켜보는 사람 4명</strong><small>변경 내용을 대시보드에서 확인합니다.</small></p></div><button class="button quiet" type="button">지켜보기</button></section>
+  </aside>
+</div>
+{% endblock %}
+

@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+
+{% block content %}
+<header class="page-header compact-header">
+  <div>
+    <div class="breadcrumbs"><a href="/projects">프로젝트</a><span>›</span><strong>{{ project.key }}</strong><span>›</span><span>티켓</span></div>
+    <h1>티켓</h1>
+    <p>프로젝트 업무를 검색하고 상태와 담당자를 기준으로 살펴보세요.</p>
+  </div>
+  <div class="page-actions">
+    <a class="button secondary" href="/projects/{{ project.key }}/board"><span>▦</span> 칸반 보기</a>
+    <a class="button primary" href="/projects/{{ project.key }}/tickets/new"><span>＋</span> 새 티켓</a>
+  </div>
+</header>
+
+<div class="saved-filter-bar">
+  <span class="saved-filter-label">저장 필터</span>
+  <a class="filter-chip is-selected" href="/projects/{{ project.key }}/tickets">전체 티켓 <b>24</b></a>
+  <a class="filter-chip" href="/projects/{{ project.key }}/tickets?assignee=me">내 담당 <b>7</b></a>
+  <a class="filter-chip" href="/projects/{{ project.key }}/tickets?due=overdue">기한 초과 <b>3</b></a>
+  <a class="filter-chip" href="/projects/{{ project.key }}/tickets?filter=release">릴리즈 준비</a>
+  <button class="chip-add" type="button">＋ 저장</button>
+</div>
+
+<div class="filter-toolbar">
+  <form class="search-field ticket-search" action="/projects/{{ project.key }}/tickets" method="get">
+    <span>⌕</span><input name="q" placeholder="티켓 키 또는 제목 검색"><kbd>Enter</kbd>
+  </form>
+  <button class="filter-button" type="button">유형 <span>▾</span></button>
+  <button class="filter-button" type="button">상태 <span class="filter-count">2</span><span>▾</span></button>
+  <button class="filter-button" type="button">중요도 <span>▾</span></button>
+  <button class="filter-button" type="button">담당자 <span>▾</span></button>
+  <button class="filter-button" type="button">날짜 <span>▾</span></button>
+  <button class="icon-button filter-more" type="button">•••</button>
+</div>
+
+<div class="ticket-workspace">
+  <section class="ticket-table-panel">
+    <div class="table-summary">
+      <span>총 <strong>24</strong>개 중 1–5</span>
+      <div><button type="button">수정일순 ↕</button><button type="button">표시 20개 ▾</button></div>
+    </div>
+    <div class="ticket-table">
+      <div class="ticket-table-head">
+        <span>티켓</span><span>상태</span><span>중요도</span><span>담당자</span><span>마감일</span>
+      </div>
+      {% for ticket in tickets %}
+      <a class="ticket-table-row {% if selected_ticket and selected_ticket.key == ticket.key %}is-selected{% endif %}" href="/projects/{{ project.key }}/tickets?selected={{ ticket.key }}">
+        <span class="ticket-title-cell">
+          {{ ui.ticket_type(ticket.type) }}
+          <span><small>{{ ticket.key }} · {{ ticket.type }}</small><strong>{{ ticket.title }}</strong><em>{{ ticket.epic }}</em></span>
+        </span>
+        <span>{{ ui.status_badge(ticket.status, ticket.status_code) }}</span>
+        <span>{{ ui.priority_badge(ticket.priority, ticket.priority_code) }}</span>
+        <span class="assignee-cell">{{ ui.avatar(ticket.assignee_initials, 'sm', 'slate') }}{{ ticket.assignee }}</span>
+        <span class="due-{{ ticket.due_tone }}">{{ ticket.due }}</span>
+      </a>
+      {% endfor %}
+    </div>
+    <div class="pagination"><button disabled>←</button><button class="is-current">1</button><button>2</button><button>3</button><button>4</button><button>5</button><button>→</button></div>
+  </section>
+
+  {% if selected_ticket %}
+  <aside class="inline-detail">
+    <div class="inline-detail-top">
+      <div class="ticket-identity">{{ ui.ticket_type(selected_ticket.type) }}<a href="/projects/{{ project.key }}/tickets/{{ selected_ticket.key }}">{{ selected_ticket.key }}</a></div>
+      <div><a class="icon-button" href="/projects/{{ project.key }}/tickets/{{ selected_ticket.key }}" title="크게 보기">↗</a><a class="icon-button" href="/projects/{{ project.key }}/tickets">×</a></div>
+    </div>
+    <h2>{{ selected_ticket.title }}</h2>
+    <div class="inline-badges">{{ ui.status_badge(selected_ticket.status, selected_ticket.status_code) }}{{ ui.priority_badge(selected_ticket.priority, selected_ticket.priority_code) }}</div>
+    <p class="detail-description">{{ selected_ticket.description }}</p>
+    <div class="detail-section">
+      <div class="section-title"><h3>세부 정보</h3><a href="/projects/{{ project.key }}/tickets/{{ selected_ticket.key }}/edit">편집</a></div>
+      <dl class="property-list">
+        <div><dt>담당자</dt><dd>{{ ui.avatar(selected_ticket.assignee_initials, 'sm', 'slate') }}{{ selected_ticket.assignee }}</dd></div>
+        <div><dt>Epic</dt><dd><span class="epic-mark">◆</span>{{ selected_ticket.epic }}</dd></div>
+        <div><dt>마감일</dt><dd class="due-{{ selected_ticket.due_tone }}">{{ selected_ticket.due }}</dd></div>
+        <div><dt>생성자</dt><dd>{{ selected_ticket.creator }}</dd></div>
+      </dl>
+    </div>
+    <div class="detail-section">
+      <div class="section-title"><h3>하위 작업</h3><span>{{ selected_ticket.subtasks_done }}/{{ selected_ticket.subtasks_total }}</span></div>
+      <div class="progress-line"><i style="width: 50%"></i></div>
+      <a class="subtask-preview" href="/projects/{{ project.key }}/tickets/OPS-136"><span>↳ OPS-136</span><strong>세션 만료 시나리오 통합 테스트</strong>{{ ui.status_badge('보류', 'hold') }}</a>
+    </div>
+    {% if selected_ticket.dependency %}
+    <div class="dependency-alert"><span>↳</span><p><strong>완료 전 확인</strong>{{ selected_ticket.dependency }} 완료 후 이 티켓을 완료할 수 있습니다.</p></div>
+    {% endif %}
+    <div class="inline-detail-actions">
+      <a class="button secondary" href="/projects/{{ project.key }}/tickets/{{ selected_ticket.key }}/edit">티켓 편집</a>
+      <a class="button primary" href="/projects/{{ project.key }}/tickets/{{ selected_ticket.key }}">전체 상세 보기</a>
+    </div>
+  </aside>
+  {% endif %}
+</div>
+{% endblock %}

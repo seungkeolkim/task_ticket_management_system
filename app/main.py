@@ -2,10 +2,13 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from app.api.router import api_router
 from app.core.config import ensure_data_directories, get_settings
 from app.core.logging import configure_logging
+from app.web.router import STATIC_DIRECTORY
+from app.web.router import router as web_router
 
 
 @asynccontextmanager
@@ -24,9 +27,10 @@ def create_app() -> FastAPI:
         version="0.1.0",
         lifespan=lifespan,
     )
+    application.mount("/static", StaticFiles(directory=STATIC_DIRECTORY), name="static")
+    application.include_router(web_router)
     application.include_router(api_router)
     return application
 
 
 app = create_app()
-

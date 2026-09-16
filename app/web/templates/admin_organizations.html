@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block content %}
+<header class="page-header compact-header">
+  <div><span class="eyebrow">SYSTEM ADMIN</span><h1>조직 관리</h1><p>조직 계층을 관리하고 JSON으로 안전하게 가져오거나 내보냅니다.</p></div>
+  <div class="page-actions"><button class="button secondary" type="button">↓ JSON 내보내기</button><button class="button secondary" type="button">↑ JSON 가져오기</button><button class="button primary" type="button">＋ 조직 추가</button></div>
+</header>
+
+<div class="organization-layout">
+  <section class="panel org-tree-panel">
+    <div class="panel-header"><div><h2>조직 구조</h2><p>전체 58명 · 활성 조직 9개</p></div><button class="icon-button">•••</button></div>
+    <label class="search-field"><span>⌕</span><input placeholder="조직 이름 검색"></label>
+    <div class="org-tree">
+      {% for root in organization_tree %}
+      <div class="org-root">
+        <button class="org-node {% if loop.first %}is-selected{% endif %}" type="button"><span class="tree-toggle">⌄</span><span class="org-icon">⌘</span><strong>{{ root.name }}</strong><b>{{ root.count }}</b></button>
+        {% if root.children %}<div class="org-children">{% for child in root.children %}<button class="org-node" type="button"><span class="tree-branch">└</span><span class="org-icon child">◇</span><strong>{{ child.name }}</strong><b>{{ child.count }}</b></button>{% endfor %}</div>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="panel org-detail-panel">
+    <header class="org-detail-head"><div><span class="org-large-icon">⌘</span><div><span class="ticket-key">TECH</span><h2>테크놀로지 본부</h2><p>제품 개발과 안정적인 서비스 운영을 담당합니다.</p></div></div><button class="button secondary" type="button">조직 편집</button></header>
+    <div class="org-meta"><div><span>상위 조직</span><strong>없음 · 최상위 조직</strong></div><div><span>상태</span><strong class="success-text">● 활성</strong></div><div><span>직속 구성원</span><strong>8명</strong></div><div><span>하위 조직</span><strong>3개</strong></div></div>
+    <div class="section-title"><h3>하위 조직</h3><button type="button">＋ 추가</button></div>
+    <div class="org-child-cards"><div><span class="org-icon child">◇</span><p><strong>플랫폼개발팀</strong><small>PLATFORM · 8명</small></p><button>›</button></div><div><span class="org-icon child">◇</span><p><strong>SRE팀</strong><small>SRE · 6명</small></p><button>›</button></div><div><span class="org-icon child">◇</span><p><strong>QA팀</strong><small>QA · 5명</small></p><button>›</button></div></div>
+
+    <div class="import-preview">
+      <div class="import-preview-head"><div><span class="preview-file-icon">JSON</span><p><strong>organization-2026-09.json</strong><small>스키마 v1 · 검증 완료</small></p></div><span class="validation-ok">✓ 적용 가능</span></div>
+      <div class="preview-stats"><div><strong>3</strong><span>추가</span></div><div><strong>2</strong><span>갱신</span></div><div><strong>0</strong><span>충돌</span></div><div><strong>0</strong><span>오류</span></div></div>
+      <div class="preview-change-list"><p><span class="change-add">＋ 추가</span><strong>AI 플랫폼팀</strong><small>테크놀로지 본부 아래</small></p><p><span class="change-update">↻ 갱신</span><strong>플랫폼개발팀</strong><small>설명 변경</small></p></div>
+      <footer><span>미리보기는 아직 적용되지 않았습니다.</span><div><button class="button quiet" type="button">취소</button><button class="button primary small-button" type="button">변경 사항 적용</button></div></footer>
+    </div>
+  </section>
+</div>
+{% endblock %}
+

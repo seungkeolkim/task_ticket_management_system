@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+
+{% block content %}
+<header class="page-header compact-header">
+  <div><span class="eyebrow">SYSTEM ADMIN</span><h1>전체 프로젝트 관리</h1><p>프로젝트를 생성하고 운영 상태와 구성 현황을 확인합니다.</p></div>
+  <div class="page-actions"><button class="button primary" type="button">＋ 프로젝트 생성</button></div>
+</header>
+
+<section class="member-summary-grid four">
+  <div class="summary-stat"><span class="summary-stat-icon violet">◇</span><div><strong>12</strong><span>전체 프로젝트</span></div></div>
+  <div class="summary-stat"><span class="summary-stat-icon emerald">✓</span><div><strong>10</strong><span>활성</span></div></div>
+  <div class="summary-stat"><span class="summary-stat-icon amber">◷</span><div><strong>2</strong><span>비활성</span></div></div>
+  <div class="summary-stat"><span class="summary-stat-icon blue">☷</span><div><strong>284</strong><span>전체 활성 티켓</span></div></div>
+</section>
+
+<section class="panel data-panel">
+  <div class="data-panel-toolbar"><label class="search-field grow"><span>⌕</span><input placeholder="프로젝트 이름 또는 키 검색"></label><button class="filter-button" type="button">상태: 전체 ▾</button><select class="select-control"><option>최근 활동순</option><option>이름순</option></select></div>
+  <div class="data-table project-admin-table">
+    <div class="data-table-head"><span>프로젝트</span><span>상태</span><span>구성원</span><span>열린 티켓</span><span>최근 활동</span><span></span></div>
+    {% for item in projects %}
+    <div class="data-table-row">
+      <span class="user-cell">{{ ui.project_mark(item, 'sm') }}<span><strong>{{ item.name }}</strong><small>{{ item.key }} · {{ item.description }}</small></span></span>
+      <span><i class="active-dot"></i>활성</span><span>{{ item.member_count }}명</span><span>{{ item.open_count }}개</span><span>{{ item.updated }}</span>
+      <span class="row-actions"><a class="button secondary small-button" href="/projects/{{ item.key }}/tickets">프로젝트 열기</a><a class="icon-button" href="/projects/{{ item.key }}/settings">⚙</a></span>
+    </div>
+    {% endfor %}
+  </div>
+  <footer class="data-panel-foot"><span>활성 프로젝트 3개 표시</span><p class="audit-hint"><b>시스템 관리자 접근</b> 프로젝트 override 접근은 향후 감사 로그에 기록됩니다.</p></footer>
+</section>
+{% endblock %}
