@@ -1,3 +1,4 @@
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -10,13 +11,26 @@ from app.core.logging import configure_logging
 from app.web.router import STATIC_DIRECTORY
 from app.web.router import router as web_router
 
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
-    configure_logging(settings.app.log_level)
     ensure_data_directories(settings)
+    configure_logging(
+        settings.app.log_level,
+        log_file=settings.log_file_path if settings.logging.file_enabled else None,
+        max_bytes=settings.logging.max_size_mb * 1024 * 1024,
+        backup_count=settings.logging.backup_count,
+    )
+    logger.info(
+        "application_started environment=%s log_level=%s",
+        settings.app.environment,
+        settings.app.log_level,
+    )
     yield
+    logger.info("application_stopped")
 
 
 def create_app() -> FastAPI:

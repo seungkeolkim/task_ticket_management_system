@@ -2,7 +2,7 @@
 
 이 문서는 태스크·티켓 관리 시스템의 권장 구현 순서와 현재 진척도를 관리한다.
 
-- 마지막 갱신일: 2026-09-16
+- 마지막 갱신일: 2026-09-17
 - 상세 요구사항: [REQUIREMENTS.md](REQUIREMENTS.md)
 - 기존 구현 차용 기준: [REFERENCE_IMPLEMENTATION.md](REFERENCE_IMPLEMENTATION.md)
 
@@ -43,6 +43,7 @@
 - [x] Alembic 실행 환경 구성
 - [x] `/health`와 `/health/ready` 제공
 - [x] pytest와 Ruff 기본 검증 구성
+- [x] 공통 시스템 로그 포맷과 외부 로그 레벨 설정 구성
 - [x] Docker 이미지 빌드 및 컨테이너 health check 검증
 
 완료 기준: Docker Compose로 애플리케이션이 기동되고 SQLite 연결을 포함한 readiness 응답이 성공한다.

@@ -15,6 +15,13 @@ data_root = "./data"
 database_dir = "database"
 attachments_dir = "attachments"
 backups_dir = "backups"
+logs_dir = "logs"
+
+[logging]
+file_enabled = true
+file_name = "application.log"
+max_size_mb = 100
+backup_count = 10
 
 [database]
 # When omitted, SQLite is created under storage.data_root/database_dir.
@@ -49,4 +56,3 @@ allowed_sizes = [10, 20, 50]
 [backup]
 retention_days = 30
 max_archives = 10
-

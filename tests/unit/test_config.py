@@ -22,6 +22,18 @@ def test_loads_external_config_and_environment_override(
     assert settings.audit.cleanup_interval_hours == 24
 
 
+def test_log_level_can_be_overridden_by_environment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config_file = tmp_path / "application.toml"
+    config_file.write_text("[app]\nlog_level = \"INFO\"\n", encoding="utf-8")
+    monkeypatch.setenv("TTMS__APP__LOG_LEVEL", "DEBUG")
+
+    settings = load_settings(str(config_file))
+
+    assert settings.app.log_level == "DEBUG"
+
+
 def test_rejects_unknown_config_key(tmp_path: Path) -> None:
     config_file = tmp_path / "application.toml"
     config_file.write_text("[audit]\nunknown = true\n", encoding="utf-8")
@@ -39,4 +51,20 @@ def test_default_database_path_is_under_data_root(
 
     assert settings.database_directory == str(tmp_path / "database")
     assert settings.database_url.endswith("/database/task_tickets.db")
+    assert settings.logs_directory == str(tmp_path / "logs")
+    assert settings.log_file_path == str(tmp_path / "logs" / "application.log")
 
+
+def test_logging_rotation_settings_can_be_overridden(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("APP_DATA_ROOT", str(tmp_path))
+    monkeypatch.setenv("TTMS__LOGGING__MAX_SIZE_MB", "25")
+    monkeypatch.setenv("TTMS__LOGGING__BACKUP_COUNT", "3")
+    monkeypatch.setenv("TTMS__LOGGING__FILE_NAME", "system.log")
+
+    settings = load_settings(str(tmp_path / "missing.toml"))
+
+    assert settings.logging.max_size_mb == 25
+    assert settings.logging.backup_count == 3
+    assert settings.log_file_path == str(tmp_path / "logs" / "system.log")

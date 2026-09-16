@@ -34,6 +34,20 @@ class StorageSettings(StrictSettingsModel):
     database_dir: str = "database"
     attachments_dir: str = "attachments"
     backups_dir: str = "backups"
+    logs_dir: str = "logs"
+
+
+class LoggingSettings(StrictSettingsModel):
+    file_enabled: bool = True
+    file_name: str = Field(default="application.log", min_length=1)
+    max_size_mb: int = Field(default=100, gt=0)
+    backup_count: int = Field(default=10, ge=1)
+
+    @model_validator(mode="after")
+    def validate_file_name(self) -> LoggingSettings:
+        if os.path.basename(self.file_name) != self.file_name:
+            raise ValueError("logging.file_name must be a file name without a path")
+        return self
 
 
 class DatabaseSettings(StrictSettingsModel):
@@ -90,6 +104,7 @@ class Settings(StrictSettingsModel):
     app: ApplicationSettings = Field(default_factory=ApplicationSettings)
     server: ServerSettings = Field(default_factory=ServerSettings)
     storage: StorageSettings = Field(default_factory=StorageSettings)
+    logging: LoggingSettings = Field(default_factory=LoggingSettings)
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
     attachments: AttachmentSettings = Field(default_factory=AttachmentSettings)
     audit: AuditSettings = Field(default_factory=AuditSettings)
@@ -113,6 +128,14 @@ class Settings(StrictSettingsModel):
     @property
     def backups_directory(self) -> str:
         return os.path.abspath(os.path.join(self.storage.data_root, self.storage.backups_dir))
+
+    @property
+    def logs_directory(self) -> str:
+        return os.path.abspath(os.path.join(self.storage.data_root, self.storage.logs_dir))
+
+    @property
+    def log_file_path(self) -> str:
+        return os.path.join(self.logs_directory, self.logging.file_name)
 
     @property
     def database_url(self) -> str:
@@ -200,6 +223,6 @@ def ensure_data_directories(settings: Settings) -> None:
         settings.database_directory,
         settings.attachments_directory,
         settings.backups_directory,
+        settings.logs_directory,
     ):
         os.makedirs(directory, exist_ok=True)
-

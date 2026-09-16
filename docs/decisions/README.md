@@ -22,7 +22,7 @@
 
 | 파일 | ID 접두사 | 범위 | 다음 ID |
 |---|---|---|---|
-| [architecture-and-configuration.md](architecture-and-configuration.md) | `ARC` | 기술 구조, 실행 환경, 외부 설정 | `ARC-007` |
+| [architecture-and-configuration.md](architecture-and-configuration.md) | `ARC` | 기술 구조, 실행 환경, 외부 설정 | `ARC-008` |
 | [users-auth-and-permissions.md](users-auth-and-permissions.md) | `IAM` | 사용자, 인증, 세션, 역할, 권한 | `IAM-009` |
 | [organizations-and-projects.md](organizations-and-projects.md) | `ORG`, `PRJ` | 조직 계층, 프로젝트, 구성원 격리 | `ORG-004`, `PRJ-003` |
 | [tickets-and-workflow.md](tickets-and-workflow.md) | `TKT` | 티켓 계층, 상태, 관계, 삭제 | `TKT-009` |

@@ -20,4 +20,5 @@ data/attachments/*
 !data/attachments/.gitkeep
 data/backups/*
 !data/backups/.gitkeep
-
+data/logs/*
+!data/logs/.gitkeep

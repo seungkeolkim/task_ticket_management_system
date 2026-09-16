@@ -9,6 +9,7 @@ FastAPI, SQLAlchemy, Alembic, and SQLite를 사용하는 사내용 태스크·�
 - [의사결정 기록](docs/decisions/README.md)
 - [기존 프로젝트 참조 및 차용 가이드](REFERENCE_IMPLEMENTATION.md)
 - [DB 설계 규칙](docs/database_conventions.md)
+- [시스템 로깅 규약](docs/logging_conventions.md)
 
 ## Docker로 실행
 
@@ -55,5 +56,7 @@ ruff check .
 3. 애플리케이션 기본값
 
 중첩 설정은 `TTMS__섹션__필드` 형식의 환경 변수로 재정의할 수 있습니다. 예: `TTMS__AUDIT__RETENTION_DAYS=60`.
+
+시스템 로그 레벨은 `[app].log_level` 또는 `TTMS__APP__LOG_LEVEL`로 조정합니다. 로그는 UTC 시간이 첫 필드인 공통 포맷으로 표준 출력과 `data/logs/application.log`에 함께 기록됩니다. 파일은 기본 100MB 단위로 회전하고 백업 10개를 유지하며 `[logging]` 설정이나 `TTMS__LOGGING__...` 환경 변수로 조정할 수 있습니다.
 
 비밀번호와 서명 키 등의 비밀값은 TOML 파일에 저장하지 않고 환경 변수나 컨테이너 secret으로 주입합니다.
