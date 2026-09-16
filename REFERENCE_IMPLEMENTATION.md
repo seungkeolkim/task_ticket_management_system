@@ -8,12 +8,20 @@
 
 ## 2. 참조 대상
 
-- 저장소: [seungkeolkim/government-project-analysis-agent](https://github.com/seungkeolkim/government-project-analysis-agent)
+- 로컬 clone: [`government-project-analysis-agent/`](government-project-analysis-agent/)
+- 원본 remote: `seungkeolkim/government-project-analysis-agent`
 - 확인 브랜치: `main`
-- 확인 커밋: [`79a41d676378abfb62dbf4fe2d4bf33a0c7bf843`](https://github.com/seungkeolkim/government-project-analysis-agent/tree/79a41d676378abfb62dbf4fe2d4bf33a0c7bf843)
+- 확인 커밋: `79a41d676378abfb62dbf4fe2d4bf33a0c7bf843`
+- 로컬 코드 재검토일: 2026-09-17
 - 주요 기술: Python, FastAPI, SQLAlchemy, Alembic, Jinja2, SQLite, vanilla JavaScript
 
-이 문서의 파일 링크는 이후 원본 저장소가 변경되어도 동일한 코드를 확인할 수 있도록 위 커밋에 고정한다.
+이 문서의 파일 링크는 저장소 루트를 기준으로 로컬 clone을 가리킨다. 참조 작업은 웹 검색보다 로컬 코드를 우선하며, 아래 명령으로 clone이 확인 커밋과 일치하는지 검사한다.
+
+```powershell
+git -C government-project-analysis-agent rev-parse HEAD
+```
+
+clone을 다른 커밋으로 갱신할 때는 링크의 파일·행 범위와 이 문서의 판단을 다시 검토한 뒤 확인 커밋을 함께 갱신한다. 로컬 clone 자체는 이 저장소의 추적 대상에 포함하지 않는다.
 
 ## 3. 전체 판단
 
@@ -52,12 +60,12 @@
 
 참조 코드:
 
-- [비밀번호 해시 및 검증](https://github.com/seungkeolkim/government-project-analysis-agent/blob/79a41d676378abfb62dbf4fe2d4bf33a0c7bf843/app/auth/service.py#L83-L113)
-- [사용자 생성](https://github.com/seungkeolkim/government-project-analysis-agent/blob/79a41d676378abfb62dbf4fe2d4bf33a0c7bf843/app/auth/service.py#L192-L254)
-- [사용자 인증](https://github.com/seungkeolkim/government-project-analysis-agent/blob/79a41d676378abfb62dbf4fe2d4bf33a0c7bf843/app/auth/service.py#L257-L301)
-- [세션 생성 및 검증](https://github.com/seungkeolkim/government-project-analysis-agent/blob/79a41d676378abfb62dbf4fe2d4bf33a0c7bf843/app/auth/service.py#L325-L426)
-- [인증 및 관리자 dependency](https://github.com/seungkeolkim/government-project-analysis-agent/blob/79a41d676378abfb62dbf4fe2d4bf33a0c7bf843/app/auth/dependencies.py#L65-L186)
-- [인증 HTTP 테스트](https://github.com/seungkeolkim/government-project-analysis-agent/blob/79a41d676378abfb62dbf4fe2d4bf33a0c7bf843/tests/auth/test_routes.py)
+- [비밀번호 해시 및 검증](government-project-analysis-agent/app/auth/service.py#L83-L113)
+- [사용자 생성](government-project-analysis-agent/app/auth/service.py#L192-L254)
+- [사용자 인증](government-project-analysis-agent/app/auth/service.py#L257-L301)
+- [세션 생성 및 검증](government-project-analysis-agent/app/auth/service.py#L325-L426)
+- [인증 및 관리자 dependency](government-project-analysis-agent/app/auth/dependencies.py#L65-L186)
+- [인증 HTTP 테스트](government-project-analysis-agent/tests/auth/test_routes.py)
 
 ### 4.2 신규 시스템에 맞게 변경할 부분
 
@@ -86,6 +94,8 @@
 - 사용자 물리 삭제 및 연관 데이터 cascade 삭제
 - 시스템 관리자를 단순 Boolean 하나만으로 처리한 뒤 프로젝트 역할까지 같은 방식으로 해결하는 설계
 - 세션과 resource mutation에서 서로 다른 SQLAlchemy Session을 열어 ORM 객체를 전달하는 방식
+- bcrypt를 신규 비밀번호 해시 기본값으로 사용하는 부분. 신규 시스템은 요구사항에 따라 Argon2id를 우선한다.
+- 세션 토큰 원문을 DB에 저장하거나 토큰 prefix를 시스템 로그에 기록하는 부분. 신규 시스템은 토큰 hash만 저장하고 원문과 hash를 로그에 남기지 않는다.
 
 기존 프로젝트도 인증용 DB 세션과 라우트의 DB 세션이 달라질 수 있어 객체를 다시 조회해야 한다는 주석을 가지고 있다. 신규 시스템에서는 요청 단위 DB 세션을 일관되게 주입하고, 계층 사이에는 ORM 객체보다 식별자나 DTO를 전달하는 방식을 우선한다.
 
@@ -103,8 +113,8 @@
 
 참조 코드:
 
-- [기존 same-origin 검사](https://github.com/seungkeolkim/government-project-analysis-agent/blob/79a41d676378abfb62dbf4fe2d4bf33a0c7bf843/app/auth/dependencies.py#L189-L224)
-- [기존 cookie 설정](https://github.com/seungkeolkim/government-project-analysis-agent/blob/79a41d676378abfb62dbf4fe2d4bf33a0c7bf843/app/auth/routes.py#L81-L106)
+- [기존 same-origin 검사](government-project-analysis-agent/app/auth/dependencies.py#L189-L224)
+- [기존 cookie 설정](government-project-analysis-agent/app/auth/routes.py#L81-L106)
 
 ## 5. 최초 시스템 관리자 생성
 
@@ -121,9 +131,9 @@
 
 참조 코드:
 
-- [초기 관리자 생성 CLI](https://github.com/seungkeolkim/government-project-analysis-agent/blob/79a41d676378abfb62dbf4fe2d4bf33a0c7bf843/scripts/python/create_admin.py#L73-L109)
-- [CLI 실행 및 오류 처리](https://github.com/seungkeolkim/government-project-analysis-agent/blob/79a41d676378abfb62dbf4fe2d4bf33a0c7bf843/scripts/python/create_admin.py#L183-L244)
-- [초기 관리자 테스트](https://github.com/seungkeolkim/government-project-analysis-agent/blob/79a41d676378abfb62dbf4fe2d4bf33a0c7bf843/tests/auth/test_create_admin.py)
+- [초기 관리자 생성 CLI](government-project-analysis-agent/scripts/python/create_admin.py#L73-L109)
+- [CLI 실행 및 오류 처리](government-project-analysis-agent/scripts/python/create_admin.py#L183-L244)
+- [초기 관리자 테스트](government-project-analysis-agent/tests/auth/test_create_admin.py)
 
 ### 5.2 신규 bootstrap 정책
 
@@ -180,11 +190,11 @@
 
 참조 코드:
 
-- [조직 트리 구성](https://github.com/seungkeolkim/government-project-analysis-agent/blob/79a41d676378abfb62dbf4fe2d4bf33a0c7bf843/app/organizations/service.py#L65-L119)
-- [조직 생성](https://github.com/seungkeolkim/government-project-analysis-agent/blob/79a41d676378abfb62dbf4fe2d4bf33a0c7bf843/app/organizations/service.py#L122-L183)
-- [조직 이름 변경과 이동](https://github.com/seungkeolkim/government-project-analysis-agent/blob/79a41d676378abfb62dbf4fe2d4bf33a0c7bf843/app/organizations/service.py#L211-L368)
-- [조직 이동 테스트](https://github.com/seungkeolkim/government-project-analysis-agent/blob/79a41d676378abfb62dbf4fe2d4bf33a0c7bf843/tests/db/test_organization_rename_move.py)
-- [조직 관리 화면](https://github.com/seungkeolkim/government-project-analysis-agent/blob/79a41d676378abfb62dbf4fe2d4bf33a0c7bf843/app/web/templates/admin/organizations.html)
+- [조직 트리 구성](government-project-analysis-agent/app/organizations/service.py#L65-L119)
+- [조직 생성](government-project-analysis-agent/app/organizations/service.py#L122-L183)
+- [조직 이름 변경과 이동](government-project-analysis-agent/app/organizations/service.py#L211-L368)
+- [조직 이동 테스트](government-project-analysis-agent/tests/db/test_organization_rename_move.py)
+- [조직 관리 화면](government-project-analysis-agent/app/web/templates/admin/organizations.html)
 
 ### 7.2 모델 변경
 
@@ -218,9 +228,9 @@
 
 참조 코드:
 
-- [기존 조직 JSON export](https://github.com/seungkeolkim/government-project-analysis-agent/blob/79a41d676378abfb62dbf4fe2d4bf33a0c7bf843/app/organizations/io.py#L28-L43)
-- [기존 전체 교체 import](https://github.com/seungkeolkim/government-project-analysis-agent/blob/79a41d676378abfb62dbf4fe2d4bf33a0c7bf843/app/organizations/io.py#L126-L228)
-- [조직 JSON 테스트](https://github.com/seungkeolkim/government-project-analysis-agent/blob/79a41d676378abfb62dbf4fe2d4bf33a0c7bf843/tests/db/test_organization_io.py)
+- [기존 조직 JSON export](government-project-analysis-agent/app/organizations/io.py#L28-L43)
+- [기존 전체 교체 import](government-project-analysis-agent/app/organizations/io.py#L126-L228)
+- [조직 JSON 테스트](government-project-analysis-agent/tests/db/test_organization_io.py)
 
 신규 import는 다음 순서로 재구현한다.
 
@@ -247,12 +257,12 @@
 
 참조 코드:
 
-- [기존 리치 텍스트 에디터](https://github.com/seungkeolkim/government-project-analysis-agent/blob/79a41d676378abfb62dbf4fe2d4bf33a0c7bf843/app/web/static/js/rich_text_editor.js)
-- [HTML allowlist sanitizer](https://github.com/seungkeolkim/government-project-analysis-agent/blob/79a41d676378abfb62dbf4fe2d4bf33a0c7bf843/app/suggestions/sanitize.py#L49-L143)
-- [HTML 정화 함수](https://github.com/seungkeolkim/government-project-analysis-agent/blob/79a41d676378abfb62dbf4fe2d4bf33a0c7bf843/app/suggestions/sanitize.py#L151-L331)
-- [정화된 HTML viewer](https://github.com/seungkeolkim/government-project-analysis-agent/blob/79a41d676378abfb62dbf4fe2d4bf33a0c7bf843/app/web/templates/suggestions/detail.html#L141-L151)
-- [sanitizer 테스트](https://github.com/seungkeolkim/government-project-analysis-agent/blob/79a41d676378abfb62dbf4fe2d4bf33a0c7bf843/tests/suggestions/test_post_html_sanitize.py)
-- [에디터 통합 테스트](https://github.com/seungkeolkim/government-project-analysis-agent/blob/79a41d676378abfb62dbf4fe2d4bf33a0c7bf843/tests/web/test_board_rich_text_integration.py)
+- [기존 리치 텍스트 에디터](government-project-analysis-agent/app/web/static/js/rich_text_editor.js)
+- [HTML allowlist sanitizer](government-project-analysis-agent/app/suggestions/sanitize.py#L49-L143)
+- [HTML 정화 함수](government-project-analysis-agent/app/suggestions/sanitize.py#L151-L331)
+- [정화된 HTML viewer](government-project-analysis-agent/app/web/templates/suggestions/detail.html#L141-L151)
+- [sanitizer 테스트](government-project-analysis-agent/tests/suggestions/test_post_html_sanitize.py)
+- [에디터 통합 테스트](government-project-analysis-agent/tests/web/test_board_rich_text_integration.py)
 
 ### 8.2 차용 방침
 
@@ -308,10 +318,10 @@
 
 참조 코드:
 
-- [목록 route와 페이지 계산](https://github.com/seungkeolkim/government-project-analysis-agent/blob/79a41d676378abfb62dbf4fe2d4bf33a0c7bf843/app/web/main.py#L581-L646)
-- [목록 repository](https://github.com/seungkeolkim/government-project-analysis-agent/blob/79a41d676378abfb62dbf4fe2d4bf33a0c7bf843/app/db/repository.py#L1543-L1602)
-- [count repository](https://github.com/seungkeolkim/government-project-analysis-agent/blob/79a41d676378abfb62dbf4fe2d4bf33a0c7bf843/app/db/repository.py#L1605-L1630)
-- [필터를 보존하는 페이지 링크](https://github.com/seungkeolkim/government-project-analysis-agent/blob/79a41d676378abfb62dbf4fe2d4bf33a0c7bf843/app/web/templates/list.html#L571-L590)
+- [목록 route와 페이지 계산](government-project-analysis-agent/app/web/main.py#L581-L646)
+- [목록 repository](government-project-analysis-agent/app/db/repository.py#L1543-L1602)
+- [count repository](government-project-analysis-agent/app/db/repository.py#L1605-L1630)
+- [필터를 보존하는 페이지 링크](government-project-analysis-agent/app/web/templates/list.html#L571-L590)
 
 ### 9.2 신규 시스템에서 보완할 부분
 
@@ -344,10 +354,10 @@ Offset pagination은 초기 규모에 충분하다. 데이터가 매우 커진 �
 
 참조 코드:
 
-- [기존 SQLite 백업 서비스](https://github.com/seungkeolkim/government-project-analysis-agent/blob/79a41d676378abfb62dbf4fe2d4bf33a0c7bf843/app/backup/service.py#L190-L284)
-- [백업 목록 및 이력](https://github.com/seungkeolkim/government-project-analysis-agent/blob/79a41d676378abfb62dbf4fe2d4bf33a0c7bf843/app/backup/service.py#L292-L344)
-- [백업 테스트](https://github.com/seungkeolkim/government-project-analysis-agent/blob/79a41d676378abfb62dbf4fe2d4bf33a0c7bf843/tests/db/test_backup_service.py)
-- [관리자 백업 route](https://github.com/seungkeolkim/government-project-analysis-agent/blob/79a41d676378abfb62dbf4fe2d4bf33a0c7bf843/app/web/routes/admin.py#L2103-L2257)
+- [기존 SQLite 백업 서비스](government-project-analysis-agent/app/backup/service.py#L190-L284)
+- [백업 목록 및 이력](government-project-analysis-agent/app/backup/service.py#L292-L344)
+- [백업 테스트](government-project-analysis-agent/tests/db/test_backup_service.py)
+- [관리자 백업 route](government-project-analysis-agent/app/web/routes/admin.py#L2103-L2257)
 
 ### 10.2 신규 백업으로 확장할 부분
 
@@ -379,9 +389,9 @@ PostgreSQL 등으로 DB가 바뀌면 snapshot 생성 부분만 DB별 adapter로 
 
 참조 코드:
 
-- [DB engine과 session factory](https://github.com/seungkeolkim/government-project-analysis-agent/blob/79a41d676378abfb62dbf4fe2d4bf33a0c7bf843/app/db/session.py)
-- [DB portability 문서](https://github.com/seungkeolkim/government-project-analysis-agent/blob/79a41d676378abfb62dbf4fe2d4bf33a0c7bf843/docs/db_portability.md)
-- [Alembic 기반 초기화](https://github.com/seungkeolkim/government-project-analysis-agent/blob/79a41d676378abfb62dbf4fe2d4bf33a0c7bf843/app/db/init_db.py)
+- [DB engine과 session factory](government-project-analysis-agent/app/db/session.py)
+- [DB portability 문서](government-project-analysis-agent/docs/db_portability.md)
+- [Alembic 기반 초기화](government-project-analysis-agent/app/db/init_db.py)
 
 ### 11.2 신규 시스템에서 변경할 부분
 
@@ -481,4 +491,3 @@ Windows 임시 환경에서 선택한 테스트를 실행했을 때 일부 순�
 - 참조 코드를 수정한 경우 새 테스트가 신규 요구사항을 검증하는지 확인한다.
 - 신규 시스템의 프로젝트 격리 조건은 UI뿐 아니라 모든 repository query에서 검증한다.
 - 경로 생성에는 `os.path.join`을 사용한다.
-

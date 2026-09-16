@@ -8,6 +8,7 @@ __pycache__/
 .ruff_cache/
 .coverage
 htmlcov/
+government-project-analysis-agent/
 
 .idea/
 .vscode/

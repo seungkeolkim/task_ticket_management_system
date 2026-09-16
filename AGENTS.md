@@ -9,6 +9,7 @@
 3. `docs/decisions/README.md`와 해당 인덱스에 나열된 모든 Markdown 문서를 읽는다.
 4. DB 관련 작업이라면 `docs/database_conventions.md`도 읽는다.
 5. Python 코드 구현·수정 또는 운영 설정 작업이라면 `docs/logging_conventions.md`를 읽고 시스템 로그 규약을 준수한다.
+6. 기존 구현을 참고하는 작업이라면 `REFERENCE_IMPLEMENTATION.md`를 읽고 저장소 루트의 `government-project-analysis-agent/` 로컬 clone을 우선 확인한다. 해당 clone이 있으면 같은 내용을 확인하기 위해 웹을 검색하지 않는다.
 
 프로젝트 정책을 대화 기록에만 의존하지 않는다. 저장소에 있는 문서를 세션 간에 유지되는 공식 작업 맥락으로 사용한다.
 
