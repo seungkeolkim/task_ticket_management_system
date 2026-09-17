@@ -265,3 +265,25 @@ kbd { padding: 1px 6px; border: 1px solid var(--border-strong); border-radius: 5
 .auth-message.error { color: var(--red); background: var(--red-soft); border: 1px solid currentColor; }
 .auth-message.success { color: var(--emerald); background: var(--emerald-soft); border: 1px solid currentColor; }
 .auth-signout { margin-top: 12px; }
+.admin-live-layout { display:grid; grid-template-columns:minmax(0,1fr) 330px; gap:20px; align-items:start; }
+.admin-create-panel { padding:24px; }
+.admin-create-panel h2 { margin:0 0 8px; font-size:17px; }
+.admin-create-panel p { color:var(--muted); font-size:12px; line-height:1.6; }
+.admin-create-form { display:grid; gap:16px; margin-top:20px; }
+.admin-create-form label { display:grid; gap:7px; font-size:12px; font-weight:600; }
+.admin-create-form input,.admin-create-form select,.admin-create-form textarea { width:100%; min-width:0; padding:10px 12px; border:1px solid var(--border); border-radius:8px; background:var(--surface); color:var(--text); font:inherit; }
+.admin-create-form small { color:var(--muted); font-size:11px; line-height:1.5; font-weight:400; }
+.admin-table-scroll { overflow:auto; }
+.admin-live-table { width:100%; border-collapse:collapse; font-size:12px; }
+.admin-live-table th,.admin-live-table td { padding:16px; text-align:left; border-bottom:1px solid var(--border); overflow-wrap:anywhere; }
+.admin-live-table th { color:var(--muted); background:var(--surface-soft); font-size:11px; }
+.admin-live-table small { display:block; margin-top:5px; color:var(--muted); font-size:11px; }
+.created-row { background:var(--primary-soft); }
+.admin-org-tree { display:grid; gap:8px; }
+.admin-org-item { padding:10px; border:1px solid var(--border); border-radius:8px; }
+.admin-org-item summary { display:flex; align-items:center; gap:10px; cursor:pointer; font-size:13px; }
+.admin-org-item summary strong { flex:1; overflow-wrap:anywhere; }
+.admin-org-item summary>span:last-child { color:var(--muted); font-size:11px; }
+.admin-org-description { padding:10px 0 0 34px; font-size:12px; overflow-wrap:anywhere; }
+.admin-org-description p { white-space:pre-wrap; }
+.admin-org-description small { color:var(--muted); }

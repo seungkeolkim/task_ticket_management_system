@@ -1,41 +1,49 @@
 {% extends "base.html" %}
-{% import "_macros.html" as ui %}
-
+{% set values = values|default({}) %}
 {% block content %}
 <header class="page-header compact-header">
-  <div><span class="eyebrow">SYSTEM ADMIN</span><h1>사용자 관리</h1><p>사용자 계정, 시스템 역할과 로그인 가능 상태를 관리합니다.</p></div>
-  <div class="page-actions"><button class="button primary" type="button">＋ 사용자 생성</button></div>
+  <div><span class="eyebrow">SYSTEM ADMIN</span><h1>사용자 관리</h1><p>계정을 등록하고 조직과 시스템 역할을 확인합니다.</p></div>
+  <a class="button primary" href="#create-user">＋ 사용자 생성</a>
 </header>
-
-<section class="member-summary-grid four">
-  <div class="summary-stat"><span class="summary-stat-icon violet">♙</span><div><strong>46</strong><span>전체 사용자</span></div></div>
-  <div class="summary-stat"><span class="summary-stat-icon blue">✦</span><div><strong>3</strong><span>시스템 관리자</span></div></div>
-  <div class="summary-stat"><span class="summary-stat-icon emerald">✓</span><div><strong>44</strong><span>활성 사용자</span></div></div>
-  <div class="summary-stat"><span class="summary-stat-icon amber">!</span><div><strong>2</strong><span>비밀번호 변경 대기</span></div></div>
-</section>
-
-<div class="admin-split">
+{% if created %}<div class="auth-message success" role="status">사용자를 생성했습니다. 새 사용자에게 임시 비밀번호를 안내해 주세요.</div>{% endif %}
+{% if error %}<div class="auth-message error" role="alert">{{ error }}</div>{% endif %}
+<div class="admin-live-layout">
   <section class="panel data-panel admin-list-panel">
-    <div class="data-panel-toolbar"><label class="search-field grow"><span>⌕</span><input placeholder="이름, 로그인 ID 또는 이메일 검색"></label><button class="filter-button" type="button">상태: 전체 ▾</button><button class="filter-button" type="button">역할 ▾</button></div>
-    <div class="data-table user-table">
-      <div class="data-table-head"><span>사용자</span><span>조직</span><span>시스템 역할</span><span>상태</span><span>최근 로그인</span><span></span></div>
-      {% for user in users %}
-      <div class="data-table-row {% if loop.first %}is-selected{% endif %}">
-        <span class="user-cell">{{ ui.avatar(user.initials, 'md', 'slate') }}<span><strong>{{ user.name }}</strong><small>{{ user.login_id }} · {{ user.email }}</small></span></span>
-        <span>{{ user.organization }}</span><span><span class="role-pill">{{ user.system_role }}</span></span><span><i class="active-dot"></i>활성</span><span>{% if loop.first %}방금 전{% else %}{{ loop.index }}일 전{% endif %}</span><span><a class="icon-button" href="/admin/users?selected={{ user.login_id }}">›</a></span>
-      </div>
-      {% endfor %}
+    <form class="data-panel-toolbar" method="get" action="/admin/users">
+      <label class="search-field grow"><span>⌕</span><input name="q" value="{{ q }}" maxlength="100" aria-label="사용자 검색" placeholder="이름, 로그인 ID 또는 이메일 검색"></label>
+      <select name="page_size" aria-label="페이지 크기">{% for size in [10,20,50] %}<option value="{{ size }}" {% if result.page_size == size %}selected{% endif %}>{{ size }}명</option>{% endfor %}</select>
+      <button class="button secondary" type="submit">검색</button>
+    </form>
+    <div class="admin-table-scroll">
+      <table class="admin-live-table">
+        <thead><tr><th scope="col">사용자</th><th scope="col">조직</th><th scope="col">시스템 역할</th><th scope="col">상태</th><th scope="col">비밀번호</th></tr></thead>
+        <tbody>{% for user in result.users %}
+          <tr {% if created == user.id %}class="created-row"{% endif %}>
+            <td><strong>{{ user.display_name }}</strong><small>{{ user.login_id }}</small><small>{{ user.email or '이메일 없음' }}</small></td>
+            <td>{{ user.organization_name }}</td>
+            <td><span class="role-pill">{{ '시스템 관리자' if user.system_role == 'SYSTEM_ADMIN' else '일반 사용자' }}</span></td>
+            <td>{{ '활성' if user.is_active else '비활성' }}</td><td>{{ '변경 대기' if user.must_change_password else '설정 완료' }}</td>
+          </tr>
+        {% else %}<tr><td colspan="5" class="empty-state">조회된 사용자가 없습니다.</td></tr>{% endfor %}</tbody>
+      </table>
     </div>
-    <footer class="data-panel-foot"><span>1–5 / 전체 46명</span><div class="pagination compact"><button>←</button><button class="is-current">1</button><button>2</button><button>→</button></div></footer>
+    <footer class="data-panel-foot"><span>전체 {{ result.total }}명 · {{ result.page }}페이지</span><div class="pagination compact">
+      {% if result.page > 1 %}<a class="button quiet" href="{{ previous_url }}">이전</a>{% endif %}
+      {% if result.page * result.page_size < result.total %}<a class="button quiet" href="{{ next_url }}">다음</a>{% endif %}
+    </div></footer>
   </section>
-
-  <aside class="panel user-inspector">
-    <header><div class="profile-avatar">김민</div><div><h2>김민준</h2><p>minjun.kim</p></div><button class="icon-button">•••</button></header>
-    <div class="profile-status"><span><i class="active-dot"></i>활성 계정</span><span class="role-pill accent">시스템 관리자</span></div>
-    <dl class="inspector-list"><div><dt>이메일</dt><dd>minjun.kim@example.com</dd></div><div><dt>소속 조직</dt><dd>테크놀로지 본부 / 플랫폼개발팀</dd></div><div><dt>참여 프로젝트</dt><dd><a href="/projects/OPS/tickets">3개 프로젝트 보기</a></dd></div><div><dt>최근 로그인</dt><dd>2026.09.16 14:30</dd></div><div><dt>생성일</dt><dd>2026.06.10</dd></div></dl>
-    <div class="inspector-actions"><button class="button secondary button-wide" type="button">사용자 정보 편집</button><button class="button secondary button-wide" type="button">임시 비밀번호로 초기화</button></div>
-    <div class="inspector-warning"><span>!</span><p>마지막 활성 시스템 관리자는 비활성화하거나 관리자 역할을 해제할 수 없습니다.</p></div>
+  <aside class="panel admin-create-panel" id="create-user">
+    <h2>사용자 생성</h2><p>임시 비밀번호는 첫 로그인에서 변경해야 합니다.</p>
+    <form method="post" action="/admin/users" class="admin-create-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>로그인 ID<input name="login_id" required minlength="3" maxlength="100" autocomplete="off" value="{{ values.get('login_id', '') }}"><small>영문·숫자로 시작하는 3~100자. 점, 밑줄, 하이픈을 사용할 수 있습니다.</small></label>
+      <label>표시 이름<input name="display_name" required maxlength="200" value="{{ values.get('display_name', '') }}"></label>
+      <label>이메일 <small>(선택)</small><input name="email" type="email" maxlength="320" value="{{ values.get('email', '') }}"></label>
+      <label>소속 조직<select name="organization_id" required><option value="">조직 선택</option>{% for org in organizations %}<option value="{{ org.id }}" {% if not org.selectable %}disabled{% endif %} {% if values.get('organization_id', '') == org.id|string %}selected{% endif %}>{{ '— ' * org.depth }}{{ org.name }}{% if not org.selectable %} (선택 불가){% endif %}</option>{% endfor %}</select></label>
+      <label>시스템 역할<select name="system_role"><option value="USER">일반 사용자</option><option value="SYSTEM_ADMIN" {% if values.get('system_role') == 'SYSTEM_ADMIN' %}selected{% endif %}>시스템 관리자</option></select></label>
+      <label>임시 비밀번호<input name="password" type="password" required minlength="12" maxlength="128" autocomplete="new-password"><small>12~128자. 생성 후 화면에 다시 표시하지 않습니다.</small></label>
+      <button type="submit" class="button primary button-wide">사용자 생성</button>
+    </form>
   </aside>
 </div>
 {% endblock %}
-

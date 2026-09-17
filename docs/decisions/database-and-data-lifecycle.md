@@ -15,6 +15,8 @@
 | DB-011 | 2026-09-17 | DECIDED | 프로젝트 경계는 복합 FK로, 댓글 원본 일치는 project·ticket·comment 복합 FK로 보호한다. Related는 작은 내부 ticket ID가 source인 정규형만 저장한다. 조직 최상위 이름과 설명 멘션 중복은 SQLite·PostgreSQL partial unique index로 보호한다. | 서비스 우회 쓰기에서도 잘못된 연결을 차단한다. MySQL 등 partial index 미지원 DB로 전환할 때는 동등한 제약 설계가 필요하다. |
 | DB-012 | 2026-09-17 | DECIDED | 휴지통 이동마다 batch를 생성하고 당시 활성 하위 티켓만 연결한다. 복구 후 ticket의 삭제 필드를 비우고 batch 복구 이력을 남긴다. 이미 다른 batch로 삭제된 자손은 새 batch에 흡수하지 않는다. | 삭제·복구 대상을 재귀 조회만으로 추측하지 않고 실제 함께 이동한 집합을 보존한다. 부모가 삭제 상태인 자손만 독립 복구하는 동작은 서비스가 거부한다. |
 | DB-013 | 2026-09-17 | DECIDED | SQLite 인증 쓰기는 repository의 `BEGIN IMMEDIATE`로 실패 제한 판정·감사 기록과 bootstrap을 직렬화한다. 비밀번호 교체와 로그인은 기존 hash 조건으로 경합을 검사한다. | 기존 테이블만 사용하여 migration을 추가하지 않는다. 잠금 동안 hash 검증으로 쓰기 처리량이 제한되며 PostgreSQL 전환 전 동등한 잠금 구현·검증을 요구한다. |
+| DB-014 | 2026-09-18 | DECIDED | 사용자·조직 생성도 DB-013의 SQLite 쓰기 잠금을 재사용하고 잠금 후 관리자 상태·조직 상태·중복을 확인한다. 생성과 감사 기록을 한 transaction으로 commit한다. | 동시 생성 및 역할 변경 경합에 대비하고 무결성 오류는 rollback 후 안전한 409로 반환한다. backend 전환 시 관리 쓰기도 동시성 검증 대상이다. |
+| DB-015 | 2026-09-18 | DECIDED | 최초 revision의 upgrade·식별자는 유지하며 downgrade의 조직 테이블 제거 직전에 parent 연결을 해제한다. 새 revision은 추가하지 않는다. | SQLite가 하위 조직이 있는 self-RESTRICT 테이블의 DROP을 거부하는 기존 결함을 수정한다. 의도적으로 전체 DB를 제거하는 base rollback에만 적용되며 head→0001 downgrade와 정상 실행 데이터에는 영향을 주지 않는다. |
 
 ## Open decisions
 

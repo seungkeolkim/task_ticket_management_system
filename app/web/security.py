@@ -95,6 +95,12 @@ def require_api_user(identity: Annotated[Identity, Depends(require_identity)]) -
     return identity
 
 
+def require_api_admin(identity: Annotated[Identity, Depends(require_api_user)]) -> Identity:
+    if not identity.is_admin:
+        raise AuthError("admin_required", "시스템 관리자 권한이 필요합니다.", 403)
+    return identity
+
+
 def csrf_cookie_name(settings: Settings) -> str:
     return settings.session.cookie_name + "_csrf"
 
