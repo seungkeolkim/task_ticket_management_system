@@ -260,3 +260,8 @@ kbd { padding: 1px 6px; border: 1px solid var(--border-strong); border-radius: 5
 @media (max-width: 1300px) {
   .page-content{padding-right:22px;padding-left:22px}.metric-grid{grid-template-columns:repeat(2,1fr)}.project-card-grid{grid-template-columns:repeat(2,1fr)}.project-strip{grid-template-columns:1fr}.ticket-workspace{grid-template-columns:minmax(620px,1.5fr) 350px}.admin-split{grid-template-columns:minmax(0,1fr) 280px}.admin-list-panel{min-width:0}.simple-table-head,.simple-table-row{grid-template-columns:2fr 1fr .7fr .7fr}.simple-table-head span:nth-child(5),.simple-table-row span:nth-child(5){display:none}
 }
+
+.auth-message { padding: 14px 16px; margin-bottom: 20px; border-radius: 10px; font-size: 14px; line-height: 1.6; }
+.auth-message.error { color: var(--red); background: var(--red-soft); border: 1px solid currentColor; }
+.auth-message.success { color: var(--emerald); background: var(--emerald-soft); border: 1px solid currentColor; }
+.auth-signout { margin-top: 12px; }

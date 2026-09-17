@@ -3,11 +3,29 @@ from datetime import datetime
 import pytest
 from sqlalchemy import func, select, text
 from sqlalchemy.dialects import sqlite
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.db.engine import create_database_engine
 from app.db.transaction import transaction_scope
 from app.db.types import UTCDateTime
 from app.models import Organization
+
+
+def test_sql_parameters_are_hidden_in_logs_and_exceptions(caplog):
+    engine = create_database_engine("sqlite://", echo=True)
+    secret = "sensitive-authentication-parameter"
+    try:
+        with engine.connect() as connection:
+            with pytest.raises(DBAPIError) as error:
+                connection.execute(
+                    text("INSERT INTO missing_table VALUES (:secret)"), {"secret": secret}
+                )
+        assert secret not in str(error.value)
+        assert secret not in caplog.text
+        assert "parameters hidden" in str(error.value)
+    finally:
+        engine.dispose()
 
 
 def test_sqlite_foreign_keys_are_enabled(db_session: Session) -> None:
@@ -46,8 +64,11 @@ def test_transaction_scope_commits_and_rolls_back(
 
     with db_session_factory() as session:
         assert session.scalar(select(func.count()).select_from(Organization)) == 1
-        assert session.scalar(
-            select(func.count()).select_from(Organization).where(
-                Organization.key == "rolled-back"
+        assert (
+            session.scalar(
+                select(func.count())
+                .select_from(Organization)
+                .where(Organization.key == "rolled-back")
             )
-        ) == 0
+            == 0
+        )

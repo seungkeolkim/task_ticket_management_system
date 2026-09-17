@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, Boolean, CheckConstraint, ForeignKey, Index, String, Text
+from sqlalchemy import JSON, Boolean, CheckConstraint, ForeignKey, Index, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -20,6 +20,14 @@ class Organization(IntegerPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "organizations"
     __table_args__ = (
         Index("ix_organizations_parent_id_name", "parent_id", "name"),
+        Index(
+            "uq_organizations_root_name",
+            "name",
+            unique=True,
+            sqlite_where=text("parent_id IS NULL"),
+            postgresql_where=text("parent_id IS NULL"),
+        ),
+        Index("uq_organizations_sibling_name", "parent_id", "name", unique=True),
     )
 
     key: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
@@ -111,9 +119,7 @@ class User(IntegerPrimaryKeyMixin, TimestampMixin, Base):
 
 class UserSession(IntegerPrimaryKeyMixin, Base):
     __tablename__ = "user_sessions"
-    __table_args__ = (
-        Index("ix_user_sessions_user_id_expires_at", "user_id", "expires_at"),
-    )
+    __table_args__ = (Index("ix_user_sessions_user_id_expires_at", "user_id", "expires_at"),)
 
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"),
@@ -135,9 +141,7 @@ class UserSession(IntegerPrimaryKeyMixin, Base):
 
 class AuditLog(IntegerPrimaryKeyMixin, Base):
     __tablename__ = "audit_logs"
-    __table_args__ = (
-        Index("ix_audit_logs_target", "target_type", "target_id"),
-    )
+    __table_args__ = (Index("ix_audit_logs_target", "target_type", "target_id"),)
 
     actor_user_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"),

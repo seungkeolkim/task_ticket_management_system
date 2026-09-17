@@ -16,7 +16,4 @@ RUN python -m pip install --upgrade pip \
     && python -m pip install . \
     && chmod +x ./scripts/docker-entrypoint.sh
 
-EXPOSE 8000
-
 ENTRYPOINT ["./scripts/docker-entrypoint.sh"]
-

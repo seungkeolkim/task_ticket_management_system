@@ -49,12 +49,13 @@ YYYY-MM-DDTHH:MM:SS.mmmZ LEVEL logger.name message
 - `[logging].file_enabled`, `file_name`, `max_size_mb`, `backup_count`로 파일 출력과 회전 정책을 조정한다. `file_name`에는 경로가 없는 파일명만 허용한다.
 - `backup_count`는 현재 로그 파일을 제외한 백업 개수다. 기본 설정의 최대 디스크 사용량은 대략 1.1GB다.
 - 내장 파일 회전은 단일 프로세스 쓰기를 기준으로 한다. `server.workers`를 2 이상으로 운영할 때는 여러 프로세스가 같은 파일을 회전하지 않도록 파일 출력을 끄고 container runtime 등 외부 로그 수집기의 회전을 사용한다.
-- SQL 문 진단은 별도의 `database.echo` 설정을 사용한다. SQL parameter에 민감정보가 포함될 수 있으므로 운영 환경에서는 기본적으로 비활성화한다.
+- SQL 문 진단은 별도의 `database.echo` 설정을 사용한다. 운영 환경에서는 기본적으로 비활성화하고 engine의 `hide_parameters=True`로 SQL 로그와 예외 문자열의 parameter 노출도 차단한다.
 
 ## Context와 민감정보
 
 - 관련 값이 있을 때 request ID, 사용자 ID, 프로젝트 ID, 티켓 ID처럼 검색 가능한 안정 식별자를 기록한다.
-- 비밀번호, session token과 hash, cookie, authorization header, secret, 첨부파일 본문은 어떤 레벨에서도 기록하지 않는다.
+- 비밀번호, session token과 hash, cookie, authorization header, secret, 첨부파일 본문은 어떤 레벨에서도 기록하지 않는다. 인증 검증 오류 응답도 입력값을 복사하지 않으며 로그인 실패 진단에는 안정적인 오류 코드만 사용한다.
+- 보고서 LLM 입력·원응답·생성 본문·스킬 지침은 시스템 로그에 기록하지 않는다. 해당 내용은 권한 검사를 거치는 보고서 저장 영역에만 보관하고 진단 로그에는 run ID·attempt 번호·실패 코드·소요 시간만 사용한다.
 - 이메일, IP, user agent, 사용자 입력 본문은 진단에 반드시 필요한 최소 범위에서만 기록한다.
 - 같은 예외를 여러 계층에서 반복 기록하지 않는다. 처리하거나 외부 경계에서 최종 실패로 바꾸는 계층이 한 번 기록한다.
 

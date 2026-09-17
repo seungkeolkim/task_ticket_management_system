@@ -15,6 +15,7 @@ def create_database_engine(
     options: dict[str, Any] = {
         "echo": echo,
         "pool_pre_ping": pool_pre_ping,
+        "hide_parameters": True,
         **engine_options,
     }
     if database_url.startswith("sqlite"):

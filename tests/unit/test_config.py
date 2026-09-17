@@ -22,6 +22,23 @@ def test_loads_external_config_and_environment_override(
     assert settings.audit.cleanup_interval_hours == 24
 
 
+def test_default_config_file_is_read_from_top_level_config_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config_directory = tmp_path / "config"
+    config_directory.mkdir()
+    (config_directory / "application.toml").write_text(
+        "[server]\nport = 9123\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("APP_CONFIG_FILE", raising=False)
+
+    settings = load_settings()
+
+    assert settings.server.port == 9123
+
+
 def test_log_level_can_be_overridden_by_environment(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

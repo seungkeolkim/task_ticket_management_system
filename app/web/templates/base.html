@@ -52,6 +52,7 @@
         </a>
         {% endif %}
 
+        {% if current_user.is_admin %}
         <p class="nav-label nav-label-spaced">시스템 관리</p>
         <a class="nav-item {% if active == 'admin-users' %}is-active{% endif %}" href="/admin/users">
           <span class="nav-glyph">♙</span><span>사용자</span>
@@ -62,6 +63,7 @@
         <a class="nav-item {% if active == 'admin-projects' %}is-active{% endif %}" href="/admin/projects">
           <span class="nav-glyph">▱</span><span>전체 프로젝트</span>
         </a>
+        {% endif %}
       </nav>
 
       <div class="sidebar-user">
@@ -92,12 +94,13 @@
           </form>
           <a class="icon-button" href="/" aria-label="알림"><span>♢</span><i></i></a>
           <a class="avatar-link" href="/account/password">{{ ui.avatar(current_user.initials, 'md') }}</a>
+          <form action="/logout" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="button quiet" type="submit">로그아웃</button></form>
         </div>
       </header>
 
       <div class="prototype-note">
         <span class="prototype-dot"></span>
-        화면 구조 검토용 목업입니다. 표시된 데이터는 저장되지 않습니다.
+        업무 화면은 예시 데이터입니다. 로그인과 비밀번호 변경은 실제 계정에 적용됩니다.
       </div>
 
       <main class="page-content">
@@ -107,4 +110,3 @@
   </div>
 </body>
 </html>
-

@@ -13,6 +13,17 @@ from app.db.session import get_db_session
 from app.main import app
 
 
+@pytest.fixture(autouse=True)
+def isolate_bootstrap_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    for name in (
+        "BOOTSTRAP_ADMIN_LOGIN_ID",
+        "BOOTSTRAP_ADMIN_PASSWORD",
+        "BOOTSTRAP_ADMIN_PASSWORD_FILE",
+        "BOOTSTRAP_ADMIN_DISPLAY_NAME",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+
 @pytest.fixture
 def database_url(tmp_path: Path) -> str:
     database_path = (tmp_path / "test.db").as_posix()
@@ -68,8 +79,11 @@ def client(db_session_factory: sessionmaker[Session]) -> Iterator[TestClient]:
             session.close()
 
     app.dependency_overrides[get_db_session] = override_db_session
+    original_factory = app.state.session_factory
+    app.state.session_factory = db_session_factory
     try:
         with TestClient(app) as test_client:
             yield test_client
     finally:
         app.dependency_overrides.clear()
+        app.state.session_factory = original_factory

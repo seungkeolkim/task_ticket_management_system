@@ -10,21 +10,30 @@ FastAPI, SQLAlchemy, Alembic, and SQLite를 사용하는 사내용 태스크·�
 - [기존 프로젝트 참조 및 차용 가이드](REFERENCE_IMPLEMENTATION.md)
 - [DB 설계 규칙](docs/database_conventions.md)
 - [시스템 로깅 규약](docs/logging_conventions.md)
+- [로그인·초기 관리자 설정](docs/authentication.md)
 
 ## Docker로 실행
 
 ```bash
-docker compose up --build
+sh ./run_compose.sh start
 ```
 
-- 웹 UI 목업: <http://localhost:8000>
+중지는 다음 명령을 사용합니다.
+
+```bash
+sh ./run_compose.sh stop
+```
+
+- 웹 UI: <http://localhost:8000>
 - API 문서: <http://localhost:8000/docs>
 - 상태 확인: <http://localhost:8000/health>
 - DB 연결 확인: <http://localhost:8000/health/ready>
 
-Docker Compose는 호스트의 `data` 디렉터리를 컨테이너의 `/app/data`에 마운트합니다. 설정은 `data/config/application.toml`에서 변경하고 컨테이너를 재시작하면 적용됩니다.
+Docker Compose는 호스트의 `data` 디렉터리를 컨테이너의 `/app/data`에 마운트하고, `config/application.toml`은 `/app/config/application.toml`에 읽기 전용으로 별도 마운트합니다. `run_compose.sh start`는 `[server].port`를 읽어 애플리케이션 수신 포트, 호스트 공개 포트와 health check에 동일하게 적용합니다. 예를 들어 포트를 `9123`으로 바꾸고 다시 시작하면 `http://localhost:9123`으로 접속합니다.
 
-현재 루트 화면은 인증 및 실제 도메인 API가 연결되기 전의 탐색 가능한 UI 목업입니다. 로그인 없이 내 작업 대시보드가 열리며, 화면에 표시되는 데이터와 쓰기 버튼은 실제 데이터를 변경하지 않습니다.
+Compose는 TOML을 직접 해석할 수 없으므로 직접 `docker compose up`을 실행하면 필수 포트 변수가 없다는 오류와 함께 중단됩니다. 항상 실행 래퍼를 사용하면 설정 변경과 포트 매핑이 어긋나지 않습니다. 다른 호스트 설정 파일을 사용하려면 절대 경로로 `APP_CONFIG_FILE=/path/to/application.toml sh ./run_compose.sh start`를 실행합니다.
+
+루트 `/`는 내 작업 대시보드이며 로그인하지 않았다면 로그인 화면으로 이동합니다. 로그인·비밀번호 변경·로그아웃은 실제 계정에 연결되어 있고, 업무 화면은 아직 예시 데이터입니다. 최초 실행 전 [초기 관리자 설정](docs/authentication.md)에 따라 CLI 또는 bootstrap 환경 변수로 관리자를 생성하세요.
 
 ## 로컬 개발
 
@@ -35,6 +44,7 @@ python -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install -e ".[dev]"
 alembic upgrade head
+python -m app.cli bootstrap-admin --login-id admin
 python -m app
 ```
 
@@ -47,7 +57,7 @@ ruff check .
 
 ## 설정
 
-기본 설정 파일은 `data/config/application.toml`입니다. 다른 파일을 사용하려면 `APP_CONFIG_FILE` 환경 변수를 지정합니다.
+기본 설정 파일은 `config/application.toml`입니다. 다른 파일을 사용하려면 `APP_CONFIG_FILE` 환경 변수를 지정합니다. 로컬 실행에서는 애플리케이션이 이 경로를 직접 읽고, Docker 실행에서는 래퍼가 같은 파일을 컨테이너 설정 경로에 마운트합니다.
 
 설정 우선순위는 다음과 같습니다.
 

@@ -9,6 +9,7 @@ __pycache__
 .coverage
 htmlcov
 data
+config
 tests
 *.md
 !README.md

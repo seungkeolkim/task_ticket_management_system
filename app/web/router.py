@@ -1,12 +1,9 @@
-import os
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 
 from app.web.mock_data import (
-    CURRENT_USER,
     MEMBERS,
     MENTIONS,
     ORGANIZATION_TREE,
@@ -15,13 +12,10 @@ from app.web.mock_data import (
     TRASH_TICKETS,
     USERS,
 )
+from app.web.rendering import STATIC_DIRECTORY, render  # noqa: F401
+from app.web.security import require_web_admin, require_web_user
 
-WEB_DIRECTORY = os.path.dirname(__file__)
-TEMPLATE_DIRECTORY = os.path.join(WEB_DIRECTORY, "templates")
-STATIC_DIRECTORY = os.path.join(WEB_DIRECTORY, "static")
-
-templates = Jinja2Templates(directory=TEMPLATE_DIRECTORY)
-router = APIRouter(include_in_schema=False)
+router = APIRouter(include_in_schema=False, dependencies=[Depends(require_web_user)])
 
 
 def _project(project_key: str) -> dict[str, Any]:
@@ -54,13 +48,12 @@ def _render(
     project: dict[str, Any] | None = None,
     **context: Any,
 ) -> HTMLResponse:
-    return templates.TemplateResponse(
-        request=request,
-        name=template_name,
-        context={
+    return render(
+        request,
+        template_name,
+        **{
             "page_title": page_title,
             "active": active,
-            "current_user": CURRENT_USER,
             "projects": PROJECTS,
             "project": project,
             **context,
@@ -85,21 +78,6 @@ def dashboard_alias() -> RedirectResponse:
     return RedirectResponse(url="/", status_code=307)
 
 
-@router.get("/login", response_class=HTMLResponse)
-def login(request: Request) -> HTMLResponse:
-    return _render(request, "login.html", page_title="로그인", active="login")
-
-
-@router.get("/account/password", response_class=HTMLResponse)
-def change_password(request: Request) -> HTMLResponse:
-    return _render(
-        request,
-        "password.html",
-        page_title="비밀번호 변경",
-        active="password",
-    )
-
-
 @router.get("/projects", response_class=HTMLResponse)
 def project_list(request: Request) -> HTMLResponse:
     return _render(request, "projects.html", page_title="내 프로젝트", active="projects")
@@ -120,9 +98,7 @@ def ticket_list(
     project = _project(project_key)
     project_tickets = [item for item in TICKETS if item["project_key"] == project_key]
     selected_key = selected or (project_tickets[0]["key"] if project_tickets else None)
-    selected_ticket = (
-        _ticket(project_key, selected_key) if selected_key is not None else None
-    )
+    selected_ticket = _ticket(project_key, selected_key) if selected_key is not None else None
     return _render(
         request,
         "ticket_list.html",
@@ -245,7 +221,7 @@ def project_trash(request: Request, project_key: str) -> HTMLResponse:
     )
 
 
-@router.get("/admin/users", response_class=HTMLResponse)
+@router.get("/admin/users", response_class=HTMLResponse, dependencies=[Depends(require_web_admin)])
 def admin_users(request: Request) -> HTMLResponse:
     return _render(
         request,
@@ -256,7 +232,9 @@ def admin_users(request: Request) -> HTMLResponse:
     )
 
 
-@router.get("/admin/organizations", response_class=HTMLResponse)
+@router.get(
+    "/admin/organizations", response_class=HTMLResponse, dependencies=[Depends(require_web_admin)]
+)
 def admin_organizations(request: Request) -> HTMLResponse:
     return _render(
         request,
@@ -267,7 +245,9 @@ def admin_organizations(request: Request) -> HTMLResponse:
     )
 
 
-@router.get("/admin/projects", response_class=HTMLResponse)
+@router.get(
+    "/admin/projects", response_class=HTMLResponse, dependencies=[Depends(require_web_admin)]
+)
 def admin_projects(request: Request) -> HTMLResponse:
     return _render(
         request,

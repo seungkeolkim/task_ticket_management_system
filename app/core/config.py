@@ -5,6 +5,7 @@ import os
 import tomllib
 from functools import lru_cache
 from typing import Any, Literal
+from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -75,9 +76,46 @@ class TicketTrashSettings(StrictSettingsModel):
 
 class SessionSettings(StrictSettingsModel):
     lifetime_minutes: int = Field(default=480, ge=1)
-    cookie_name: str = "ttms_session"
+    cookie_name: str = Field(default="ttms_session", pattern=r"^[A-Za-z][A-Za-z0-9_]*$")
     cookie_secure: bool = False
     cookie_samesite: Literal["lax", "strict", "none"] = "lax"
+
+    @model_validator(mode="after")
+    def validate_cookie(self) -> SessionSettings:
+        if self.cookie_samesite == "none" and not self.cookie_secure:
+            raise ValueError("SameSite=None requires cookie_secure=true")
+        return self
+
+
+class AuthSettings(StrictSettingsModel):
+    login_window_seconds: int = Field(default=900, ge=1)
+    login_max_failures: int = Field(default=5, ge=1)
+    login_max_ip_failures: int = Field(default=30, ge=1)
+    csrf_lifetime_minutes: int = Field(default=30, ge=1)
+    public_origin: str | None = None
+
+    @model_validator(mode="after")
+    def validate_origin(self) -> AuthSettings:
+        if self.public_origin is not None:
+            value = urlsplit(self.public_origin)
+            if (
+                value.scheme not in {"http", "https"}
+                or not value.hostname
+                or value.username
+                or value.password
+                or value.path not in {"", "/"}
+                or value.query
+                or value.fragment
+            ):
+                raise ValueError("auth.public_origin must contain only an HTTP(S) origin")
+            _ = value.port
+            self.public_origin = self.public_origin.rstrip("/")
+        return self
+
+
+class BootstrapSettings(StrictSettingsModel):
+    organization_key: str = Field(default="default", min_length=1, max_length=64)
+    organization_name: str = Field(default="기본 조직", min_length=1, max_length=200)
 
 
 class PaginationSettings(StrictSettingsModel):
@@ -110,20 +148,18 @@ class Settings(StrictSettingsModel):
     audit: AuditSettings = Field(default_factory=AuditSettings)
     ticket_trash: TicketTrashSettings = Field(default_factory=TicketTrashSettings)
     session: SessionSettings = Field(default_factory=SessionSettings)
+    auth: AuthSettings = Field(default_factory=AuthSettings)
+    bootstrap: BootstrapSettings = Field(default_factory=BootstrapSettings)
     pagination: PaginationSettings = Field(default_factory=PaginationSettings)
     backup: BackupSettings = Field(default_factory=BackupSettings)
 
     @property
     def database_directory(self) -> str:
-        return os.path.abspath(
-            os.path.join(self.storage.data_root, self.storage.database_dir)
-        )
+        return os.path.abspath(os.path.join(self.storage.data_root, self.storage.database_dir))
 
     @property
     def attachments_directory(self) -> str:
-        return os.path.abspath(
-            os.path.join(self.storage.data_root, self.storage.attachments_dir)
-        )
+        return os.path.abspath(os.path.join(self.storage.data_root, self.storage.attachments_dir))
 
     @property
     def backups_directory(self) -> str:
@@ -204,9 +240,10 @@ def _deep_merge(base: dict[str, Any], overrides: dict[str, Any]) -> dict[str, An
 
 
 def load_settings(config_file: str | None = None) -> Settings:
-    data_root = os.getenv("APP_DATA_ROOT", "./data")
-    resolved_config_file = config_file or os.getenv("APP_CONFIG_FILE") or os.path.join(
-        data_root, "config", "application.toml"
+    resolved_config_file = (
+        config_file
+        or os.getenv("APP_CONFIG_FILE")
+        or os.path.join(".", "config", "application.toml")
     )
     file_settings = _read_toml(resolved_config_file)
     merged_settings = _deep_merge(file_settings, _environment_overrides())

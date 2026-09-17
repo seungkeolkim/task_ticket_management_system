@@ -1,12 +1,41 @@
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
+
+from app.domain.auth import hash_password
+from app.models import Organization, User
+
+
+@pytest.fixture
+def authenticated_client(client: TestClient, db_session: Session) -> TestClient:
+    organization = Organization(key="mockup-test", name="검증 조직")
+    db_session.add(organization)
+    db_session.flush()
+    db_session.add(
+        User(
+            login_id="reviewer",
+            display_name="검증 사용자",
+            organization_id=organization.id,
+            password_hash=hash_password("Mockup-test-pass1"),
+            system_role="SYSTEM_ADMIN",
+            must_change_password=False,
+        )
+    )
+    db_session.commit()
+    token = client.get("/api/auth/csrf").json()["csrf_token"]
+    result = client.post(
+        "/api/auth/login",
+        json={"login_id": "reviewer", "password": "Mockup-test-pass1"},
+        headers={"Origin": "http://testserver", "X-CSRF-Token": token},
+    )
+    assert result.status_code == 200
+    return client
 
 
 @pytest.mark.parametrize(
     ("path", "expected_text"),
     [
         ("/", "좋은 오후예요"),
-        ("/login", "워크스페이스에 로그인"),
         ("/account/password", "새 비밀번호 설정"),
         ("/projects", "내 프로젝트"),
         ("/projects/OPS/tickets", "저장 필터"),
@@ -23,22 +52,30 @@ from fastapi.testclient import TestClient
     ],
 )
 def test_mockup_page_is_available(
-    client: TestClient,
+    authenticated_client: TestClient,
     path: str,
     expected_text: str,
 ) -> None:
-    response = client.get(path)
+    response = authenticated_client.get(path)
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/html")
     assert expected_text in response.text
 
 
-def test_root_is_the_unauthenticated_dashboard(client: TestClient) -> None:
+def test_root_redirects_to_login_when_unauthenticated(client: TestClient) -> None:
+    response = client.get("/", follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login?next=%2F"
+
+
+def test_root_retains_authenticated_dashboard(authenticated_client: TestClient) -> None:
+    client = authenticated_client
     response = client.get("/")
 
     assert response.status_code == 200
-    assert "화면 구조 검토용 목업" in response.text
+    assert "업무 화면은 예시 데이터" in response.text
+    assert "검증 사용자" in response.text
     assert 'href="/projects/OPS/tickets/new"' in response.text
 
 
@@ -47,4 +84,3 @@ def test_mockup_static_styles_are_served(client: TestClient) -> None:
 
     assert response.status_code == 200
     assert "--primary:" in response.text
-

@@ -1,0 +1,776 @@
+{
+  "$defs": {
+    "FieldChange": {
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Field",
+          "type": "string"
+        },
+        "before": {
+          "$ref": "#/$defs/JsonValue"
+        },
+        "after": {
+          "$ref": "#/$defs/JsonValue"
+        }
+      },
+      "required": [
+        "field",
+        "before",
+        "after"
+      ],
+      "title": "FieldChange",
+      "type": "object"
+    },
+    "HistoryEventType": {
+      "enum": [
+        "CREATED",
+        "UPDATED",
+        "STATUS_CHANGED",
+        "RELATION_CHANGED",
+        "CONTENT_CHANGED",
+        "DELETED",
+        "RESTORED"
+      ],
+      "title": "HistoryEventType",
+      "type": "string"
+    },
+    "JsonValue": {},
+    "Priority": {
+      "enum": [
+        "TRIVIAL",
+        "MINOR",
+        "MAJOR",
+        "CRITICAL",
+        "BLOCKER"
+      ],
+      "title": "Priority",
+      "type": "string"
+    },
+    "RelationSnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "source_ticket_key": {
+          "title": "Source Ticket Key",
+          "type": "string"
+        },
+        "target_ticket_key": {
+          "title": "Target Ticket Key",
+          "type": "string"
+        },
+        "relation_type": {
+          "$ref": "#/$defs/RelationType"
+        },
+        "dependency_kind": {
+          "anyOf": [
+            {
+              "enum": [
+                "FS",
+                "SS",
+                "FF",
+                "SF"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dependency Kind"
+        },
+        "lag_days": {
+          "default": 0,
+          "title": "Lag Days",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "source_ticket_key",
+        "target_ticket_key",
+        "relation_type"
+      ],
+      "title": "RelationSnapshot",
+      "type": "object"
+    },
+    "RelationType": {
+      "enum": [
+        "RELATED",
+        "DEPENDS_ON"
+      ],
+      "title": "RelationType",
+      "type": "string"
+    },
+    "ReportPeriod": {
+      "additionalProperties": false,
+      "properties": {
+        "start": {
+          "format": "date-time",
+          "title": "Start",
+          "type": "string"
+        },
+        "end": {
+          "format": "date-time",
+          "title": "End",
+          "type": "string"
+        },
+        "timezone": {
+          "default": "Asia/Seoul",
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Timezone",
+          "type": "string"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "title": "ReportPeriod",
+      "type": "object"
+    },
+    "ReportTicketEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "source_id": {
+          "pattern": "^ticket:[A-Za-z0-9_-]+$",
+          "title": "Source Id",
+          "type": "string"
+        },
+        "ticket_key": {
+          "title": "Ticket Key",
+          "type": "string"
+        },
+        "project_id": {
+          "exclusiveMinimum": 0,
+          "title": "Project Id",
+          "type": "integer"
+        },
+        "state_at_start": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TicketState"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state_at_end": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TicketState"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "events": {
+          "items": {
+            "$ref": "#/$defs/TicketEvent"
+          },
+          "title": "Events",
+          "type": "array"
+        }
+      },
+      "required": [
+        "source_id",
+        "ticket_key",
+        "project_id",
+        "state_at_start",
+        "state_at_end"
+      ],
+      "title": "ReportTicketEvidence",
+      "type": "object"
+    },
+    "TicketEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "event_key": {
+          "format": "uuid",
+          "title": "Event Key",
+          "type": "string"
+        },
+        "operation_id": {
+          "format": "uuid",
+          "title": "Operation Id",
+          "type": "string"
+        },
+        "ticket_key": {
+          "title": "Ticket Key",
+          "type": "string"
+        },
+        "project_id": {
+          "exclusiveMinimum": 0,
+          "title": "Project Id",
+          "type": "integer"
+        },
+        "ticket_version": {
+          "exclusiveMinimum": 0,
+          "title": "Ticket Version",
+          "type": "integer"
+        },
+        "event_type": {
+          "$ref": "#/$defs/HistoryEventType"
+        },
+        "actor_id": {
+          "exclusiveMinimum": 0,
+          "title": "Actor Id",
+          "type": "integer"
+        },
+        "occurred_at": {
+          "format": "date-time",
+          "title": "Occurred At",
+          "type": "string"
+        },
+        "before_state": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TicketState"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "after_state": {
+          "$ref": "#/$defs/TicketState"
+        },
+        "changes": {
+          "items": {
+            "$ref": "#/$defs/FieldChange"
+          },
+          "title": "Changes",
+          "type": "array"
+        }
+      },
+      "required": [
+        "event_key",
+        "operation_id",
+        "ticket_key",
+        "project_id",
+        "ticket_version",
+        "event_type",
+        "actor_id",
+        "occurred_at",
+        "before_state",
+        "after_state",
+        "changes"
+      ],
+      "title": "TicketEvent",
+      "type": "object"
+    },
+    "TicketFilter": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "query": {
+          "default": "",
+          "maxLength": 200,
+          "title": "Query",
+          "type": "string"
+        },
+        "types": {
+          "items": {
+            "$ref": "#/$defs/TicketType"
+          },
+          "title": "Types",
+          "type": "array"
+        },
+        "statuses": {
+          "items": {
+            "$ref": "#/$defs/TicketStatus"
+          },
+          "title": "Statuses",
+          "type": "array"
+        },
+        "priorities": {
+          "items": {
+            "$ref": "#/$defs/Priority"
+          },
+          "title": "Priorities",
+          "type": "array"
+        },
+        "epic_id": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Epic Id"
+        },
+        "parent_id": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Id"
+        },
+        "creator_ids": {
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "integer"
+          },
+          "title": "Creator Ids",
+          "type": "array"
+        },
+        "assignee_ids": {
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "integer"
+          },
+          "title": "Assignee Ids",
+          "type": "array"
+        },
+        "unassigned": {
+          "default": false,
+          "title": "Unassigned",
+          "type": "boolean"
+        },
+        "created_from": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Created From"
+        },
+        "created_before": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Created Before"
+        },
+        "updated_from": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Updated From"
+        },
+        "updated_before": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Updated Before"
+        },
+        "due_from": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Due From"
+        },
+        "due_through": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Due Through"
+        },
+        "sort_by": {
+          "default": "updated_at",
+          "enum": [
+            "created_at",
+            "updated_at",
+            "due_date",
+            "priority",
+            "number"
+          ],
+          "title": "Sort By",
+          "type": "string"
+        },
+        "sort_direction": {
+          "default": "desc",
+          "enum": [
+            "asc",
+            "desc"
+          ],
+          "title": "Sort Direction",
+          "type": "string"
+        },
+        "page_size": {
+          "default": 20,
+          "enum": [
+            10,
+            20,
+            50
+          ],
+          "title": "Page Size",
+          "type": "integer"
+        }
+      },
+      "title": "TicketFilter",
+      "type": "object"
+    },
+    "TicketState": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "ticket_key": {
+          "title": "Ticket Key",
+          "type": "string"
+        },
+        "project_id": {
+          "exclusiveMinimum": 0,
+          "title": "Project Id",
+          "type": "integer"
+        },
+        "version": {
+          "exclusiveMinimum": 0,
+          "title": "Version",
+          "type": "integer"
+        },
+        "type": {
+          "$ref": "#/$defs/TicketType"
+        },
+        "title": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "body_schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Body Schema Version",
+          "type": "integer"
+        },
+        "status": {
+          "$ref": "#/$defs/TicketStatus"
+        },
+        "priority": {
+          "$ref": "#/$defs/Priority"
+        },
+        "parent_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Key"
+        },
+        "creator_id": {
+          "exclusiveMinimum": 0,
+          "title": "Creator Id",
+          "type": "integer"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        },
+        "assignee_id": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Assignee Id"
+        },
+        "due_date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Due Date"
+        },
+        "planned_start_date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Planned Start Date"
+        },
+        "planned_end_date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Planned End Date"
+        },
+        "actual_started_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Actual Started At"
+        },
+        "completed_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Completed At"
+        },
+        "cancelled_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cancelled At"
+        },
+        "progress_percent": {
+          "default": 0,
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Progress Percent",
+          "type": "integer"
+        },
+        "is_milestone": {
+          "default": false,
+          "title": "Is Milestone",
+          "type": "boolean"
+        },
+        "sort_order": {
+          "default": "0",
+          "title": "Sort Order",
+          "type": "string"
+        },
+        "deleted_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Deleted At"
+        },
+        "relations": {
+          "items": {
+            "$ref": "#/$defs/RelationSnapshot"
+          },
+          "title": "Relations",
+          "type": "array"
+        }
+      },
+      "required": [
+        "ticket_key",
+        "project_id",
+        "version",
+        "type",
+        "title",
+        "status",
+        "priority",
+        "creator_id",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "TicketState",
+      "type": "object"
+    },
+    "TicketStatus": {
+      "enum": [
+        "TODO",
+        "IN_PROGRESS",
+        "DONE",
+        "ON_HOLD",
+        "CANCELLED"
+      ],
+      "title": "TicketStatus",
+      "type": "string"
+    },
+    "TicketType": {
+      "enum": [
+        "EPIC",
+        "TASK",
+        "SUBTASK"
+      ],
+      "title": "TicketType",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "run_key": {
+      "format": "uuid",
+      "title": "Run Key",
+      "type": "string"
+    },
+    "period": {
+      "$ref": "#/$defs/ReportPeriod"
+    },
+    "project_ids": {
+      "items": {
+        "exclusiveMinimum": 0,
+        "type": "integer"
+      },
+      "minItems": 1,
+      "title": "Project Ids",
+      "type": "array"
+    },
+    "selection": {
+      "$ref": "#/$defs/TicketFilter"
+    },
+    "captured_at": {
+      "format": "date-time",
+      "title": "Captured At",
+      "type": "string"
+    },
+    "coverage": {
+      "enum": [
+        "COMPLETE",
+        "PARTIAL"
+      ],
+      "title": "Coverage",
+      "type": "string"
+    },
+    "coverage_notes": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Coverage Notes",
+      "type": "array"
+    },
+    "tickets": {
+      "items": {
+        "$ref": "#/$defs/ReportTicketEvidence"
+      },
+      "title": "Tickets",
+      "type": "array"
+    }
+  },
+  "required": [
+    "run_key",
+    "period",
+    "project_ids",
+    "selection",
+    "captured_at",
+    "coverage",
+    "tickets"
+  ],
+  "title": "ReportInput",
+  "type": "object"
+}

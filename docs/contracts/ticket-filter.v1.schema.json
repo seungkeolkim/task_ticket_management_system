@@ -1,0 +1,229 @@
+{
+  "$defs": {
+    "Priority": {
+      "enum": [
+        "TRIVIAL",
+        "MINOR",
+        "MAJOR",
+        "CRITICAL",
+        "BLOCKER"
+      ],
+      "title": "Priority",
+      "type": "string"
+    },
+    "TicketStatus": {
+      "enum": [
+        "TODO",
+        "IN_PROGRESS",
+        "DONE",
+        "ON_HOLD",
+        "CANCELLED"
+      ],
+      "title": "TicketStatus",
+      "type": "string"
+    },
+    "TicketType": {
+      "enum": [
+        "EPIC",
+        "TASK",
+        "SUBTASK"
+      ],
+      "title": "TicketType",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "query": {
+      "default": "",
+      "maxLength": 200,
+      "title": "Query",
+      "type": "string"
+    },
+    "types": {
+      "items": {
+        "$ref": "#/$defs/TicketType"
+      },
+      "title": "Types",
+      "type": "array"
+    },
+    "statuses": {
+      "items": {
+        "$ref": "#/$defs/TicketStatus"
+      },
+      "title": "Statuses",
+      "type": "array"
+    },
+    "priorities": {
+      "items": {
+        "$ref": "#/$defs/Priority"
+      },
+      "title": "Priorities",
+      "type": "array"
+    },
+    "epic_id": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Epic Id"
+    },
+    "parent_id": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Parent Id"
+    },
+    "creator_ids": {
+      "items": {
+        "exclusiveMinimum": 0,
+        "type": "integer"
+      },
+      "title": "Creator Ids",
+      "type": "array"
+    },
+    "assignee_ids": {
+      "items": {
+        "exclusiveMinimum": 0,
+        "type": "integer"
+      },
+      "title": "Assignee Ids",
+      "type": "array"
+    },
+    "unassigned": {
+      "default": false,
+      "title": "Unassigned",
+      "type": "boolean"
+    },
+    "created_from": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Created From"
+    },
+    "created_before": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Created Before"
+    },
+    "updated_from": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Updated From"
+    },
+    "updated_before": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Updated Before"
+    },
+    "due_from": {
+      "anyOf": [
+        {
+          "format": "date",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Due From"
+    },
+    "due_through": {
+      "anyOf": [
+        {
+          "format": "date",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Due Through"
+    },
+    "sort_by": {
+      "default": "updated_at",
+      "enum": [
+        "created_at",
+        "updated_at",
+        "due_date",
+        "priority",
+        "number"
+      ],
+      "title": "Sort By",
+      "type": "string"
+    },
+    "sort_direction": {
+      "default": "desc",
+      "enum": [
+        "asc",
+        "desc"
+      ],
+      "title": "Sort Direction",
+      "type": "string"
+    },
+    "page_size": {
+      "default": 20,
+      "enum": [
+        10,
+        20,
+        50
+      ],
+      "title": "Page Size",
+      "type": "integer"
+    }
+  },
+  "title": "TicketFilter",
+  "type": "object"
+}

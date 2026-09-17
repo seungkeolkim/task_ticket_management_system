@@ -7,23 +7,27 @@ services:
       dockerfile: Dockerfile
     init: true
     restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
     ports:
-      - "${APP_PORT:-8000}:8000"
+      - "${APP_PORT:?Run sh ./run_compose.sh start}:${APP_PORT:?Run sh ./run_compose.sh start}"
     environment:
-      APP_CONFIG_FILE: "${APP_CONFIG_FILE:-/app/data/config/application.toml}"
-      APP_DATA_ROOT: "${APP_DATA_ROOT:-/app/data}"
+      APP_CONFIG_FILE: "/app/config/application.toml"
+      APP_DATA_ROOT: "/app/data"
+      TTMS__SERVER__PORT: "${APP_PORT:?Run sh ./run_compose.sh start}"
     volumes:
       - ./data:/app/data
+      - "${HOST_CONFIG_FILE:?Run sh ./run_compose.sh start}:/app/config/application.toml:ro"
     healthcheck:
       test:
         [
           "CMD",
           "python",
           "-c",
-          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=2)",
+          "import os, urllib.request; port = os.environ['TTMS__SERVER__PORT']; urllib.request.urlopen(f'http://127.0.0.1:{port}/health/ready', timeout=2)",
         ]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 10s
-

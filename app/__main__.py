@@ -21,6 +21,7 @@ def main() -> None:
         reload=False,
         log_level=settings.app.log_level.lower(),
         log_config=None,
+        proxy_headers=False,
     )
 
 

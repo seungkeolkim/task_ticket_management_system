@@ -1,0 +1,68 @@
+{
+  "$defs": {
+    "JsonValue": {}
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "key": {
+      "maxLength": 100,
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "title": "Key",
+      "type": "string"
+    },
+    "version": {
+      "exclusiveMinimum": 0,
+      "title": "Version",
+      "type": "integer"
+    },
+    "name": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "description": {
+      "title": "Description",
+      "type": "string"
+    },
+    "instructions_markdown": {
+      "minLength": 1,
+      "title": "Instructions Markdown",
+      "type": "string"
+    },
+    "input_contract": {
+      "const": "report-input/v1",
+      "default": "report-input/v1",
+      "title": "Input Contract",
+      "type": "string"
+    },
+    "output_contract": {
+      "const": "report-output/v1",
+      "default": "report-output/v1",
+      "title": "Output Contract",
+      "type": "string"
+    },
+    "generation_defaults": {
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      },
+      "title": "Generation Defaults",
+      "type": "object"
+    }
+  },
+  "required": [
+    "key",
+    "version",
+    "name",
+    "description",
+    "instructions_markdown"
+  ],
+  "title": "ReportSkillDefinition",
+  "type": "object"
+}

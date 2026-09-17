@@ -49,6 +49,18 @@ cookie_name = "ttms_session"
 cookie_secure = false
 cookie_samesite = "lax"
 
+[auth]
+login_window_seconds = 900
+login_max_failures = 5
+login_max_ip_failures = 30
+csrf_lifetime_minutes = 30
+# Set to the browser-facing origin when using an HTTPS reverse proxy.
+# public_origin = "https://tasks.example.com"
+
+[bootstrap]
+organization_key = "default"
+organization_name = "기본 조직"
+
 [pagination]
 default_size = 20
 allowed_sizes = [10, 20, 50]
