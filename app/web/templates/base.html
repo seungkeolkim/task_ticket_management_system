@@ -16,7 +16,7 @@
           <span class="brand-symbol"><span></span><span></span><span></span></span>
           <span>taskflow</span>
         </a>
-        <span class="mock-chip">MOCKUP</span>
+        {% if not live_page %}<span class="mock-chip">MOCKUP</span>{% endif %}
       </div>
 
       <nav class="sidebar-nav" aria-label="주 메뉴">
@@ -100,7 +100,7 @@
 
       <div class="prototype-note">
         <span class="prototype-dot"></span>
-        업무 화면은 예시 데이터입니다. 로그인과 비밀번호 변경은 실제 계정에 적용됩니다.
+        {% if live_page %}사용자·조직 관리의 조회와 생성은 실제 데이터에 적용됩니다.{% else %}이 업무 화면은 예시 데이터입니다. 인증과 사용자·조직 관리는 실제 데이터에 적용됩니다.{% endif %}
       </div>
 
       <main class="page-content">

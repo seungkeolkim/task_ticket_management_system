@@ -6,11 +6,9 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from app.web.mock_data import (
     MEMBERS,
     MENTIONS,
-    ORGANIZATION_TREE,
     PROJECTS,
     TICKETS,
     TRASH_TICKETS,
-    USERS,
 )
 from app.web.rendering import STATIC_DIRECTORY, render  # noqa: F401
 from app.web.security import require_web_admin, require_web_user
@@ -218,30 +216,6 @@ def project_trash(request: Request, project_key: str) -> HTMLResponse:
         active="trash",
         project=project,
         trash_tickets=TRASH_TICKETS,
-    )
-
-
-@router.get("/admin/users", response_class=HTMLResponse, dependencies=[Depends(require_web_admin)])
-def admin_users(request: Request) -> HTMLResponse:
-    return _render(
-        request,
-        "admin_users.html",
-        page_title="사용자 관리",
-        active="admin-users",
-        users=USERS,
-    )
-
-
-@router.get(
-    "/admin/organizations", response_class=HTMLResponse, dependencies=[Depends(require_web_admin)]
-)
-def admin_organizations(request: Request) -> HTMLResponse:
-    return _render(
-        request,
-        "admin_organizations.html",
-        page_title="조직 관리",
-        active="admin-organizations",
-        organization_tree=ORGANIZATION_TREE,
     )
 
 

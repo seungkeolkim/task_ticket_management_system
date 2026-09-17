@@ -11,6 +11,7 @@ FastAPI, SQLAlchemy, Alembic, and SQLite를 사용하는 사내용 태스크·�
 - [DB 설계 규칙](docs/database_conventions.md)
 - [시스템 로깅 규약](docs/logging_conventions.md)
 - [로그인·초기 관리자 설정](docs/authentication.md)
+- [사용자·조직 관리](docs/administration.md)
 
 ## Docker로 실행
 
@@ -33,7 +34,7 @@ Docker Compose는 호스트의 `data` 디렉터리를 컨테이너의 `/app/data
 
 Compose는 TOML을 직접 해석할 수 없으므로 직접 `docker compose up`을 실행하면 필수 포트 변수가 없다는 오류와 함께 중단됩니다. 항상 실행 래퍼를 사용하면 설정 변경과 포트 매핑이 어긋나지 않습니다. 다른 호스트 설정 파일을 사용하려면 절대 경로로 `APP_CONFIG_FILE=/path/to/application.toml sh ./run_compose.sh start`를 실행합니다.
 
-루트 `/`는 내 작업 대시보드이며 로그인하지 않았다면 로그인 화면으로 이동합니다. 로그인·비밀번호 변경·로그아웃은 실제 계정에 연결되어 있고, 업무 화면은 아직 예시 데이터입니다. 최초 실행 전 [초기 관리자 설정](docs/authentication.md)에 따라 CLI 또는 bootstrap 환경 변수로 관리자를 생성하세요.
+루트 `/`는 내 작업 대시보드이며 로그인하지 않았다면 로그인 화면으로 이동합니다. 인증과 사용자·조직의 조회·생성은 실제 DB에 연결되어 있고, 프로젝트·티켓 화면은 아직 예시 데이터입니다. 최초 실행 전 [초기 관리자 설정](docs/authentication.md)에 따라 CLI 또는 bootstrap 환경 변수로 관리자를 생성하세요.
 
 ## 로컬 개발
 

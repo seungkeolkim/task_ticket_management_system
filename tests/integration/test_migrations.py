@@ -58,6 +58,27 @@ def test_migration_matches_model_metadata(
     command.check(alembic_config)
 
 
+def test_populated_organization_tree_can_downgrade_to_base(alembic_config, database_url):
+    command.upgrade(alembic_config, "head")
+    engine = create_database_engine(database_url)
+    try:
+        with Session(engine) as session:
+            root = Organization(key="rollback-root", name="본부")
+            session.add(root)
+            session.flush()
+            child = Organization(key="rollback-child", name="팀", parent_id=root.id)
+            session.add(child)
+            session.flush()
+            session.add(Organization(key="rollback-leaf", name="파트", parent_id=child.id))
+            session.commit()
+        command.downgrade(alembic_config, "base")
+        assert (DOMAIN_TABLES | MVP_TABLES).isdisjoint(inspect(engine).get_table_names())
+        command.upgrade(alembic_config, "head")
+        command.check(alembic_config)
+    finally:
+        engine.dispose()
+
+
 def test_migrated_checks_match_models(migrated_database_url: str) -> None:
     # Alembic check does not detect every CHECK constraint difference.
     engine = create_database_engine(migrated_database_url)

@@ -215,4 +215,7 @@ def downgrade() -> None:
 
     op.drop_index("ix_organizations_parent_id_name", table_name="organizations")
     op.drop_index(op.f("ix_organizations_parent_id"), table_name="organizations")
+    # SQLite DROP TABLE performs an implicit DELETE; detach the self-RESTRICT
+    # links before intentionally removing all organizations during full rollback.
+    op.execute(sa.text("UPDATE organizations SET parent_id = NULL"))
     op.drop_table("organizations")
