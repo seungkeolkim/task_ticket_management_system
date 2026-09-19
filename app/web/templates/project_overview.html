@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="page-header compact-header"><div><span class="eyebrow">{{ project.key }}</span><h1>{{ project.name }}</h1><p>프로젝트 기본 정보</p></div><a class="button primary" href="/projects/{{ project.key }}/members">구성원과 역할</a></header>
+{% if created %}<div class="auth-message success" role="status">프로젝트를 생성하고 최초 관리자를 등록했습니다.</div>{% endif %}
+{% if pending %}<div class="auth-message" role="status">이 업무 기능은 준비 중입니다. 현재 프로젝트 정보 조회와 참여자 등록을 이용할 수 있습니다.</div>{% endif %}
+<section class="panel admin-create-panel"><h2>프로젝트 프로필</h2><p class="project-description">{{ project.description or '등록된 설명이 없습니다.' }}</p><p>상태: {{ '활성' if project.is_active else '비활성' }} · 참여자 {{ members|length }}명</p><p>프로젝트 키: {{ project.key }} (변경 불가)</p>{% if current_user.is_admin and not project.role %}<p class="audit-hint">시스템 관리자 접근은 감사 로그에 기록됩니다.</p>{% endif %}</section>
+{% endblock %}

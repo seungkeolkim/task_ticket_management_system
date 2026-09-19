@@ -34,7 +34,7 @@
           <div><strong>{{ project.key }}</strong><span>{{ project.name }}</span></div>
         </div>
         <a class="nav-item {% if active == 'tickets' %}is-active{% endif %}" href="/projects/{{ project.key }}/tickets">
-          <span class="nav-glyph">☷</span><span>티켓</span><span class="nav-count">24</span>
+          <span class="nav-glyph">☷</span><span>티켓</span>
         </a>
         <a class="nav-item {% if active == 'board' %}is-active{% endif %}" href="/projects/{{ project.key }}/board">
           <span class="nav-glyph">▦</span><span>칸반 보드</span>
@@ -87,9 +87,9 @@
           {% endif %}
         </div>
         <div class="topbar-actions">
-          <form class="global-search" action="{% if project %}/projects/{{ project.key }}/tickets{% else %}/projects{% endif %}" method="get">
+          <form class="global-search" action="{% if project and not live_page %}/projects/{{ project.key }}/tickets{% else %}/projects{% endif %}" method="get">
             <span>⌕</span>
-            <input name="q" aria-label="빠른 검색" placeholder="티켓 키 또는 제목 검색">
+            <input name="q" aria-label="빠른 검색" placeholder="{{ '프로젝트 이름 또는 키 검색' if live_page else '티켓 키 또는 제목 검색' }}">
             <kbd>/</kbd>
           </form>
           <a class="icon-button" href="/" aria-label="알림"><span>♢</span><i></i></a>
@@ -100,7 +100,7 @@
 
       <div class="prototype-note">
         <span class="prototype-dot"></span>
-        {% if live_page %}사용자·조직 관리의 조회와 생성은 실제 데이터에 적용됩니다.{% else %}이 업무 화면은 예시 데이터입니다. 인증과 사용자·조직 관리는 실제 데이터에 적용됩니다.{% endif %}
+        {% if live_page %}조회·생성과 프로젝트 참여자 등록은 실제 데이터에 적용됩니다.{% else %}이 업무 화면은 예시 데이터입니다. 인증·사용자·조직·프로젝트 관리는 실제 데이터에 적용됩니다.{% endif %}
       </div>
 
       <main class="page-content">

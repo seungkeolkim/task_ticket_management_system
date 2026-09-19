@@ -11,14 +11,14 @@ services:
       - path: .env
         required: false
     ports:
-      - "${APP_PORT:?Run sh ./run_compose.sh start}:${APP_PORT:?Run sh ./run_compose.sh start}"
+      - "${APP_PORT:?Run run_compose.sh or run_compose.ps1 start}:${APP_PORT:?Run run_compose.sh or run_compose.ps1 start}"
     environment:
       APP_CONFIG_FILE: "/app/config/application.toml"
       APP_DATA_ROOT: "/app/data"
-      TTMS__SERVER__PORT: "${APP_PORT:?Run sh ./run_compose.sh start}"
+      TTMS__SERVER__PORT: "${APP_PORT:?Run run_compose.sh or run_compose.ps1 start}"
     volumes:
       - ./data:/app/data
-      - "${HOST_CONFIG_FILE:?Run sh ./run_compose.sh start}:/app/config/application.toml:ro"
+      - "${HOST_CONFIG_FILE:?Run run_compose.sh or run_compose.ps1 start}:/app/config/application.toml:ro"
     healthcheck:
       test:
         [

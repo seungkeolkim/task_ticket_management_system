@@ -3,7 +3,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.domain.auth import hash_password
-from app.models import Organization, User
+from app.models import Organization, Project, ProjectMember, User
 
 
 @pytest.fixture
@@ -11,16 +11,20 @@ def authenticated_client(client: TestClient, db_session: Session) -> TestClient:
     organization = Organization(key="mockup-test", name="검증 조직")
     db_session.add(organization)
     db_session.flush()
-    db_session.add(
-        User(
-            login_id="reviewer",
-            display_name="검증 사용자",
-            organization_id=organization.id,
-            password_hash=hash_password("Mockup-test-pass1"),
-            system_role="SYSTEM_ADMIN",
-            must_change_password=False,
-        )
+    account = User(
+        login_id="reviewer",
+        display_name="검증 사용자",
+        organization_id=organization.id,
+        password_hash=hash_password("Mockup-test-pass1"),
+        system_role="SYSTEM_ADMIN",
+        must_change_password=False,
     )
+    db_session.add(account)
+    db_session.flush()
+    project = Project(key="OPS", name="검증 프로젝트", created_by_id=account.id)
+    db_session.add(project)
+    db_session.flush()
+    db_session.add(ProjectMember(project_id=project.id, user_id=account.id, role="PROJECT_ADMIN"))
     db_session.commit()
     token = client.get("/api/auth/csrf").json()["csrf_token"]
     result = client.post(
@@ -38,14 +42,14 @@ def authenticated_client(client: TestClient, db_session: Session) -> TestClient:
         ("/", "좋은 오후예요"),
         ("/account/password", "새 비밀번호 설정"),
         ("/projects", "내 프로젝트"),
-        ("/projects/OPS/tickets", "저장 필터"),
-        ("/projects/OPS/tickets/new", "새 티켓 만들기"),
-        ("/projects/OPS/tickets/OPS-142", "티켓 관계"),
-        ("/projects/OPS/tickets/OPS-142/edit", "티켓 편집"),
-        ("/projects/OPS/board", "칸반 보드"),
+        ("/projects/OPS/tickets", "이 업무 기능은 준비 중"),
+        ("/projects/OPS/tickets/new", "이 업무 기능은 준비 중"),
+        ("/projects/OPS/tickets/OPS-142", "이 업무 기능은 준비 중"),
+        ("/projects/OPS/tickets/OPS-142/edit", "이 업무 기능은 준비 중"),
+        ("/projects/OPS/board", "이 업무 기능은 준비 중"),
         ("/projects/OPS/settings", "프로젝트 프로필"),
         ("/projects/OPS/members", "구성원과 역할"),
-        ("/projects/OPS/trash", "프로젝트 휴지통"),
+        ("/projects/OPS/trash", "이 업무 기능은 준비 중"),
         ("/admin/users", "사용자 관리"),
         ("/admin/organizations", "조직 구조"),
         ("/admin/projects", "전체 프로젝트 관리"),

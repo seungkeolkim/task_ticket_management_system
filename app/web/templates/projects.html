@@ -1,61 +1,44 @@
 {% extends "base.html" %}
-{% import "_macros.html" as ui %}
-
+{% set values = values|default({}) %}
 {% block content %}
-<header class="page-header">
-  <div>
-    <span class="eyebrow">PROJECTS</span>
-    <h1>내 프로젝트</h1>
-    <p>참여 중인 프로젝트를 선택해 업무 공간으로 이동하세요.</p>
-  </div>
-  <div class="page-actions">
-    <a class="button secondary" href="/admin/projects">전체 프로젝트 관리</a>
-  </div>
+<header class="page-header compact-header">
+  <div><span class="eyebrow">PROJECTS</span><h1>{{ page_title }}</h1><p>{{ '프로젝트를 생성하고 구성원을 지정합니다.' if admin_page else '참여자로 등록된 프로젝트입니다. 조직 소속만으로는 접근 권한이 생기지 않습니다.' }}</p></div>
+  {% if current_user.is_admin %}<a class="button secondary" href="{{ '/projects' if admin_page else '/admin/projects' }}">{{ '내 프로젝트' if admin_page else '전체 프로젝트 관리' }}</a>{% endif %}
 </header>
-
-<div class="toolbar-card">
-  <label class="search-field grow"><span>⌕</span><input placeholder="프로젝트 이름 또는 키 검색"></label>
-  <div class="segmented"><button class="is-selected" type="button">활성</button><button type="button">전체</button></div>
-  <select class="select-control" aria-label="정렬"><option>최근 활동순</option><option>이름순</option></select>
-</div>
-
-<section class="project-card-grid">
-  {% for item in projects %}
-  <article class="project-card">
-    <div class="project-card-head">
-      {{ ui.project_mark(item, 'lg') }}
-      <span class="role-pill">{{ item.role }}</span>
-    </div>
-    <div class="project-card-copy">
-      <span class="ticket-key">{{ item.key }}</span>
-      <h2>{{ item.name }}</h2>
-      <p>{{ item.description }}</p>
-    </div>
-    <div class="project-stats">
-      <div><strong>{{ item.open_count }}</strong><span>열린 티켓</span></div>
-      <div><strong>{{ item.member_count }}</strong><span>구성원</span></div>
-      <div><strong>{{ item.progress }}%</strong><span>진행률</span></div>
-    </div>
-    <div class="project-progress"><i style="width: {{ item.progress }}%"></i></div>
-    <div class="project-card-foot"><span>최근 활동 {{ item.updated }}</span><a href="/projects/{{ item.key }}/tickets">프로젝트 열기 →</a></div>
-  </article>
-  {% endfor %}
-</section>
-
-<section class="panel list-panel">
-  <div class="panel-header"><div><h2>최근 본 티켓</h2><p>프로젝트를 넘나들며 이어서 작업하세요.</p></div></div>
-  <div class="simple-table">
-    <div class="simple-table-head"><span>티켓</span><span>프로젝트</span><span>상태</span><span>담당자</span><span>수정</span></div>
-    {% for ticket in [
-      {'key':'OPS-142','title':'배포 승인 흐름에 검토 단계 추가','project':'운영 플랫폼 고도화','status':'진행중','status_code':'progress','assignee':'김민준','updated':'12분 전'},
-      {'key':'WEB-87','title':'검색 결과 필터 사용성 개선','project':'고객 포털 개편','status':'등록','status_code':'todo','assignee':'박서연','updated':'2시간 전'},
-      {'key':'DATA-39','title':'일별 정합성 리포트 자동화','project':'데이터 품질 개선','status':'보류','status_code':'hold','assignee':'최유진','updated':'어제'}
-    ] %}
-    <a class="simple-table-row" href="{% if ticket.key == 'OPS-142' %}/projects/OPS/tickets/OPS-142{% else %}/projects{% endif %}">
-      <span><b>{{ ticket.key }}</b>{{ ticket.title }}</span><span>{{ ticket.project }}</span><span>{{ ui.status_badge(ticket.status, ticket.status_code) }}</span><span>{{ ticket.assignee }}</span><span>{{ ticket.updated }}</span>
-    </a>
-    {% endfor %}
+{% if error %}<div class="auth-message error" role="alert">{{ error }}</div>{% endif %}
+<form method="get" class="toolbar-card">
+  <label class="search-field grow"><span>⌕</span><input name="q" aria-label="프로젝트 이름 또는 키 검색" placeholder="프로젝트 이름 또는 키 검색" maxlength="100" value="{{ q }}"></label>
+  <select name="page_size" class="select-control" aria-label="페이지 크기">{% for size in [10,20,50] %}<option value="{{ size }}" {% if result.page_size == size %}selected{% endif %}>{{ size }}개</option>{% endfor %}</select>
+  <button class="button secondary">검색</button>
+</form>
+<div class="{% if admin_page %}admin-live-layout{% endif %}">
+<section class="panel">
+  <div class="panel-header"><div><h2>프로젝트 목록</h2><p>총 {{ result.total }}개 · 이름순</p></div></div>
+  <div class="project-card-grid project-live-grid">
+  {% for item in result.projects %}
+    <article class="project-card">
+      <div class="project-card-head"><span class="ticket-key">{{ item.key }}</span><span class="role-pill">{{ '관리자' if item.role == 'PROJECT_ADMIN' else ('사용자' if item.role else '시스템 관리자 접근') }}</span></div>
+      <div class="project-card-copy"><h2>{{ item.name }}</h2><p>{{ item.description or '등록된 설명이 없습니다.' }}</p></div>
+      <div class="project-card-foot"><span>{{ '활성' if item.is_active else '비활성' }}</span><a href="/projects/{{ item.key }}">프로젝트 열기 →</a></div>
+    </article>
+  {% else %}<p class="empty-state">표시할 프로젝트가 없습니다.{% if not admin_page %} 프로젝트 관리자에게 참여자 등록을 요청하세요.{% endif %}</p>{% endfor %}
   </div>
+  <footer class="data-panel-foot"><span>{{ result.page }}페이지</span><div class="page-actions">{% if result.page > 1 %}<a class="button secondary" href="{{ previous_url }}">이전</a>{% endif %}{% if result.page * result.page_size < result.total %}<a class="button secondary" href="{{ next_url }}">다음</a>{% endif %}</div></footer>
 </section>
+{% if admin_page %}
+<aside class="panel admin-create-panel">
+  <h2>프로젝트 생성</h2><p>생성 후 프로젝트 키는 변경할 수 없습니다. 최초 관리자를 지정하세요.</p>
+  <form method="get" class="admin-create-form"><label>관리자 후보 검색<input name="candidate_q" value="{{ candidate_q }}" maxlength="100" placeholder="이름 또는 로그인 ID"></label><button class="button secondary">후보 검색</button></form>
+  <form method="post" action="/admin/projects" class="admin-create-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="candidate_q" value="{{ candidate_q }}">
+    <label>프로젝트 키<input name="key" required minlength="2" maxlength="32" pattern="[A-Za-z][A-Za-z0-9]{1,31}" placeholder="예: DEV" value="{{ values.get('key','') }}"></label>
+    <label>프로젝트명<input name="name" required maxlength="200" value="{{ values.get('name','') }}"></label>
+    <label>설명<textarea name="description" rows="4" maxlength="4000">{{ values.get('description','') }}</textarea></label>
+    <label>최초 프로젝트 관리자<select name="administrator_id" required><option value="">사용자 선택</option>{% for user in candidates %}<option value="{{ user.id }}" {% if values.get('administrator_id') == user.id|string %}selected{% endif %}>{{ user.display_name }} ({{ user.login_id }})</option>{% endfor %}</select></label>
+    <p>활성 사용자 최대 50명을 표시합니다. 찾는 사용자가 없으면 후보 검색을 이용하세요.</p>
+    <button class="button primary button-wide">프로젝트 생성</button>
+  </form>
+</aside>
+{% endif %}
+</div>
 {% endblock %}
-

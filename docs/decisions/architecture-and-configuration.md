@@ -12,6 +12,7 @@
 | ARC-008 | 2026-09-17 | DECIDED | 일반 운영 설정은 최상위 `config/application.toml`, 영속 데이터는 `data/`에 분리하고 컨테이너에 각각 `/app/config/application.toml`과 `/app/data`로 마운트한다. 설정 우선순위는 환경 변수 → TOML → 기본값을 유지한다. Docker Compose는 `run_compose.sh`가 TOML의 `server.port`를 검증한 뒤 호스트·컨테이너 포트와 health check에 같은 값으로 주입하며, 래퍼 없는 Compose 기동은 필수 변수가 없어 실패하게 한다. | 설정 변경이 애플리케이션 수신 포트에만 적용되어 호스트 공개 포트와 어긋나는 장애를 막고, 운영 설정과 생성되는 영속 데이터의 수명 주기를 분리한다. `stop`은 설정 파일 오류와 무관하게 실행할 수 있다. |
 | ARC-009 | 2026-09-17 | DECIDED | 확정된 MVP 저장 구조를 선행 준비한 뒤 화면별 작은 기능을 UI·서비스·DB까지 연결하고 전체 화면을 순환하며 확장한다. 기존 기능별 로드맵은 누락 점검에 유지한다. | 한 영역을 완성할 때까지 다른 화면이 목업으로 남는 기간을 줄인다. 연결한 기능의 권한·무결성·감사 처리는 같은 작업에서 검증한다. |
 | ARC-010 | 2026-09-17 | DECIDED | 최초 화면별 연결은 기존 FastAPI·Jinja2 렌더링을 유지하며 HTML form과 JSON API가 같은 인증 서비스를 사용한다. | 목업 레이아웃을 재사용하면서 로그인부터 실제 데이터 흐름을 연결한다. 인라인 상세와 칸반의 클라이언트 상호작용 방식은 해당 화면 구현 시 정한다. |
+| ARC-011 | 2026-09-19 | DECIDED | Windows용 `run_compose.ps1`을 추가하고 기존 셸 래퍼와 `scripts/read-compose-port.py`를 공유한다. start는 up --build --detach, stop은 down이며 종료 코드를 전달한다. PowerShell은 저장소 가상환경·python·python3·py -3 순으로 Python 3.11 이상을 찾고 stop에는 Python이나 유효한 설정 파일을 요구하지 않는다. | 운영 포트 규칙을 중복 구현하지 않는다. 상대 설정 경로는 호출 폴더 기준으로 절대화하며 실행 후 호출자의 위치·임시 환경 변수를 복원한다. |
 
 ## Open decisions
 

@@ -12,6 +12,7 @@ FastAPI, SQLAlchemy, Alembic, and SQLite를 사용하는 사내용 태스크·�
 - [시스템 로깅 규약](docs/logging_conventions.md)
 - [로그인·초기 관리자 설정](docs/authentication.md)
 - [사용자·조직 관리](docs/administration.md)
+- [프로젝트·참여자 관리](docs/projects.md)
 
 ## Docker로 실행
 
@@ -25,6 +26,22 @@ sh ./run_compose.sh start
 sh ./run_compose.sh stop
 ```
 
+Windows PowerShell에서는 저장소 루트의 동일한 실행 래퍼를 사용합니다.
+
+```powershell
+.\run_compose.ps1 start
+.\run_compose.ps1 stop
+```
+
+`start`는 설정을 검증한 뒤 `docker compose up --build --detach`, `stop`은 `docker compose down`을 실행합니다. PowerShell 래퍼는 `.venv\Scripts\python.exe`, PATH의 `python`, `python3`, `py -3` 순으로 Python 3.11 이상을 찾습니다. 설정 파일이 없거나 잘못되어도 `stop`은 사용할 수 있으며, 호출 후 현재 폴더와 임시 환경 변수를 복원하고 Docker 종료 코드를 그대로 반환합니다.
+
+다른 설정 파일은 다음과 같이 지정합니다. 상대 경로는 스크립트를 호출한 폴더 기준으로 해석합니다.
+
+```powershell
+$env:APP_CONFIG_FILE = 'C:\deployment\config\application.toml'
+.\run_compose.ps1 start
+```
+
 - 웹 UI: <http://localhost:8000>
 - API 문서: <http://localhost:8000/docs>
 - 상태 확인: <http://localhost:8000/health>
@@ -34,7 +51,7 @@ Docker Compose는 호스트의 `data` 디렉터리를 컨테이너의 `/app/data
 
 Compose는 TOML을 직접 해석할 수 없으므로 직접 `docker compose up`을 실행하면 필수 포트 변수가 없다는 오류와 함께 중단됩니다. 항상 실행 래퍼를 사용하면 설정 변경과 포트 매핑이 어긋나지 않습니다. 다른 호스트 설정 파일을 사용하려면 절대 경로로 `APP_CONFIG_FILE=/path/to/application.toml sh ./run_compose.sh start`를 실행합니다.
 
-루트 `/`는 내 작업 대시보드이며 로그인하지 않았다면 로그인 화면으로 이동합니다. 인증과 사용자·조직의 조회·생성은 실제 DB에 연결되어 있고, 프로젝트·티켓 화면은 아직 예시 데이터입니다. 최초 실행 전 [초기 관리자 설정](docs/authentication.md)에 따라 CLI 또는 bootstrap 환경 변수로 관리자를 생성하세요.
+루트 `/`는 내 작업 대시보드이며 로그인하지 않았다면 로그인 화면으로 이동합니다. 인증, 사용자·조직의 조회·생성, 프로젝트 생성·조회·참여자 등록은 실제 DB에 연결되어 있습니다. 내 작업 대시보드는 예시 데이터이며, 실제 프로젝트의 티켓·칸반·휴지통 경로는 준비 중 안내를 표시합니다. 최초 실행 전 [초기 관리자 설정](docs/authentication.md)에 따라 CLI 또는 bootstrap 환경 변수로 관리자를 생성하세요.
 
 ## 로컬 개발
 

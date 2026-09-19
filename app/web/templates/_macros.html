@@ -17,6 +17,5 @@
 {%- endmacro %}
 
 {% macro project_mark(project, size='md') -%}
-<span class="project-mark project-mark-{{ size }} mark-{{ project.color }}">{{ project.key[:2] }}</span>
+<span class="project-mark project-mark-{{ size }} mark-{{ project.color|default('violet') }}">{{ project.key[:2] }}</span>
 {%- endmacro %}
-

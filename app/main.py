@@ -16,6 +16,7 @@ from app.domain.auth import AuthError
 from app.services.bootstrap import bootstrap_from_environment
 from app.web.administration import router as administration_router
 from app.web.auth import router as auth_router
+from app.web.projects import router as projects_router
 from app.web.router import STATIC_DIRECTORY
 from app.web.router import router as web_router
 
@@ -86,6 +87,7 @@ def create_app() -> FastAPI:
     application.mount("/static", StaticFiles(directory=STATIC_DIRECTORY), name="static")
     application.include_router(auth_router)
     application.include_router(administration_router)
+    application.include_router(projects_router)
     application.include_router(web_router)
     application.include_router(api_router)
     return application

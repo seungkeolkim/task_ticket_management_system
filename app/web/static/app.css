@@ -287,3 +287,10 @@ kbd { padding: 1px 6px; border: 1px solid var(--border-strong); border-radius: 5
 .admin-org-description { padding:10px 0 0 34px; font-size:12px; overflow-wrap:anywhere; }
 .admin-org-description p { white-space:pre-wrap; }
 .admin-org-description small { color:var(--muted); }
+
+.project-live-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 20px; }
+.project-live-grid .project-card { min-width: 0; }
+.project-live-grid .project-card-copy { overflow-wrap: anywhere; }
+.project-live-members { padding: 0 24px; }
+.project-live-member { display: grid; grid-template-columns: minmax(0, 1fr) 150px 60px; gap: 16px; align-items: center; padding: 18px 0; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
+.project-description { white-space: pre-wrap; overflow-wrap: anywhere; }
