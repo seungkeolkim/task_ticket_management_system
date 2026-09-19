@@ -47,7 +47,9 @@ $env:APP_CONFIG_FILE = 'C:\deployment\config\application.toml'
 - 상태 확인: <http://localhost:8000/health>
 - DB 연결 확인: <http://localhost:8000/health/ready>
 
-Docker Compose는 호스트의 `data` 디렉터리를 컨테이너의 `/app/data`에 마운트하고, `config/application.toml`은 `/app/config/application.toml`에 읽기 전용으로 별도 마운트합니다. `run_compose.sh start`는 `[server].port`를 읽어 애플리케이션 수신 포트, 호스트 공개 포트와 health check에 동일하게 적용합니다. 예를 들어 포트를 `9123`으로 바꾸고 다시 시작하면 `http://localhost:9123`으로 접속합니다.
+Docker Compose는 개발 중인 `app`, `migrations`, `alembic.ini`를 컨테이너의 대응 경로에 bind mount합니다. Dockerfile은 이 경로들을 복사하지 않으며 런타임 라이브러리와 기동 스크립트만 이미지에 준비합니다. 따라서 Python 소스와 migration 변경 때문에 이미 설치한 라이브러리를 다시 설치하지 않습니다. 런타임 라이브러리는 `pyproject.toml`이 변경될 때만 이미지의 의존성 레이어에서 다시 설치됩니다. 소스를 포함하는 단독 배포 이미지는 릴리즈 구성을 도입할 때 별도로 구성합니다.
+
+호스트의 `data` 디렉터리는 컨테이너의 `/app/data`에 마운트하고, `config/application.toml`은 `/app/config/application.toml`에 읽기 전용으로 별도 마운트합니다. `run_compose.sh start`는 `[server].port`를 읽어 애플리케이션 수신 포트, 호스트 공개 포트와 health check에 동일하게 적용합니다. 예를 들어 포트를 `9123`으로 바꾸고 다시 시작하면 `http://localhost:9123`으로 접속합니다.
 
 Compose는 TOML을 직접 해석할 수 없으므로 직접 `docker compose up`을 실행하면 필수 포트 변수가 없다는 오류와 함께 중단됩니다. 항상 실행 래퍼를 사용하면 설정 변경과 포트 매핑이 어긋나지 않습니다. 다른 호스트 설정 파일을 사용하려면 절대 경로로 `APP_CONFIG_FILE=/path/to/application.toml sh ./run_compose.sh start`를 실행합니다.
 

@@ -64,6 +64,8 @@
 
 2026-09-19 PowerShell 래퍼 검증: Windows PowerShell 5.1에서 포트 검증기·래퍼 테스트 17개와 Ruff 검사를 통과했다. Docker 대역으로 실제 컨테이너를 변경하지 않고 start/stop 인자, 공백·한글 설정 경로, 잘못된 설정 차단, 종료 코드 전달과 호출 환경 복원을 검증했다. Windows CI에 설치된 PowerShell별 동일 검증을 추가했다.
 
+2026-09-19 Compose 개발 mount 검증: Windows Docker Desktop에서 기본 이미지에 `app`·`migrations`·`alembic.ini`가 없고 Compose 실행 시에만 해당 경로가 bind mount되는 것을 확인했다. 설정 파일은 읽기 전용으로 mount된다. `down` 후 `start`를 반복해 의존성 설치 레이어가 `CACHED`로 유지되고 readiness가 성공하는지 검증했으며, pytest 187개와 Ruff 검사를 통과했다. macOS 실환경 검증은 후속이다.
+
 2026-09-18 사용자·조직 연결 검증: Windows Python 3.13 및 Docker Linux Python 3.12에서 각각 pytest 149개와 Ruff 검사를 통과했다. 임시 DB와 Headless Edge에서 조직 생성 → 사용자 등록 → 실제 목록 갱신을 확인하고 1440px 화면의 배치·가로 넘침·브라우저 오류를 점검했다. 관리 기능 테스트는 관리자 권한·CSRF·중복·비활성 상위 조직·검색/페이지 이동·감사 실패 롤백과 새 사용자 로그인/비밀번호 변경을 검증한다. 조직 트리가 있는 DB의 base downgrade·재적용 회귀 테스트를 추가했다. 신규 revision 없이 head `20260917_0002`를 유지한다.
 
 2026-09-17 인증 연결 검증: Windows Python 3.13 및 Docker Linux Python 3.12에서 각각 pytest 128개와 Ruff 검사를 통과했다. 임시 DB의 브라우저에서 최초 접근 → 로그인 → 초기 비밀번호 변경 화면 → 로그아웃을 확인했고, 변경·재로그인·원래 경로 복귀·전체 세션 폐기는 HTTP 통합 테스트로 검증했다. 인증용 migration은 추가하지 않았으며 Alembic head는 `20260917_0002`다. 업무 화면은 예시 데이터로 남아 있다. 테스트 도구의 deprecation 경고 2건과 macOS 실환경 검증은 후속이다.
@@ -79,6 +81,7 @@
 - [x] 환경 변수 → 외부 설정 → 기본값 우선순위 적용
 - [x] 설정값 타입·범위 및 알 수 없는 설정 검증
 - [x] Dockerfile과 Docker Compose 구성
+- [x] Compose 개발 소스 bind mount와 소스 변경에 독립적인 이미지 의존성 레이어 구성
 - [x] DB·첨부파일·백업 데이터와 최상위 설정 디렉터리의 독립 volume mount 구성
 - [x] 외부 설정의 서버 포트를 Compose 포트 매핑과 health check에 반영하는 실행 래퍼 구성
 - [x] 동일한 start·stop을 제공하는 PowerShell 실행 래퍼와 명령·설정·종료 코드·호출 환경 복원 테스트 구성

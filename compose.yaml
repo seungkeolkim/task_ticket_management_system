@@ -17,6 +17,9 @@ services:
       APP_DATA_ROOT: "/app/data"
       TTMS__SERVER__PORT: "${APP_PORT:?Run run_compose.sh or run_compose.ps1 start}"
     volumes:
+      - ./app:/app/app
+      - ./migrations:/app/migrations
+      - ./alembic.ini:/app/alembic.ini:ro
       - ./data:/app/data
       - "${HOST_CONFIG_FILE:?Run run_compose.sh or run_compose.ps1 start}:/app/config/application.toml:ro"
     healthcheck:
