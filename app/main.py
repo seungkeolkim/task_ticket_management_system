@@ -19,6 +19,7 @@ from app.web.auth import router as auth_router
 from app.web.projects import router as projects_router
 from app.web.router import STATIC_DIRECTORY
 from app.web.router import router as web_router
+from app.web.tickets import router as tickets_router
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +89,7 @@ def create_app() -> FastAPI:
     application.include_router(auth_router)
     application.include_router(administration_router)
     application.include_router(projects_router)
+    application.include_router(tickets_router)
     application.include_router(web_router)
     application.include_router(api_router)
     return application
