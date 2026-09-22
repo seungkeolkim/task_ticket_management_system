@@ -42,9 +42,8 @@ def authenticated_client(client: TestClient, db_session: Session) -> TestClient:
         ("/", "좋은 오후예요"),
         ("/account/password", "새 비밀번호 설정"),
         ("/projects", "내 프로젝트"),
-        ("/projects/OPS/tickets", "이 업무 기능은 준비 중"),
-        ("/projects/OPS/tickets/new", "이 업무 기능은 준비 중"),
-        ("/projects/OPS/tickets/OPS-142", "이 업무 기능은 준비 중"),
+        ("/projects/OPS/tickets", "실제 프로젝트 데이터"),
+        ("/projects/OPS/tickets/new", "새 티켓 만들기"),
         ("/projects/OPS/tickets/OPS-142/edit", "이 업무 기능은 준비 중"),
         ("/projects/OPS/board", "이 업무 기능은 준비 중"),
         ("/projects/OPS/settings", "프로젝트 프로필"),
@@ -65,6 +64,13 @@ def test_mockup_page_is_available(
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/html")
     assert expected_text in response.text
+
+
+def test_unknown_live_ticket_returns_not_found(authenticated_client: TestClient) -> None:
+    response = authenticated_client.get("/projects/OPS/tickets/OPS-142")
+
+    assert response.status_code == 404
+    assert response.json()["code"] == "ticket_not_found"
 
 
 def test_root_redirects_to_login_when_unauthenticated(client: TestClient) -> None:

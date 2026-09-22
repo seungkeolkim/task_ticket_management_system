@@ -196,9 +196,6 @@ def add_member(
     return RedirectResponse(f"/projects/{project_key}/members?added=1", status_code=303)
 
 
-@router.get("/projects/{project_key}/tickets")
-@router.get("/projects/{project_key}/tickets/new")
-@router.get("/projects/{project_key}/tickets/{ticket_key}")
 @router.get("/projects/{project_key}/tickets/{ticket_key}/edit")
 @router.get("/projects/{project_key}/board")
 @router.get("/projects/{project_key}/trash")
