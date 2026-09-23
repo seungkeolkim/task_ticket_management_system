@@ -308,6 +308,26 @@ def incomplete_dependency_count(session: Session, project_id: int, ticket_id: in
     )
 
 
+def incomplete_dependency_source_ids(session: Session, project_id: int) -> set[int]:
+    target = aliased(Ticket)
+    return set(
+        session.scalars(
+            select(TicketRelation.source_ticket_id)
+            .join(
+                target,
+                (target.project_id == TicketRelation.project_id)
+                & (target.id == TicketRelation.target_ticket_id),
+            )
+            .where(
+                TicketRelation.project_id == project_id,
+                TicketRelation.relation_type == "DEPENDS_ON",
+                target.status != "DONE",
+            )
+            .distinct()
+        )
+    )
+
+
 def incomplete_child_count(session: Session, project_id: int, epic_id: int) -> int:
     return (
         session.scalar(

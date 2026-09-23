@@ -298,3 +298,6 @@ kbd { padding: 1px 6px; border: 1px solid var(--border-strong); border-radius: 5
 .project-live-members { padding: 0 24px; }
 .project-live-member { display: grid; grid-template-columns: minmax(0, 1fr) 150px 60px; gap: 16px; align-items: center; padding: 18px 0; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
 .project-description { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* Interactive kanban state changes */
+.kanban-card[draggable="true"]{cursor:grab}.kanban-card[draggable="true"]:active{cursor:grabbing}.kanban-card-link{display:block;color:inherit}.kanban-card.is-dragging{opacity:.45}.kanban-card.is-updating{pointer-events:none;opacity:.6}.kanban-card.is-readonly{background:#fbfbfd}.board-status-control{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:9px;padding-top:9px;border-top:1px solid var(--border);color:var(--muted);font-size:8px}.board-status-control select{min-width:92px;padding:5px 7px;border:1px solid var(--border-strong);border-radius:6px;background:#fff;color:var(--text-soft);font-size:9px}.kanban-column.is-drop-allowed{background:#f2fbf7;box-shadow:inset 0 0 0 2px #9ad7bd}.kanban-column.is-drop-blocked{background:#fbf7f7;opacity:.72}.kanban-column.is-drag-over{background:#e8f7ef;box-shadow:inset 0 0 0 3px var(--emerald)}
