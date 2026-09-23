@@ -15,10 +15,12 @@ from app.models import (
     Ticket,
     TicketDeletionBatch,
     TicketHistory,
+    TicketRelation,
     User,
 )
+from app.repositories import tickets as ticket_repository
 from app.schemas.contracts import TicketEvent
-from app.schemas.tickets import TicketCreate
+from app.schemas.tickets import TicketCreate, TicketTransition, TicketUpdate
 from app.services import dashboard as dashboard_service
 from app.services import tickets as service
 from app.services.auth import current_identity
@@ -33,6 +35,10 @@ def token(client):
 
 def post(client, path, payload):
     return client.post(path, json=payload, headers=ORIGIN | {"X-CSRF-Token": token(client)})
+
+
+def patch(client, path, payload):
+    return client.patch(path, json=payload, headers=ORIGIN | {"X-CSRF-Token": token(client)})
 
 
 def login(client, login_id):
@@ -88,6 +94,31 @@ def create_ticket(client, **overrides):
         "priority": "MAJOR",
     } | overrides
     return post(client, "/api/projects/DEV/tickets", payload)
+
+
+def update_ticket(client, ticket_key, expected_version, **overrides):
+    payload = {
+        "title": "수정된 티켓",
+        "description": "수정된 설명",
+        "priority": "MAJOR",
+        "parent_key": None,
+        "assignee_id": None,
+        "due_date": None,
+        "expected_version": expected_version,
+    } | overrides
+    return patch(client, f"/api/projects/DEV/tickets/{ticket_key}", payload)
+
+
+def transition_ticket(client, ticket_key, target_status, expected_version, **overrides):
+    return post(
+        client,
+        f"/api/projects/DEV/tickets/{ticket_key}/transitions",
+        {
+            "target_status": target_status,
+            "expected_version": expected_version,
+        }
+        | overrides,
+    )
 
 
 def test_create_list_detail_and_history(client, ticket_people, db_session):
@@ -286,6 +317,487 @@ def test_system_admin_override_is_audited(client, ticket_people, db_session):
         select(AuditLog).where(AuditLog.action == "project.override_access")
     ).all()
     assert override_events and override_events[-1].details["permission"] == "read"
+
+
+def test_update_moves_hierarchy_preserves_subtasks_and_records_one_history_per_version(
+    client, ticket_people, db_session
+):
+    people, project = ticket_people
+    first_epic = create_ticket(client, type="EPIC", title="첫 Epic").json()
+    second_epic = create_ticket(client, type="EPIC", title="둘째 Epic").json()
+    task = create_ticket(client, title="이동할 Task", parent_key=first_epic["key"]).json()
+    subtask = create_ticket(
+        client, type="SUBTASK", title="유지할 Subtask", parent_key=task["key"]
+    ).json()
+    task_row = db_session.scalar(select(Ticket).where(Ticket.key == task["key"]))
+    first_epic_row = db_session.scalar(
+        select(Ticket).where(Ticket.key == first_epic["key"])
+    )
+    db_session.add(
+        TicketRelation(
+            project_id=project.id,
+            source_ticket_id=task_row.id,
+            target_ticket_id=first_epic_row.id,
+            relation_type="DEPENDS_ON",
+            dependency_kind="FS",
+            created_by_id=people["member"].id,
+        )
+    )
+    db_session.commit()
+
+    response = update_ticket(
+        client,
+        task["key"],
+        1,
+        title="이동 완료 Task",
+        description="변경된 원문",
+        priority="CRITICAL",
+        parent_key=second_epic["key"],
+        assignee_id=people["manager"].id,
+        due_date="2026-10-10",
+    )
+
+    assert response.status_code == 200
+    updated = response.json()
+    assert updated["version"] == 2
+    assert updated["parent"]["key"] == second_epic["key"]
+    assert updated["assignee"]["id"] == people["manager"].id
+    saved_subtask = db_session.scalar(select(Ticket).where(Ticket.key == subtask["key"]))
+    db_session.refresh(saved_subtask)
+    assert saved_subtask.parent_id == task_row.id
+    assert saved_subtask.status == "TODO"
+    assert saved_subtask.assignee_id is None
+    assert str(saved_subtask.sort_order) == "0.000000"
+
+    histories = db_session.scalars(
+        select(TicketHistory)
+        .where(TicketHistory.ticket_id == task_row.id)
+        .order_by(TicketHistory.ticket_version)
+    ).all()
+    assert [history.ticket_version for history in histories] == [1, 2]
+    assert histories[-1].event_type == "UPDATED"
+    assert {change["field"] for change in histories[-1].changes} == {
+        "title",
+        "description",
+        "priority",
+        "parent_key",
+        "assignee_id",
+        "due_date",
+    }
+    assert histories[-1].before_state["relations"] == histories[-1].after_state["relations"]
+    assert histories[-1].before_state["relations"][0]["relation_type"] == "DEPENDS_ON"
+
+    audit_count = db_session.scalar(
+        select(func.count()).select_from(AuditLog).where(AuditLog.action == "ticket.updated")
+    )
+    noop = update_ticket(
+        client,
+        task["key"],
+        2,
+        title="이동 완료 Task",
+        description="변경된 원문",
+        priority="CRITICAL",
+        parent_key=second_epic["key"],
+        assignee_id=people["manager"].id,
+        due_date="2026-10-10",
+    )
+    assert noop.status_code == 200 and noop.json()["version"] == 2
+    assert (
+        db_session.scalar(
+            select(func.count())
+            .select_from(TicketHistory)
+            .where(TicketHistory.ticket_id == task_row.id)
+        )
+        == 2
+    )
+    assert (
+        db_session.scalar(
+            select(func.count()).select_from(AuditLog).where(AuditLog.action == "ticket.updated")
+        )
+        == audit_count
+    )
+
+
+def test_fsm_timestamps_reopen_and_history_versions(client, ticket_people, db_session):
+    ticket = create_ticket(client, title="FSM 티켓").json()
+    invalid = transition_ticket(client, ticket["key"], "DONE", 1)
+    assert invalid.status_code == 409
+    assert invalid.json()["code"] == "invalid_status_transition"
+
+    progress = transition_ticket(client, ticket["key"], "IN_PROGRESS", 1).json()
+    first_started_at = progress["actual_started_at"]
+    assert progress["version"] == 2 and first_started_at
+    hold = transition_ticket(client, ticket["key"], "ON_HOLD", 2).json()
+    resumed = transition_ticket(client, ticket["key"], "IN_PROGRESS", 3).json()
+    assert hold["actual_started_at"] == resumed["actual_started_at"] == first_started_at
+    done = transition_ticket(client, ticket["key"], "DONE", 4).json()
+    assert done["completed_at"] and done["cancelled_at"] is None
+    reopened = transition_ticket(client, ticket["key"], "IN_PROGRESS", 5).json()
+    assert reopened["completed_at"] is None
+    assert reopened["actual_started_at"] == first_started_at
+    cancelled = transition_ticket(client, ticket["key"], "CANCELLED", 6).json()
+    assert cancelled["cancelled_at"]
+    todo = transition_ticket(client, ticket["key"], "TODO", 7).json()
+    assert todo["version"] == 8 and todo["cancelled_at"] is None
+
+    ticket_id = db_session.scalar(select(Ticket.id).where(Ticket.key == ticket["key"]))
+    histories = db_session.scalars(
+        select(TicketHistory)
+        .where(TicketHistory.ticket_id == ticket_id)
+        .order_by(TicketHistory.ticket_version)
+    ).all()
+    assert [history.ticket_version for history in histories] == list(range(1, 9))
+    assert all(history.event_type == "STATUS_CHANGED" for history in histories[1:])
+    assert histories[5].before_state["completed_at"] is not None
+    assert histories[5].after_state["completed_at"] is None
+
+
+def test_subtask_move_parent_validation_and_cross_project_rejection(
+    client, ticket_people, db_session
+):
+    people, _ = ticket_people
+    first_task = create_ticket(client, title="첫 Task").json()
+    second_task = create_ticket(client, title="둘째 Task").json()
+    subtask = create_ticket(
+        client, type="SUBTASK", title="이동 Subtask", parent_key=first_task["key"]
+    ).json()
+    moved = update_ticket(
+        client,
+        subtask["key"],
+        1,
+        title="이동 Subtask",
+        description="DB에 저장되는 설명",
+        parent_key=second_task["key"],
+    )
+    assert moved.status_code == 200
+    assert moved.json()["parent"]["key"] == second_task["key"]
+    detached = update_ticket(
+        client,
+        subtask["key"],
+        2,
+        title="이동 Subtask",
+        description="DB에 저장되는 설명",
+        parent_key=None,
+    )
+    assert detached.status_code == 400 and detached.json()["code"] == "invalid_parent"
+
+    other = Project(key="OPS", name="다른 프로젝트", created_by_id=people["sysadmin"].id)
+    db_session.add(other)
+    db_session.flush()
+    foreign_epic = Ticket(
+        project_id=other.id,
+        number=1,
+        key="OPS-1",
+        type="EPIC",
+        title="다른 프로젝트 Epic",
+        creator_id=people["sysadmin"].id,
+    )
+    db_session.add(foreign_epic)
+    db_session.commit()
+    cross_project = update_ticket(
+        client,
+        first_task["key"],
+        1,
+        title="첫 Task",
+        description="DB에 저장되는 설명",
+        parent_key="OPS-1",
+    )
+    assert cross_project.status_code == 400
+    assert cross_project.json()["code"] == "invalid_parent"
+
+
+def test_parent_cycle_detector_rejects_a_descendant_as_parent(
+    ticket_people, db_session
+):
+    people, project = ticket_people
+    first = Ticket(
+        project_id=project.id,
+        number=1,
+        key="DEV-1",
+        type="TASK",
+        title="첫 노드",
+        creator_id=people["member"].id,
+    )
+    db_session.add(first)
+    db_session.flush()
+    second = Ticket(
+        project_id=project.id,
+        number=2,
+        key="DEV-2",
+        type="TASK",
+        title="하위 노드",
+        parent_id=first.id,
+        creator_id=people["member"].id,
+    )
+    db_session.add(second)
+    db_session.commit()
+
+    assert ticket_repository.parent_would_cycle(
+        db_session, project.id, first.id, second.id
+    )
+
+
+def test_completion_dependency_and_epic_confirmation_guards(
+    client, ticket_people, db_session
+):
+    people, project = ticket_people
+    target = create_ticket(client, title="선행 티켓").json()
+    source = create_ticket(client, title="후행 티켓").json()
+    source_progress = transition_ticket(
+        client, source["key"], "IN_PROGRESS", 1
+    ).json()
+    source_row = db_session.scalar(select(Ticket).where(Ticket.key == source["key"]))
+    target_row = db_session.scalar(select(Ticket).where(Ticket.key == target["key"]))
+    db_session.add(
+        TicketRelation(
+            project_id=project.id,
+            source_ticket_id=source_row.id,
+            target_ticket_id=target_row.id,
+            relation_type="DEPENDS_ON",
+            dependency_kind="FS",
+            created_by_id=people["member"].id,
+        )
+    )
+    db_session.commit()
+
+    blocked = transition_ticket(
+        client, source["key"], "DONE", source_progress["version"]
+    )
+    assert blocked.status_code == 409 and blocked.json()["code"] == "incomplete_dependency"
+    target_progress = transition_ticket(client, target["key"], "IN_PROGRESS", 1).json()
+    transition_ticket(client, target["key"], "DONE", target_progress["version"])
+    assert transition_ticket(client, source["key"], "DONE", 2).status_code == 200
+
+    epic = create_ticket(client, type="EPIC", title="확인 Epic").json()
+    create_ticket(client, title="미완료 하위 Task", parent_key=epic["key"])
+    epic_progress = transition_ticket(client, epic["key"], "IN_PROGRESS", 1).json()
+    confirmation = transition_ticket(
+        client, epic["key"], "DONE", epic_progress["version"]
+    )
+    assert confirmation.status_code == 409
+    assert confirmation.json()["code"] == "incomplete_child_confirmation_required"
+    confirmed = transition_ticket(
+        client,
+        epic["key"],
+        "DONE",
+        epic_progress["version"],
+        confirm_incomplete_children=True,
+    )
+    assert confirmed.status_code == 200 and confirmed.json()["status"] == "DONE"
+
+
+def test_edit_permissions_admin_override_terminal_and_inactive_project(
+    client, ticket_people, db_session
+):
+    people, project = ticket_people
+    ticket = create_ticket(
+        client, title="권한 티켓", assignee_id=people["manager"].id
+    ).json()
+    login(client, "manager")
+    manager_update = update_ticket(client, ticket["key"], 1, title="관리자 수정")
+    assert manager_update.status_code == 200
+
+    db_session.add(
+        ProjectMember(
+            project_id=project.id,
+            user_id=people["outsider"].id,
+            role="PROJECT_USER",
+        )
+    )
+    db_session.commit()
+    login(client, "outsider")
+    assert update_ticket(client, ticket["key"], 2).status_code == 403
+
+    login(client, "manager")
+    assigned = create_ticket(
+        client, title="일반 담당자 티켓", assignee_id=people["outsider"].id
+    ).json()
+    login(client, "outsider")
+    assignee_update = update_ticket(
+        client, assigned["key"], 1, title="담당자 직접 수정"
+    )
+    assert assignee_update.status_code == 200
+
+    login(client, "sysadmin")
+    override = update_ticket(client, ticket["key"], 2, title="시스템 관리자 수정")
+    assert override.status_code == 200
+    manage_override = db_session.scalars(
+        select(AuditLog)
+        .where(AuditLog.action == "project.override_access")
+        .order_by(AuditLog.id.desc())
+    ).first()
+    assert manage_override.details["permission"] == "manage"
+
+    login(client, "member")
+    cancelled = transition_ticket(client, ticket["key"], "CANCELLED", 3).json()
+    locked = update_ticket(client, ticket["key"], cancelled["version"])
+    assert locked.status_code == 409 and locked.json()["code"] == "terminal_ticket_locked"
+    reopened = transition_ticket(
+        client, ticket["key"], "TODO", cancelled["version"]
+    ).json()
+    project.is_active = False
+    db_session.commit()
+    inactive = update_ticket(client, ticket["key"], reopened["version"])
+    assert inactive.status_code == 409 and inactive.json()["code"] == "project_inactive"
+    transition = transition_ticket(
+        client, ticket["key"], "IN_PROGRESS", reopened["version"]
+    )
+    assert transition.status_code == 409 and transition.json()["code"] == "project_inactive"
+
+
+def test_expected_version_required_and_stale_write_rolls_back(
+    client, ticket_people, db_session
+):
+    ticket = create_ticket(client, title="충돌 티켓").json()
+    first = update_ticket(client, ticket["key"], 1, title="먼저 저장").json()
+    stale = update_ticket(client, ticket["key"], 1, title="늦은 저장")
+    assert stale.status_code == 409 and stale.json()["code"] == "ticket_version_conflict"
+    missing = patch(
+        client,
+        f"/api/projects/DEV/tickets/{ticket['key']}",
+        {
+            "title": "버전 없음",
+            "description": "",
+            "priority": "MAJOR",
+            "parent_key": None,
+            "assignee_id": None,
+            "due_date": None,
+        },
+    )
+    assert missing.status_code == 422 and missing.json()["code"] == "invalid_request"
+    saved = db_session.scalar(select(Ticket).where(Ticket.key == ticket["key"]))
+    db_session.refresh(saved)
+    assert saved.title == "먼저 저장" and saved.version == first["version"] == 2
+    assert (
+        db_session.scalar(
+            select(func.count())
+            .select_from(TicketHistory)
+            .where(TicketHistory.ticket_id == saved.id)
+        )
+        == 2
+    )
+
+
+def test_update_audit_failure_rolls_back_ticket_and_history(
+    client, ticket_people, db_session_factory, monkeypatch
+):
+    ticket = create_ticket(client, title="수정 롤백 티켓").json()
+    raw_token = client.cookies.get(get_settings().session.cookie_name)
+
+    def fail(*args, **kwargs):
+        raise RuntimeError("audit unavailable")
+
+    monkeypatch.setattr(service, "audit", fail)
+    with db_session_factory() as session:
+        actor = current_identity(session, raw_token)
+        with pytest.raises(RuntimeError):
+            service.update_ticket(
+                session,
+                actor,
+                "DEV",
+                ticket["key"],
+                TicketUpdate(
+                    title="반영되면 안 됨",
+                    description="",
+                    priority="MAJOR",
+                    expected_version=1,
+                ),
+            )
+        with pytest.raises(RuntimeError):
+            service.transition_ticket(
+                session,
+                actor,
+                "DEV",
+                ticket["key"],
+                TicketTransition(target_status="IN_PROGRESS", expected_version=1),
+            )
+    with db_session_factory() as session:
+        saved = session.scalar(select(Ticket).where(Ticket.key == ticket["key"]))
+        assert saved.title == "수정 롤백 티켓" and saved.version == 1
+        assert saved.status == "TODO" and saved.actual_started_at is None
+        assert (
+            session.scalar(
+                select(func.count())
+                .select_from(TicketHistory)
+                .where(TicketHistory.ticket_id == saved.id)
+            )
+            == 1
+        )
+
+
+def test_html_edit_csrf_stale_guidance_and_transition_controls(
+    client, ticket_people
+):
+    ticket = create_ticket(client, title="HTML 편집 티켓").json()
+    edit_page = client.get(f"/projects/DEV/tickets/{ticket['key']}/edit")
+    assert edit_page.status_code == 200
+    assert 'name="expected_version" value="1"' in edit_page.text
+    assert (
+        client.post(
+            f"/projects/DEV/tickets/{ticket['key']}",
+            data={
+                "title": "CSRF 없는 수정",
+                "priority": "MAJOR",
+                "expected_version": "1",
+            },
+            headers=ORIGIN,
+        ).status_code
+        == 403
+    )
+    assert update_ticket(client, ticket["key"], 1, title="API 선행 수정").status_code == 200
+    stale = client.post(
+        f"/projects/DEV/tickets/{ticket['key']}",
+        data={
+            "csrf_token": token(client),
+            "title": "HTML 늦은 수정",
+            "description": "",
+            "priority": "MAJOR",
+            "parent_key": "",
+            "assignee_id": "",
+            "due_date": "",
+            "expected_version": "1",
+        },
+        headers=ORIGIN,
+    )
+    assert stale.status_code == 409
+    assert "최신 내용 다시 불러오기" in stale.text and "disabled" in stale.text
+    detail = client.get(f"/projects/DEV/tickets/{ticket['key']}")
+    assert detail.status_code == 200
+    assert f"/projects/DEV/tickets/{ticket['key']}/transition" in detail.text
+
+
+def test_html_epic_completion_requires_confirmation(client, ticket_people):
+    epic = create_ticket(client, type="EPIC", title="HTML 확인 Epic").json()
+    create_ticket(client, title="HTML 미완료 Task", parent_key=epic["key"])
+    progress = transition_ticket(client, epic["key"], "IN_PROGRESS", 1).json()
+    confirmation = client.post(
+        f"/projects/DEV/tickets/{epic['key']}/transition",
+        data={
+            "csrf_token": token(client),
+            "target_status": "DONE",
+            "expected_version": str(progress["version"]),
+        },
+        headers=ORIGIN,
+    )
+    assert confirmation.status_code == 409
+    assert "미완료 Task를 확인했으며 Epic 완료" in confirmation.text
+    confirmed = client.post(
+        f"/projects/DEV/tickets/{epic['key']}/transition",
+        data={
+            "csrf_token": token(client),
+            "target_status": "DONE",
+            "expected_version": str(progress["version"]),
+            "confirm_incomplete_children": "true",
+        },
+        headers=ORIGIN,
+        follow_redirects=False,
+    )
+    assert confirmed.status_code == 303
+
+
+def test_service_transition_contract_rejects_missing_expected_version():
+    with pytest.raises(ValueError):
+        TicketTransition(target_status="IN_PROGRESS")
 
 
 def test_dashboard_and_global_filters_use_assignee_then_unassigned_creator_rule(

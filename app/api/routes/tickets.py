@@ -6,7 +6,15 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.db.session import get_db_session
 from app.domain.auth import Identity
-from app.schemas.tickets import BoardView, TicketCreate, TicketCreateOptions, TicketPage, TicketView
+from app.schemas.tickets import (
+    BoardView,
+    TicketCreate,
+    TicketCreateOptions,
+    TicketPage,
+    TicketTransition,
+    TicketUpdate,
+    TicketView,
+)
 from app.services import tickets as service
 from app.web.security import require_api_user, verify_csrf
 
@@ -73,6 +81,32 @@ def create_ticket(
 @router.get("/board", response_model=BoardView)
 def ticket_board(project_key: str, session: Database, actor: Actor):
     return service.board(session, actor, project_key)[1]
+
+
+@router.patch("/{ticket_key}", response_model=TicketView)
+def update_ticket(
+    project_key: str,
+    ticket_key: str,
+    request: Request,
+    payload: TicketUpdate,
+    session: Database,
+    actor: Actor,
+):
+    verify_csrf(request, request.headers.get("x-csrf-token", ""), actor, get_settings())
+    return service.update_ticket(session, actor, project_key, ticket_key, payload)
+
+
+@router.post("/{ticket_key}/transitions", response_model=TicketView)
+def transition_ticket(
+    project_key: str,
+    ticket_key: str,
+    request: Request,
+    payload: TicketTransition,
+    session: Database,
+    actor: Actor,
+):
+    verify_csrf(request, request.headers.get("x-csrf-token", ""), actor, get_settings())
+    return service.transition_ticket(session, actor, project_key, ticket_key, payload)
 
 
 @router.get("/{ticket_key}", response_model=TicketView)

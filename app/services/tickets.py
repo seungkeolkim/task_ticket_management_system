@@ -6,11 +6,12 @@ from zoneinfo import ZoneInfo
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.db.types import utc_now
 from app.domain.auth import AuthError, Identity
-from app.domain.codes import HistoryEventType, Priority, TicketStatus, TicketType
+from app.domain.codes import HistoryEventType, Priority, ProjectRole, TicketStatus, TicketType
 from app.models import AuditLog, Ticket, TicketHistory
 from app.repositories import tickets as repository
-from app.schemas.contracts import FieldChange, TicketEvent, TicketState
+from app.schemas.contracts import FieldChange, RelationSnapshot, TicketEvent, TicketState
 from app.schemas.tickets import (
     BoardCard,
     BoardColumn,
@@ -20,8 +21,11 @@ from app.schemas.tickets import (
     BoardView,
     TicketCreate,
     TicketCreateOptions,
+    TicketEditOptions,
     TicketPage,
     TicketParentView,
+    TicketTransition,
+    TicketUpdate,
     TicketUserView,
     TicketView,
 )
@@ -55,9 +59,19 @@ PRIORITY_LABELS = {
     Priority.CRITICAL: "Critical",
     Priority.BLOCKER: "Blocker",
 }
+TERMINAL_STATUSES = {TicketStatus.DONE, TicketStatus.CANCELLED}
+FSM_TRANSITIONS = {
+    TicketStatus.TODO: (TicketStatus.IN_PROGRESS, TicketStatus.ON_HOLD, TicketStatus.CANCELLED),
+    TicketStatus.IN_PROGRESS: (TicketStatus.DONE, TicketStatus.ON_HOLD, TicketStatus.CANCELLED),
+    TicketStatus.ON_HOLD: (TicketStatus.TODO, TicketStatus.IN_PROGRESS, TicketStatus.CANCELLED),
+    TicketStatus.DONE: (TicketStatus.IN_PROGRESS,),
+    TicketStatus.CANCELLED: (TicketStatus.TODO,),
+}
 
 
-def audit(session: Session, action: str, actor_id: int, ticket: Ticket) -> None:
+def audit(
+    session: Session, action: str, actor_id: int, ticket: Ticket, **details: object
+) -> None:
     session.add(
         AuditLog(
             action=action,
@@ -68,6 +82,7 @@ def audit(session: Session, action: str, actor_id: int, ticket: Ticket) -> None:
                 "project_id": ticket.project_id,
                 "ticket_id": ticket.id,
                 "type": ticket.type,
+                **details,
             },
         )
     )
@@ -126,6 +141,9 @@ def view(row) -> TicketView:
             mapping["assignee_display_name"],
         ),
         due_date=ticket.due_date,
+        actual_started_at=ticket.actual_started_at,
+        completed_at=ticket.completed_at,
+        cancelled_at=ticket.cancelled_at,
         version=ticket.version,
         created_at=ticket.created_at,
         updated_at=ticket.updated_at,
@@ -149,7 +167,11 @@ def _board_card(ticket: TicketView) -> BoardCard:
     )
 
 
-def _state(ticket: Ticket, parent_key: str | None) -> TicketState:
+def _state(
+    ticket: Ticket,
+    parent_key: str | None,
+    relations: list[RelationSnapshot] | None = None,
+) -> TicketState:
     return TicketState(
         ticket_key=ticket.key,
         project_id=ticket.project_id,
@@ -174,6 +196,7 @@ def _state(ticket: Ticket, parent_key: str | None) -> TicketState:
         is_milestone=ticket.is_milestone,
         sort_order=str(ticket.sort_order),
         deleted_at=ticket.deleted_at,
+        relations=relations or [],
     )
 
 
@@ -210,8 +233,159 @@ def _creation_history(ticket: Ticket, parent_key: str | None, actor_id: int) -> 
     )
 
 
+def _snapshot(session: Session, ticket: Ticket, parent_key: str | None) -> TicketState:
+    relations = [
+        RelationSnapshot(**row)
+        for row in repository.relation_rows(session, ticket.project_id, ticket.id)
+    ]
+    return _state(ticket, parent_key, relations)
+
+
+def _change_history(
+    ticket: Ticket,
+    actor_id: int,
+    event_type: HistoryEventType,
+    before: TicketState,
+    after: TicketState,
+    fields: tuple[str, ...],
+) -> TicketHistory:
+    before_data = before.model_dump(mode="json")
+    after_data = after.model_dump(mode="json")
+    changes = [
+        FieldChange(field=field, before=before_data[field], after=after_data[field])
+        for field in fields
+        if before_data[field] != after_data[field]
+    ]
+    event = TicketEvent(
+        event_key=uuid4(),
+        operation_id=uuid4(),
+        ticket_key=ticket.key,
+        project_id=ticket.project_id,
+        ticket_version=ticket.version,
+        event_type=event_type,
+        actor_id=actor_id,
+        occurred_at=ticket.updated_at,
+        before_state=before,
+        after_state=after,
+        changes=changes,
+    )
+    return TicketHistory(
+        project_id=ticket.project_id,
+        ticket_id=ticket.id,
+        event_key=str(event.event_key),
+        operation_id=str(event.operation_id),
+        ticket_version=ticket.version,
+        event_type=event.event_type,
+        actor_id=actor_id,
+        occurred_at=event.occurred_at,
+        schema_version=event.schema_version,
+        before_state=event.before_state.model_dump(mode="json"),
+        after_state=event.after_state.model_dump(mode="json"),
+        changes=[change.model_dump(mode="json") for change in event.changes],
+    )
+
+
 def _project(session: Session, actor: Identity, project_key: str):
     return project_service.require_project_member(session, actor, project_key)
+
+
+def allowed_transitions(status: TicketStatus | str) -> tuple[TicketStatus, ...]:
+    return FSM_TRANSITIONS[TicketStatus(status)]
+
+
+def can_edit(project, ticket: Ticket | TicketView, actor: Identity) -> bool:
+    creator_id = ticket.creator_id if isinstance(ticket, Ticket) else ticket.creator.id
+    assignee_id = ticket.assignee_id if isinstance(ticket, Ticket) else (
+        ticket.assignee.id if ticket.assignee else None
+    )
+    return (
+        creator_id == actor.id
+        or assignee_id == actor.id
+        or project.role == ProjectRole.ADMIN
+        or project.can_manage
+    )
+
+
+def _require_edit_permission(
+    session: Session, actor: Identity, project_key: str, project, ticket: Ticket
+) -> None:
+    if project.role is None and project.can_manage:
+        project_service.require_project_admin(session, actor, project_key)
+        return
+    if ticket.creator_id == actor.id or ticket.assignee_id == actor.id:
+        return
+    if project.role == ProjectRole.ADMIN:
+        return
+    if project.can_manage:
+        project_service.require_project_admin(session, actor, project_key)
+        return
+    raise AuthError("ticket_edit_forbidden", "이 티켓을 수정할 권한이 없습니다.", 403)
+
+
+def _require_active_project(project) -> None:
+    if not project.is_active:
+        raise AuthError(
+            "project_inactive", "비활성 프로젝트의 티켓은 변경할 수 없습니다.", 409
+        )
+
+
+def _require_expected_version(ticket: Ticket, expected_version: int) -> None:
+    if ticket.version != expected_version:
+        raise AuthError(
+            "ticket_version_conflict",
+            "다른 사용자가 먼저 변경했습니다. 최신 내용을 다시 불러오세요.",
+            409,
+        )
+
+
+def _ticket_row(session: Session, actor: Identity, project, ticket_key: str):
+    row = repository.ticket_row(
+        session,
+        project.id,
+        actor.id,
+        ticket_key.strip().upper(),
+        override=_override(project),
+    )
+    if row is None:
+        raise AuthError("ticket_not_found", "티켓을 찾을 수 없습니다.", 404)
+    return row
+
+
+def _parent_for_update(
+    session: Session,
+    actor: Identity,
+    project,
+    ticket: Ticket,
+    parent_key: str | None,
+) -> Ticket | None:
+    if ticket.type == TicketType.EPIC:
+        if parent_key is not None:
+            raise AuthError("invalid_parent", "Epic은 상위 티켓을 가질 수 없습니다.")
+        return None
+    if ticket.type == TicketType.SUBTASK and parent_key is None:
+        raise AuthError("invalid_parent", "Subtask는 상위 Task가 필요합니다.")
+    if parent_key is None:
+        return None
+    parent = repository.parent_ticket(
+        session,
+        project.id,
+        actor.id,
+        parent_key,
+        override=_override(project),
+    )
+    if parent is None:
+        raise AuthError("invalid_parent", "유효한 상위 티켓을 선택하세요.")
+    expected_type = TicketType.EPIC if ticket.type == TicketType.TASK else TicketType.TASK
+    if parent.type != expected_type:
+        raise AuthError(
+            "invalid_parent",
+            "Task의 상위 티켓은 Epic이어야 합니다."
+            if ticket.type == TicketType.TASK
+            else "Subtask의 상위 티켓은 Task여야 합니다.",
+        )
+    if repository.parent_would_cycle(session, project.id, ticket.id, parent.id):
+        raise AuthError("invalid_parent", "순환 계층은 만들 수 없습니다.")
+    return parent
 
 
 def ticket_list(
@@ -362,15 +536,7 @@ def board(session: Session, actor: Identity, project_key: str):
 def ticket_detail(session: Session, actor: Identity, project_key: str, ticket_key: str):
     with project_service.operation(session, actor, "ticket_read"):
         project = _project(session, actor, project_key)
-        row = repository.ticket_row(
-            session,
-            project.id,
-            actor.id,
-            ticket_key.strip().upper(),
-            override=_override(project),
-        )
-        if row is None:
-            raise AuthError("ticket_not_found", "티켓을 찾을 수 없습니다.", 404)
+        row = _ticket_row(session, actor, project, ticket_key)
         return project, view(row)
 
 
@@ -387,6 +553,48 @@ def create_options(session: Session, actor: Identity, project_key: str):
                 TicketParentView(**row)
                 for row in repository.parent_candidates(
                     session, project.id, actor.id, override=override
+                )
+            ],
+        )
+
+
+def edit_options(
+    session: Session, actor: Identity, project_key: str, ticket_key: str
+):
+    with project_service.operation(session, actor, "ticket_edit_options"):
+        project = _project(session, actor, project_key)
+        row = _ticket_row(session, actor, project, ticket_key)
+        ticket = row[0]
+        _require_edit_permission(session, actor, project_key, project, ticket)
+        _require_active_project(project)
+        if TicketStatus(ticket.status) in TERMINAL_STATUSES:
+            raise AuthError(
+                "terminal_ticket_locked",
+                "완료·취소 티켓은 재개한 후 수정할 수 있습니다.",
+                409,
+            )
+        allowed_parent_types = (
+            (TicketType.EPIC,)
+            if ticket.type == TicketType.TASK
+            else ((TicketType.TASK,) if ticket.type == TicketType.SUBTASK else ())
+        )
+        override = _override(project)
+        return project, view(row), TicketEditOptions(
+            assignees=[
+                TicketUserView(**candidate)
+                for candidate in repository.assignees(
+                    session, project.id, actor.id, override=override
+                )
+            ],
+            parents=[
+                TicketParentView(**candidate)
+                for candidate in repository.parent_candidates(
+                    session,
+                    project.id,
+                    actor.id,
+                    override=override,
+                    allowed_types=allowed_parent_types,
+                    exclude_ticket_id=ticket.id,
                 )
             ],
         )
@@ -454,5 +662,225 @@ def create_ticket(
         actor.id,
         result.project_id,
         result.id,
+    )
+    return result
+
+
+def update_ticket(
+    session: Session,
+    actor: Identity,
+    project_key: str,
+    ticket_key: str,
+    payload: TicketUpdate,
+) -> TicketView:
+    changed_fields: list[str] = []
+    with project_service.operation(
+        session,
+        actor,
+        "ticket_update",
+        write=True,
+        conflict_code="ticket_conflict",
+        conflict_message="티켓 정보가 중복되거나 변경되었습니다. 다시 확인하세요.",
+        stale_code="ticket_version_conflict",
+    ):
+        project = _project(session, actor, project_key)
+        _require_active_project(project)
+        row = _ticket_row(session, actor, project, ticket_key)
+        ticket = row[0]
+        _require_edit_permission(session, actor, project_key, project, ticket)
+        _require_expected_version(ticket, payload.expected_version)
+        if TicketStatus(ticket.status) in TERMINAL_STATUSES:
+            raise AuthError(
+                "terminal_ticket_locked",
+                "완료·취소 티켓은 재개한 후 수정할 수 있습니다.",
+                409,
+            )
+        parent = _parent_for_update(
+            session, actor, project, ticket, payload.parent_key
+        )
+        if (
+            payload.assignee_id != ticket.assignee_id
+            and payload.assignee_id is not None
+            and not repository.assignee_is_active_member(
+                session, project.id, payload.assignee_id
+            )
+        ):
+            raise AuthError(
+                "invalid_assignee", "활성 프로젝트 구성원을 담당자로 선택하세요."
+            )
+
+        current_parent_key = row._mapping["parent_key"]
+        desired = {
+            "title": payload.title,
+            "description": payload.description,
+            "priority": payload.priority,
+            "parent_key": parent.key if parent else None,
+            "assignee_id": payload.assignee_id,
+            "due_date": payload.due_date,
+        }
+        current = {
+            "title": ticket.title,
+            "description": ticket.description,
+            "priority": Priority(ticket.priority),
+            "parent_key": current_parent_key,
+            "assignee_id": ticket.assignee_id,
+            "due_date": ticket.due_date,
+        }
+        changed_fields = [field for field in desired if desired[field] != current[field]]
+        if not changed_fields:
+            return view(row)
+
+        before = _snapshot(session, ticket, current_parent_key)
+        ticket.title = payload.title
+        ticket.description = payload.description
+        ticket.priority = payload.priority
+        ticket.parent_id = parent.id if parent else None
+        ticket.assignee_id = payload.assignee_id
+        ticket.due_date = payload.due_date
+        ticket.updated_at = utc_now()
+        session.flush()
+        after = _snapshot(session, ticket, parent.key if parent else None)
+        session.add(
+            _change_history(
+                ticket,
+                actor.id,
+                HistoryEventType.UPDATED,
+                before,
+                after,
+                (
+                    "title",
+                    "description",
+                    "priority",
+                    "parent_key",
+                    "assignee_id",
+                    "due_date",
+                ),
+            )
+        )
+        audit(
+            session,
+            "ticket.updated",
+            actor.id,
+            ticket,
+            from_version=before.version,
+            to_version=after.version,
+            changed_fields=changed_fields,
+        )
+        session.flush()
+        updated_row = _ticket_row(session, actor, project, ticket.key)
+        result = view(updated_row)
+    logger.info(
+        "ticket_updated actor_id=%s project_id=%s ticket_id=%s version=%s fields=%s",
+        actor.id,
+        result.project_id,
+        result.id,
+        result.version,
+        ",".join(changed_fields),
+    )
+    return result
+
+
+def transition_ticket(
+    session: Session,
+    actor: Identity,
+    project_key: str,
+    ticket_key: str,
+    payload: TicketTransition,
+) -> TicketView:
+    with project_service.operation(
+        session,
+        actor,
+        "ticket_transition",
+        write=True,
+        conflict_code="ticket_conflict",
+        conflict_message="티켓 상태가 변경되었습니다. 다시 확인하세요.",
+        stale_code="ticket_version_conflict",
+    ):
+        project = _project(session, actor, project_key)
+        _require_active_project(project)
+        row = _ticket_row(session, actor, project, ticket_key)
+        ticket = row[0]
+        _require_edit_permission(session, actor, project_key, project, ticket)
+        _require_expected_version(ticket, payload.expected_version)
+        current_status = TicketStatus(ticket.status)
+        if payload.target_status not in allowed_transitions(current_status):
+            raise AuthError(
+                "invalid_status_transition",
+                "현재 상태에서 요청한 상태로 변경할 수 없습니다.",
+                409,
+            )
+        if payload.target_status == TicketStatus.DONE:
+            if repository.incomplete_dependency_count(
+                session, project.id, ticket.id
+            ):
+                raise AuthError(
+                    "incomplete_dependency",
+                    "완료되지 않은 의존 대상이 있어 완료할 수 없습니다.",
+                    409,
+                )
+            if (
+                ticket.type == TicketType.EPIC
+                and repository.incomplete_child_count(session, project.id, ticket.id)
+                and not payload.confirm_incomplete_children
+            ):
+                raise AuthError(
+                    "incomplete_child_confirmation_required",
+                    "미완료 Task가 있습니다. 확인 후 Epic 완료를 다시 요청하세요.",
+                    409,
+                )
+
+        current_parent_key = row._mapping["parent_key"]
+        before = _snapshot(session, ticket, current_parent_key)
+        now = utc_now()
+        if current_status == TicketStatus.DONE:
+            ticket.completed_at = None
+        if current_status == TicketStatus.CANCELLED:
+            ticket.cancelled_at = None
+        if payload.target_status == TicketStatus.IN_PROGRESS and ticket.actual_started_at is None:
+            ticket.actual_started_at = now
+        if payload.target_status == TicketStatus.DONE:
+            ticket.completed_at = now
+        if payload.target_status == TicketStatus.CANCELLED:
+            ticket.cancelled_at = now
+        ticket.status = payload.target_status
+        ticket.updated_at = now
+        session.flush()
+        after = _snapshot(session, ticket, current_parent_key)
+        tracked_fields = (
+            "status",
+            "actual_started_at",
+            "completed_at",
+            "cancelled_at",
+        )
+        session.add(
+            _change_history(
+                ticket,
+                actor.id,
+                HistoryEventType.STATUS_CHANGED,
+                before,
+                after,
+                tracked_fields,
+            )
+        )
+        audit(
+            session,
+            "ticket.status_changed",
+            actor.id,
+            ticket,
+            from_version=before.version,
+            to_version=after.version,
+            from_status=before.status,
+            to_status=after.status,
+        )
+        session.flush()
+        updated_row = _ticket_row(session, actor, project, ticket.key)
+        result = view(updated_row)
+    logger.info(
+        "ticket_status_changed actor_id=%s project_id=%s ticket_id=%s version=%s status=%s",
+        actor.id,
+        result.project_id,
+        result.id,
+        result.version,
+        result.status,
     )
     return result

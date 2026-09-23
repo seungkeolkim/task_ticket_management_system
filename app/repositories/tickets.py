@@ -3,7 +3,7 @@ from datetime import date
 from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.orm import Session, aliased
 
-from app.models import Project, ProjectMember, Ticket, User
+from app.models import Project, ProjectMember, Ticket, TicketRelation, User
 
 
 def project_scope(project_id: int, actor_id: int, *, override: bool):
@@ -216,20 +216,112 @@ def assignees(session: Session, project_id: int, actor_id: int, *, override: boo
     )
 
 
-def parent_candidates(session: Session, project_id: int, actor_id: int, *, override: bool):
+def parent_candidates(
+    session: Session,
+    project_id: int,
+    actor_id: int,
+    *,
+    override: bool,
+    allowed_types: tuple[str, ...] = ("EPIC", "TASK"),
+    exclude_ticket_id: int | None = None,
+):
     scope = project_scope(project_id, actor_id, override=override).subquery()
+    query = select(Ticket.key, Ticket.type, Ticket.title).where(
+        Ticket.project_id.in_(select(scope.c.id)),
+        Ticket.type.in_(allowed_types),
+        Ticket.deleted_at.is_(None),
+    )
+    if exclude_ticket_id is not None:
+        query = query.where(Ticket.id != exclude_ticket_id)
+    return session.execute(query.order_by(Ticket.number)).mappings().all()
+
+
+def parent_would_cycle(
+    session: Session, project_id: int, ticket_id: int, parent_id: int | None
+) -> bool:
+    seen = {ticket_id}
+    current_id = parent_id
+    while current_id is not None:
+        if current_id in seen:
+            return True
+        seen.add(current_id)
+        current_id = session.scalar(
+            select(Ticket.parent_id).where(
+                Ticket.project_id == project_id,
+                Ticket.id == current_id,
+            )
+        )
+    return False
+
+
+def relation_rows(session: Session, project_id: int, ticket_id: int):
+    source = aliased(Ticket)
+    target = aliased(Ticket)
+    return session.execute(
+        select(
+            source.key.label("source_ticket_key"),
+            target.key.label("target_ticket_key"),
+            TicketRelation.relation_type,
+            TicketRelation.dependency_kind,
+            TicketRelation.lag_days,
+        )
+        .join(
+            source,
+            (source.project_id == TicketRelation.project_id)
+            & (source.id == TicketRelation.source_ticket_id),
+        )
+        .join(
+            target,
+            (target.project_id == TicketRelation.project_id)
+            & (target.id == TicketRelation.target_ticket_id),
+        )
+        .where(
+            TicketRelation.project_id == project_id,
+            or_(
+                TicketRelation.source_ticket_id == ticket_id,
+                TicketRelation.target_ticket_id == ticket_id,
+            ),
+        )
+        .order_by(TicketRelation.id)
+    ).mappings().all()
+
+
+def incomplete_dependency_count(session: Session, project_id: int, ticket_id: int) -> int:
+    target = aliased(Ticket)
     return (
-        session.execute(
-            select(Ticket.key, Ticket.type, Ticket.title)
+        session.scalar(
+            select(func.count())
+            .select_from(TicketRelation)
+            .join(
+                target,
+                (target.project_id == TicketRelation.project_id)
+                & (target.id == TicketRelation.target_ticket_id),
+            )
             .where(
-                Ticket.project_id.in_(select(scope.c.id)),
-                Ticket.type.in_(["EPIC", "TASK"]),
+                TicketRelation.project_id == project_id,
+                TicketRelation.source_ticket_id == ticket_id,
+                TicketRelation.relation_type == "DEPENDS_ON",
+                target.status != "DONE",
+            )
+        )
+        or 0
+    )
+
+
+def incomplete_child_count(session: Session, project_id: int, epic_id: int) -> int:
+    return (
+        session.scalar(
+            select(func.count())
+            .select_from(Ticket)
+            .where(
+                Ticket.project_id == project_id,
+                Ticket.parent_id == epic_id,
+                Ticket.type == "TASK",
+                Ticket.status != "DONE",
                 Ticket.deleted_at.is_(None),
             )
-            .order_by(Ticket.number)
         )
-        .mappings()
-        .all()
+        or 0
     )
 
 
