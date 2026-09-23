@@ -4,9 +4,16 @@
 {% block content %}
 <div class="detail-page-head">
   <div class="breadcrumbs"><a href="/projects">프로젝트</a><span>›</span><a href="/projects/{{ project.key }}/tickets">{{ project.key }} 티켓</a><span>›</span><strong>{{ ticket.key }}</strong></div>
-  <div class="page-actions"><a class="button secondary" href="/projects/{{ project.key }}/tickets?selected={{ ticket.key }}">목록에서 보기</a></div>
+  <div class="page-actions">{% if can_edit and project.is_active and ticket.status.value not in ['DONE', 'CANCELLED'] %}<a class="button secondary" href="/projects/{{ project.key }}/tickets/{{ ticket.key }}/edit">편집</a>{% endif %}<a class="button secondary" href="/projects/{{ project.key }}/tickets?selected={{ ticket.key }}">목록에서 보기</a></div>
 </div>
 {% if created %}<div class="auth-message success" role="status">티켓을 생성하고 최초 변경 이력을 기록했습니다.</div>{% endif %}
+{% if updated %}<div class="auth-message success" role="status">티켓을 수정하고 변경 이력을 기록했습니다.</div>{% endif %}
+{% if transitioned %}<div class="auth-message success" role="status">상태를 변경하고 변경 이력을 기록했습니다.</div>{% endif %}
+{% if error %}<div class="auth-message error" role="alert">{{ error }}</div>{% endif %}
+{% if confirmation_status %}<form class="panel" action="/projects/{{ project.key }}/tickets/{{ ticket.key }}/transition" method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="target_status" value="{{ confirmation_status }}"><input type="hidden" name="expected_version" value="{{ ticket.version }}"><input type="hidden" name="confirm_incomplete_children" value="true">
+  <p>하위 Task 상태는 변경되지 않습니다.</p><button class="button primary" type="submit">미완료 Task를 확인했으며 Epic 완료</button>
+</form>{% endif %}
 
 <div class="ticket-detail-layout">
   <article class="ticket-detail-main">
@@ -20,12 +27,18 @@
   </article>
 
   <aside class="ticket-properties">
+    {% if can_edit and project.is_active %}<section class="property-card"><div class="section-title"><h3>상태 변경</h3></div><div class="page-actions">
+      {% for status, label in transitions %}<form action="/projects/{{ project.key }}/tickets/{{ ticket.key }}/transition" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="target_status" value="{{ status.value }}"><input type="hidden" name="expected_version" value="{{ ticket.version }}"><button class="button secondary" type="submit">{{ label }}</button></form>{% endfor %}
+    </div></section>{% endif %}
     <section class="property-card"><div class="section-title"><h3>세부 정보</h3></div><dl class="property-list roomy">
       <div><dt>담당자</dt><dd>{{ ticket.assignee.display_name if ticket.assignee else '미지정' }}</dd></div>
       <div><dt>생성자</dt><dd>{{ ticket.creator.display_name }}</dd></div>
       <div><dt>중요도</dt><dd>{{ ui.priority_badge(ticket.priority_label, ticket.priority_code) }}</dd></div>
       <div><dt>상위 티켓</dt><dd>{% if ticket.parent %}<a href="/projects/{{ project.key }}/tickets/{{ ticket.parent.key }}">{{ ticket.parent.key }} · {{ ticket.parent.title }}</a>{% else %}없음{% endif %}</dd></div>
       <div><dt>마감일</dt><dd>{{ ticket.due_date or '없음' }}</dd></div>
+      <div><dt>최초 착수</dt><dd>{{ ticket.actual_started_at or '없음' }}</dd></div>
+      <div><dt>완료</dt><dd>{{ ticket.completed_at or '없음' }}</dd></div>
+      <div><dt>취소</dt><dd>{{ ticket.cancelled_at or '없음' }}</dd></div>
       <div><dt>생성</dt><dd>{{ ticket.created_at }}</dd></div>
       <div><dt>수정</dt><dd>{{ ticket.updated_at }}</dd></div>
     </dl></section>

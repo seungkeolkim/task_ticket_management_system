@@ -41,6 +41,42 @@ class TicketCreate(BaseModel):
         return self
 
 
+class TicketUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(min_length=1, max_length=200)
+    description: str = Field(default="", max_length=100_000)
+    priority: Priority
+    parent_key: str | None = Field(default=None, max_length=64)
+    assignee_id: int | None = Field(default=None, gt=0)
+    due_date: date | None = None
+    expected_version: int = Field(gt=0)
+
+    @field_validator("title")
+    @classmethod
+    def normalize_title(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("제목을 입력하세요.")
+        return normalized
+
+    @field_validator("parent_key", mode="before")
+    @classmethod
+    def normalize_parent_key(cls, value: object) -> object:
+        if value is None:
+            return None
+        normalized = str(value).strip().upper()
+        return normalized or None
+
+
+class TicketTransition(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    target_status: TicketStatus
+    expected_version: int = Field(gt=0)
+    confirm_incomplete_children: bool = False
+
+
 class TicketUserView(BaseModel):
     id: int
     login_id: str
@@ -74,6 +110,9 @@ class TicketView(BaseModel):
     creator: TicketUserView
     assignee: TicketUserView | None
     due_date: date | None
+    actual_started_at: datetime | None
+    completed_at: datetime | None
+    cancelled_at: datetime | None
     version: int
     created_at: datetime
     updated_at: datetime
@@ -87,6 +126,11 @@ class TicketPage(BaseModel):
 
 
 class TicketCreateOptions(BaseModel):
+    assignees: list[TicketUserView]
+    parents: list[TicketParentView]
+
+
+class TicketEditOptions(BaseModel):
     assignees: list[TicketUserView]
     parents: list[TicketParentView]
 

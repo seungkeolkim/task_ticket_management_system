@@ -3,6 +3,7 @@ from contextlib import contextmanager
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.exc import StaleDataError
 
 from app.core.config import get_settings
 from app.db.transaction import request_transaction
@@ -86,7 +87,17 @@ def require_project_admin(session: Session, actor: Identity, key: str):
 
 
 @contextmanager
-def operation(session, actor, event, *, write=False):
+def operation(
+    session,
+    actor,
+    event,
+    *,
+    write=False,
+    conflict_code="project_conflict",
+    conflict_message="중복되거나 변경된 정보입니다. 다시 확인하세요.",
+    stale_code=None,
+    stale_message="다른 사용자가 먼저 변경했습니다. 최신 내용을 다시 불러오세요.",
+):
     logger.debug("%s_started actor_id=%s", event, actor.id)
     try:
         with request_transaction(session):
@@ -95,11 +106,12 @@ def operation(session, actor, event, *, write=False):
             yield
     except AuthError:
         raise
+    except StaleDataError:
+        logger.info("%s_rejected actor_id=%s code=stale", event, actor.id)
+        raise AuthError(stale_code or conflict_code, stale_message, 409) from None
     except IntegrityError:
         logger.info("%s_rejected actor_id=%s code=conflict", event, actor.id)
-        raise AuthError(
-            "project_conflict", "중복되거나 변경된 정보입니다. 다시 확인하세요.", 409
-        ) from None
+        raise AuthError(conflict_code, conflict_message, 409) from None
     except Exception:
         logger.exception("%s_failed actor_id=%s", event, actor.id)
         raise

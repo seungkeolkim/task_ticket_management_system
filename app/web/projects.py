@@ -196,7 +196,6 @@ def add_member(
     return RedirectResponse(f"/projects/{project_key}/members?added=1", status_code=303)
 
 
-@router.get("/projects/{project_key}/tickets/{ticket_key}/edit")
 @router.get("/projects/{project_key}/trash")
 def pending(project_key: str, request: Request, session: Database, actor: Actor):
     return detail_page(request, session, actor, project_key, pending=True)

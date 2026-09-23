@@ -4,24 +4,25 @@
 {% set form = values|default({}) %}
 <header class="page-header compact-header">
   <div>
-    <div class="breadcrumbs"><a href="/projects/{{ project.key }}/tickets">티켓</a><span>›</span><strong>새 티켓</strong></div>
-    <h1>새 티켓 만들기</h1>
-    <p>유형에 맞는 상위 티켓과 프로젝트 구성원을 지정할 수 있습니다.</p>
+    <div class="breadcrumbs"><a href="/projects/{{ project.key }}/tickets">티켓</a><span>›</span><strong>{{ '새 티켓' if mode == 'create' else ticket.key ~ ' 편집' }}</strong></div>
+    <h1>{{ '새 티켓 만들기' if mode == 'create' else ticket.key ~ ' 편집' }}</h1>
+    <p>{{ '유형에 맞는 상위 티켓과 프로젝트 구성원을 지정할 수 있습니다.' if mode == 'create' else '업무 필드를 수정합니다. 상태 변경은 티켓 상세에서 수행합니다.' }}</p>
   </div>
 </header>
 
-{% if error %}<div class="auth-message error" role="alert">{{ error }}</div>{% endif %}
+{% if error %}<div class="auth-message error" role="alert">{{ error }}{% if conflict %} <a href="/projects/{{ project.key }}/tickets/{{ ticket.key }}/edit">최신 내용 다시 불러오기</a>{% endif %}</div>{% endif %}
 <div class="form-page-layout">
-  <form class="panel form-card" action="/projects/{{ project.key }}/tickets" method="post">
+  <form class="panel form-card" action="{{ '/projects/' ~ project.key ~ '/tickets' if mode == 'create' else '/projects/' ~ project.key ~ '/tickets/' ~ ticket.key }}" method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    {% if mode == 'edit' %}<input type="hidden" name="expected_version" value="{{ form.get('expected_version', ticket.version) }}">{% endif %}
     <div class="form-section">
       <div class="form-section-head"><span>01</span><div><h2>기본 정보</h2><p>티켓의 유형과 핵심 내용을 입력합니다.</p></div></div>
       <div class="form-grid two">
-        <label class="field"><span>티켓 유형 <b>*</b></span><select name="type">
+        {% if mode == 'create' %}<label class="field"><span>티켓 유형 <b>*</b></span><select name="type">
           {% for code, label in [('EPIC', 'Epic'), ('TASK', 'Task'), ('SUBTASK', 'Subtask')] %}
           <option value="{{ code }}" {% if form.get('type', 'TASK') == code %}selected{% endif %}>{{ label }}</option>
           {% endfor %}
-        </select></label>
+        </select></label>{% else %}<label class="field"><span>티켓 유형</span><input value="{{ ticket.type_label }}" disabled></label>{% endif %}
         <label class="field"><span>프로젝트</span><input value="{{ project.key }} · {{ project.name }}" disabled></label>
       </div>
       <label class="field"><span>제목 <b>*</b></span><input name="title" maxlength="200" value="{{ form.get('title', '') }}" placeholder="해야 할 일을 간결하게 입력하세요" required><small class="field-counter">최대 200자</small></label>
@@ -31,7 +32,7 @@
     <div class="form-section">
       <div class="form-section-head"><span>02</span><div><h2>업무 구조</h2><p>상위 티켓과 담당 범위를 지정합니다.</p></div></div>
       <div class="form-grid two">
-        <label class="field"><span>상위 티켓</span><select name="parent_key">
+        <label class="field"><span>상위 티켓</span><select name="parent_key" {% if mode == 'edit' and ticket.type.value == 'EPIC' %}disabled{% endif %}>
           <option value="">선택하지 않음</option>
           {% for parent in options.parents %}<option value="{{ parent.key }}" {% if form.get('parent_key') == parent.key %}selected{% endif %}>{{ parent.key }} · {{ parent.type.value }} · {{ parent.title }}</option>{% endfor %}
         </select><small>Task는 Epic을 선택할 수 있고 Subtask는 Task를 반드시 선택해야 합니다.</small></label>
@@ -48,12 +49,12 @@
       </div>
     </div>
 
-    <footer class="sticky-form-actions"><div><span class="info-dot">i</span>생성 시 번호와 최초 변경 이력이 함께 기록됩니다.</div><div><a class="button secondary" href="/projects/{{ project.key }}/tickets">취소</a><button class="button primary" type="submit">티켓 만들기</button></div></footer>
+    <footer class="sticky-form-actions"><div><span class="info-dot">i</span>{{ '생성 시 번호와 최초 변경 이력이 함께 기록됩니다.' if mode == 'create' else '변경 내용은 새 티켓 버전과 이력으로 함께 기록됩니다.' }}</div><div><a class="button secondary" href="{{ '/projects/' ~ project.key ~ '/tickets' if mode == 'create' else '/projects/' ~ project.key ~ '/tickets/' ~ ticket.key }}">취소</a><button class="button primary" type="submit" {% if conflict %}disabled{% endif %}>{{ '티켓 만들기' if mode == 'create' else '변경 저장' }}</button></div></footer>
   </form>
 
   <aside class="form-help">
     <div class="help-card"><span class="help-icon">◎</span><h3>좋은 티켓의 기준</h3><ul><li>제목에는 결과가 드러나게 작성합니다.</li><li>설명에 배경과 완료 조건을 남깁니다.</li><li>실제 수행할 담당자를 지정합니다.</li></ul></div>
-    <div class="help-card rule-card"><h3>적용되는 업무 규칙</h3><dl><div><dt>계층</dt><dd>Epic → Task → Subtask</dd></div><div><dt>기본 중요도</dt><dd>Major</dd></div><div><dt>초기 상태</dt><dd>등록</dd></div></dl></div>
+    <div class="help-card rule-card"><h3>적용되는 업무 규칙</h3><dl><div><dt>계층</dt><dd>Epic → Task → Subtask</dd></div><div><dt>기본 중요도</dt><dd>Major</dd></div><div><dt>{{ '초기 상태' if mode == 'create' else '현재 상태' }}</dt><dd>{{ '등록' if mode == 'create' else ticket.status_label }}</dd></div></dl></div>
   </aside>
 </div>
 {% endblock %}
