@@ -23,7 +23,7 @@ class ProjectCreate(BaseModel):
 class MemberCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     user_id: int = Field(gt=0)
-    role: Literal["PROJECT_ADMIN", "PROJECT_USER"] = "PROJECT_USER"
+    role: Literal["PROJECT_ADMIN", "PROJECT_USER", "PROJECT_GUEST"] = "PROJECT_USER"
 
 
 class ProjectView(BaseModel):

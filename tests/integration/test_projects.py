@@ -95,6 +95,22 @@ def test_create_register_and_my_projects_flow(client, people, db_session):
         ).status_code
         == 201
     )
+    assert (
+        post(
+            client,
+            "/api/projects/DEV/members",
+            {
+                "user_id": people["outsider"].id,
+                "role": "PROJECT_GUEST",
+            },
+        ).status_code
+        == 201
+    )
+    login(client, "outsider")
+    guest_projects = client.get("/api/projects").json()
+    assert guest_projects["projects"][0]["role"] == "PROJECT_GUEST"
+    assert "게스트" in client.get("/projects").text
+    assert "프로젝트 게스트" in client.get("/projects/DEV/members").text
     login(client, "member")
     assert client.get("/api/projects").json()["total"] == 1
     page = client.get("/projects/DEV/members")
@@ -108,8 +124,8 @@ def test_create_register_and_my_projects_flow(client, people, db_session):
     events = list(
         db_session.scalars(select(AuditLog).where(AuditLog.action == "project.member_added"))
     )
-    assert len(events) == 2
-    assert events[-1].details == {"user_id": people["member"].id, "role": "PROJECT_USER"}
+    assert len(events) == 3
+    assert events[-1].details == {"user_id": people["outsider"].id, "role": "PROJECT_GUEST"}
 
 
 @pytest.mark.parametrize(

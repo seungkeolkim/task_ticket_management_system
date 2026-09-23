@@ -80,8 +80,18 @@ def test_ticket_constraints(db_session: Session, work: tuple, invalid: dict) -> 
 
 def test_membership_and_ticket_number_uniqueness(db_session: Session, work: tuple) -> None:
     user, project, ticket, *_ = work
-    db_session.add(ProjectMember(project_id=project.id, user_id=user.id))
+    membership = ProjectMember(project_id=project.id, user_id=user.id)
+    db_session.add(membership)
     db_session.flush()
+    membership.role = "PROJECT_GUEST"
+    db_session.flush()
+    assert membership.role == "PROJECT_GUEST"
+    with pytest.raises(IntegrityError), db_session.begin_nested():
+        db_session.execute(
+            ProjectMember.__table__.update()
+            .where(ProjectMember.id == membership.id)
+            .values(role="INVALID_ROLE")
+        )
     for duplicate in (
         ProjectMember(project_id=project.id, user_id=user.id),
         Ticket(

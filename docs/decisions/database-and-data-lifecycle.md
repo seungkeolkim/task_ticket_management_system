@@ -18,6 +18,7 @@
 | DB-014 | 2026-09-18 | DECIDED | 사용자·조직 생성도 DB-013의 SQLite 쓰기 잠금을 재사용하고 잠금 후 관리자 상태·조직 상태·중복을 확인한다. 생성과 감사 기록을 한 transaction으로 commit한다. | 동시 생성 및 역할 변경 경합에 대비하고 무결성 오류는 rollback 후 안전한 409로 반환한다. backend 전환 시 관리 쓰기도 동시성 검증 대상이다. |
 | DB-015 | 2026-09-18 | DECIDED | 최초 revision의 upgrade·식별자는 유지하며 downgrade의 조직 테이블 제거 직전에 parent 연결을 해제한다. 새 revision은 추가하지 않는다. | SQLite가 하위 조직이 있는 self-RESTRICT 테이블의 DROP을 거부하는 기존 결함을 수정한다. 의도적으로 전체 DB를 제거하는 base rollback에만 적용되며 head→0001 downgrade와 정상 실행 데이터에는 영향을 주지 않는다. |
 | DB-016 | 2026-09-19 | DECIDED | 프로젝트 생성·참여자 추가는 DB-013의 SQLite 쓰기 잠금을 재사용하고 잠금 이후 현재 사용자 역할·구성원 권한·활성 상태·중복을 재검사한다. 쓰기와 감사 기록은 한 transaction이며 override 조회도 감사 저장 실패 시 결과를 반환하지 않는다. | 기존 Project·ProjectMember 테이블로 연결하며 migration은 추가하지 않는다. 동시 생성·등록과 감사 실패 롤백을 검증한다. |
+| DB-017 | 2026-09-23 | DECIDED | `20260923_0003`에서 `project_members.role` CHECK에 `PROJECT_GUEST`를 추가한다. downgrade 시 게스트를 쓰기 가능한 사용자로 승격하지 않고 해당 게스트 membership을 제거한다. | upgrade는 기존 관리자·사용자 membership을 그대로 보존한다. 이전 schema에는 읽기 전용 역할이 없으므로 downgrade의 접근 상실을 명시적인 파괴 동작으로 취급하고 사전 백업을 요구한다. |
 
 ## Open decisions
 

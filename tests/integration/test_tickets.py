@@ -56,7 +56,7 @@ def ticket_people(client, db_session):
     db_session.flush()
     password_hash = hash_password(PASSWORD)
     people = {}
-    for name in ["sysadmin", "manager", "member", "outsider"]:
+    for name in ["sysadmin", "manager", "member", "guest", "outsider"]:
         user = User(
             login_id=name,
             display_name=f"{name} 표시명",
@@ -79,6 +79,11 @@ def ticket_people(client, db_session):
                 role="PROJECT_ADMIN",
             ),
             ProjectMember(project_id=project.id, user_id=people["member"].id),
+            ProjectMember(
+                project_id=project.id,
+                user_id=people["guest"].id,
+                role="PROJECT_GUEST",
+            ),
         ]
     )
     db_session.commit()
@@ -222,6 +227,32 @@ def test_permissions_assignee_csrf_and_inactive_project(
     assert client.get("/projects/DEV/board").status_code == 404
 
 
+def test_guest_is_read_only_and_excluded_from_assignees(client, ticket_people):
+    people, _ = ticket_people
+    ticket = create_ticket(client, title="게스트 조회 티켓").json()
+    login(client, "guest")
+
+    listing = client.get("/api/projects/DEV/tickets")
+    assert listing.status_code == 200 and listing.json()["total"] == 1
+    assert client.get(f"/api/projects/DEV/tickets/{ticket['key']}").status_code == 200
+    assert client.get("/api/projects/DEV/tickets/board").status_code == 200
+    html = client.get("/projects/DEV/tickets")
+    assert html.status_code == 200 and "새 티켓" not in html.text
+    assert client.get("/projects/DEV/tickets/new").status_code == 403
+
+    denied = create_ticket(client, title="게스트 생성 거부")
+    assert denied.status_code == 403 and denied.json()["code"] == "project_write_required"
+    denied = update_ticket(client, ticket["key"], 1, title="게스트 수정 거부")
+    assert denied.status_code == 403 and denied.json()["code"] == "project_write_required"
+    denied = transition_ticket(client, ticket["key"], "IN_PROGRESS", 1)
+    assert denied.status_code == 403 and denied.json()["code"] == "project_write_required"
+
+    login(client, "member")
+    options = client.get("/api/projects/DEV/tickets/creation-options").json()
+    assert people["guest"].id not in {item["id"] for item in options["assignees"]}
+    assert create_ticket(client, assignee_id=people["guest"].id).status_code == 400
+
+
 def test_html_create_escapes_values_and_refreshes_from_database(client, ticket_people):
     people, _ = ticket_people
     page = client.get("/projects/DEV/tickets/new")
@@ -316,7 +347,7 @@ def test_system_admin_override_is_audited(client, ticket_people, db_session):
     override_events = db_session.scalars(
         select(AuditLog).where(AuditLog.action == "project.override_access")
     ).all()
-    assert override_events and override_events[-1].details["permission"] == "read"
+    assert override_events and override_events[-1].details["permission"] == "write"
 
 
 def test_update_moves_hierarchy_preserves_subtasks_and_records_one_history_per_version(
@@ -586,7 +617,7 @@ def test_completion_dependency_and_epic_confirmation_guards(
     assert confirmed.status_code == 200 and confirmed.json()["status"] == "DONE"
 
 
-def test_edit_permissions_admin_override_terminal_and_inactive_project(
+def test_project_user_write_admin_override_terminal_and_inactive_project(
     client, ticket_people, db_session
 ):
     people, project = ticket_people
@@ -606,7 +637,10 @@ def test_edit_permissions_admin_override_terminal_and_inactive_project(
     )
     db_session.commit()
     login(client, "outsider")
-    assert update_ticket(client, ticket["key"], 2).status_code == 403
+    unrelated_update = update_ticket(
+        client, ticket["key"], 2, title="프로젝트 사용자의 전체 티켓 수정"
+    )
+    assert unrelated_update.status_code == 200
 
     login(client, "manager")
     assigned = create_ticket(
@@ -619,17 +653,17 @@ def test_edit_permissions_admin_override_terminal_and_inactive_project(
     assert assignee_update.status_code == 200
 
     login(client, "sysadmin")
-    override = update_ticket(client, ticket["key"], 2, title="시스템 관리자 수정")
+    override = update_ticket(client, ticket["key"], 3, title="시스템 관리자 수정")
     assert override.status_code == 200
     manage_override = db_session.scalars(
         select(AuditLog)
         .where(AuditLog.action == "project.override_access")
         .order_by(AuditLog.id.desc())
     ).first()
-    assert manage_override.details["permission"] == "manage"
+    assert manage_override.details["permission"] == "write"
 
     login(client, "member")
-    cancelled = transition_ticket(client, ticket["key"], "CANCELLED", 3).json()
+    cancelled = transition_ticket(client, ticket["key"], "CANCELLED", 4).json()
     locked = update_ticket(client, ticket["key"], cancelled["version"])
     assert locked.status_code == 409 and locked.json()["code"] == "terminal_ticket_locked"
     reopened = transition_ticket(
@@ -1144,8 +1178,15 @@ def test_board_transition_metadata_dependency_permission_and_javascript(
     outsider_card = find_card(
         client.get("/api/projects/DEV/tickets/board").json(), source["key"]
     )
-    assert outsider_card["can_transition"] is False
-    assert outsider_card["allowed_statuses"] == []
+    assert outsider_card["can_transition"] is True
+    assert outsider_card["allowed_statuses"]
+
+    login(client, "guest")
+    guest_card = find_card(
+        client.get("/api/projects/DEV/tickets/board").json(), source["key"]
+    )
+    assert guest_card["can_transition"] is False
+    assert guest_card["allowed_statuses"] == []
 
     login(client, "member")
     project.is_active = False
