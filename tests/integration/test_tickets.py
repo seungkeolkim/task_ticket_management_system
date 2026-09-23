@@ -447,6 +447,33 @@ def test_update_moves_hierarchy_preserves_subtasks_and_records_one_history_per_v
         )
         == audit_count
     )
+    stale_noop = update_ticket(
+        client,
+        task["key"],
+        1,
+        title="이동 완료 Task",
+        description="변경된 원문",
+        priority="CRITICAL",
+        parent_key=second_epic["key"],
+        assignee_id=people["manager"].id,
+        due_date="2026-10-10",
+    )
+    assert stale_noop.status_code == 409
+    assert stale_noop.json()["code"] == "ticket_version_conflict"
+    assert (
+        db_session.scalar(
+            select(func.count())
+            .select_from(TicketHistory)
+            .where(TicketHistory.ticket_id == task_row.id)
+        )
+        == 2
+    )
+    assert (
+        db_session.scalar(
+            select(func.count()).select_from(AuditLog).where(AuditLog.action == "ticket.updated")
+        )
+        == audit_count
+    )
 
 
 def test_fsm_timestamps_reopen_and_history_versions(client, ticket_people, db_session):
@@ -481,6 +508,8 @@ def test_fsm_timestamps_reopen_and_history_versions(client, ticket_people, db_se
     assert all(history.event_type == "STATUS_CHANGED" for history in histories[1:])
     assert histories[5].before_state["completed_at"] is not None
     assert histories[5].after_state["completed_at"] is None
+    assert histories[7].before_state["cancelled_at"] is not None
+    assert histories[7].after_state["cancelled_at"] is None
 
 
 def test_subtask_move_parent_validation_and_cross_project_rejection(
@@ -671,6 +700,9 @@ def test_project_user_write_admin_override_terminal_and_inactive_project(
     ).json()
     project.is_active = False
     db_session.commit()
+    assert client.get(f"/api/projects/DEV/tickets/{ticket['key']}").status_code == 200
+    assert client.get("/api/projects/DEV/tickets").status_code == 200
+    assert client.get("/api/projects/DEV/tickets/board").status_code == 200
     inactive = update_ticket(client, ticket["key"], reopened["version"])
     assert inactive.status_code == 409 and inactive.json()["code"] == "project_inactive"
     transition = transition_ticket(
