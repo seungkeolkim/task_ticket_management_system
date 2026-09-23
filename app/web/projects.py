@@ -197,7 +197,6 @@ def add_member(
 
 
 @router.get("/projects/{project_key}/tickets/{ticket_key}/edit")
-@router.get("/projects/{project_key}/board")
 @router.get("/projects/{project_key}/trash")
 def pending(project_key: str, request: Request, session: Database, actor: Actor):
     return detail_page(request, session, actor, project_key, pending=True)

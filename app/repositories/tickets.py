@@ -1,4 +1,6 @@
-from sqlalchemy import func, or_, select, update
+from datetime import date
+
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.orm import Session, aliased
 
 from app.models import Project, ProjectMember, Ticket, User
@@ -18,14 +20,26 @@ def project_scope(project_id: int, actor_id: int, *, override: bool):
     return query
 
 
-def ticket_query(project_id: int, actor_id: int, *, override: bool):
+def member_project_scope(actor_id: int):
+    return select(ProjectMember.project_id).where(ProjectMember.user_id == actor_id)
+
+
+def my_ticket_condition(actor_id: int):
+    return or_(
+        Ticket.assignee_id == actor_id,
+        and_(Ticket.assignee_id.is_(None), Ticket.creator_id == actor_id),
+    )
+
+
+def _ticket_select():
     creator = aliased(User)
     assignee = aliased(User)
     parent = aliased(Ticket)
-    scope = project_scope(project_id, actor_id, override=override).subquery()
     return (
         select(
             Ticket,
+            Project.key.label("project_key"),
+            Project.name.label("project_name"),
             creator.id.label("creator_id"),
             creator.login_id.label("creator_login_id"),
             creator.display_name.label("creator_display_name"),
@@ -36,14 +50,80 @@ def ticket_query(project_id: int, actor_id: int, *, override: bool):
             parent.type.label("parent_type"),
             parent.title.label("parent_title"),
         )
+        .join(Project, Project.id == Ticket.project_id)
         .join(creator, creator.id == Ticket.creator_id)
         .outerjoin(assignee, assignee.id == Ticket.assignee_id)
-        .outerjoin(parent, parent.id == Ticket.parent_id)
-        .where(
-            Ticket.project_id.in_(select(scope.c.id)),
-            Ticket.deleted_at.is_(None),
+        .outerjoin(
+            parent,
+            (parent.id == Ticket.parent_id)
+            & (parent.project_id == Ticket.project_id)
+            & parent.deleted_at.is_(None),
         )
     )
+
+
+def ticket_query(project_id: int, actor_id: int, *, override: bool):
+    scope = project_scope(project_id, actor_id, override=override).subquery()
+    return _ticket_select().where(
+        Ticket.project_id.in_(select(scope.c.id)),
+        Ticket.deleted_at.is_(None),
+    )
+
+
+def accessible_ticket_query(actor_id: int):
+    scope = member_project_scope(actor_id).subquery()
+    return _ticket_select().where(
+        Ticket.project_id.in_(select(scope.c.project_id)),
+        Ticket.deleted_at.is_(None),
+    )
+
+
+def filtered_ticket_rows(
+    session: Session,
+    actor_id: int,
+    *,
+    scope_name: str,
+    status: str,
+    due: str,
+    today: date,
+    week_end: date,
+    query_text: str = "",
+    page: int = 1,
+    page_size: int = 20,
+):
+    query = accessible_ticket_query(actor_id)
+    if scope_name == "mine":
+        query = query.where(my_ticket_condition(actor_id))
+    elif scope_name == "created":
+        query = query.where(Ticket.creator_id == actor_id)
+    if status == "open":
+        query = query.where(Ticket.status.notin_(["DONE", "CANCELLED"]))
+    if due == "overdue":
+        query = query.where(Ticket.due_date.is_not(None), Ticket.due_date < today)
+    elif due == "this_week":
+        query = query.where(Ticket.due_date.between(today, week_end))
+    if query_text:
+        query = query.where(
+            or_(
+                Ticket.key.icontains(query_text, autoescape=True),
+                Ticket.title.icontains(query_text, autoescape=True),
+            )
+        )
+    total = session.scalar(select(func.count()).select_from(query.subquery())) or 0
+    rows = session.execute(
+        query.order_by(Ticket.updated_at.desc(), Ticket.id.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    ).all()
+    return rows, total
+
+
+def board_rows(session: Session, project_id: int, actor_id: int, *, override: bool):
+    return session.execute(
+        ticket_query(project_id, actor_id, override=override).order_by(
+            Ticket.sort_order, Ticket.number, Ticket.id
+        )
+    ).all()
 
 
 def ticket_rows(

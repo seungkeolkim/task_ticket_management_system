@@ -1,5 +1,7 @@
 import logging
+from datetime import datetime, timedelta
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
 
@@ -10,6 +12,12 @@ from app.models import AuditLog, Ticket, TicketHistory
 from app.repositories import tickets as repository
 from app.schemas.contracts import FieldChange, TicketEvent, TicketState
 from app.schemas.tickets import (
+    BoardCard,
+    BoardColumn,
+    BoardDetachedGroup,
+    BoardEpicGroup,
+    BoardTask,
+    BoardView,
     TicketCreate,
     TicketCreateOptions,
     TicketPage,
@@ -33,6 +41,13 @@ STATUS_LABELS = {
     TicketStatus.ON_HOLD: ("보류", "hold"),
     TicketStatus.CANCELLED: ("취소", "cancelled"),
 }
+BOARD_STATUSES = (
+    TicketStatus.TODO,
+    TicketStatus.IN_PROGRESS,
+    TicketStatus.ON_HOLD,
+    TicketStatus.DONE,
+    TicketStatus.CANCELLED,
+)
 PRIORITY_LABELS = {
     Priority.TRIVIAL: "Trivial",
     Priority.MINOR: "Minor",
@@ -85,6 +100,8 @@ def view(row) -> TicketView:
     return TicketView(
         id=ticket.id,
         project_id=ticket.project_id,
+        project_key=mapping["project_key"],
+        project_name=mapping["project_name"],
         number=ticket.number,
         key=ticket.key,
         type=ticket_type,
@@ -112,6 +129,23 @@ def view(row) -> TicketView:
         version=ticket.version,
         created_at=ticket.created_at,
         updated_at=ticket.updated_at,
+    )
+
+
+def _board_card(ticket: TicketView) -> BoardCard:
+    return BoardCard(
+        key=ticket.key,
+        type=ticket.type,
+        type_label=ticket.type_label,
+        title=ticket.title,
+        status=ticket.status,
+        status_label=ticket.status_label,
+        status_code=ticket.status_code,
+        priority=ticket.priority,
+        priority_label=ticket.priority_label,
+        priority_code=ticket.priority_code,
+        assignee=ticket.assignee,
+        due_date=ticket.due_date,
     )
 
 
@@ -206,6 +240,123 @@ def ticket_list(
         return project, TicketPage(
             tickets=[view(row) for row in rows], total=total, page=page, page_size=size
         )
+
+
+def global_ticket_list(
+    session: Session,
+    actor: Identity,
+    *,
+    scope: str = "mine",
+    status: str = "open",
+    due: str = "all",
+    q: str = "",
+    page: int = 1,
+    page_size: int | None = None,
+):
+    size = page_size if page_size is not None else get_settings().pagination.default_size
+    if (
+        scope not in {"mine", "created", "all"}
+        or status not in {"open", "all"}
+        or due not in {"all", "overdue", "this_week"}
+        or len(q) > 200
+        or not 1 <= page <= 1_000_000
+        or size not in {10, 20, 50}
+    ):
+        raise AuthError("invalid_filter", "검색 조건과 페이지 범위를 확인하세요.")
+    today = datetime.now(ZoneInfo("Asia/Seoul")).date()
+    week_end = today + timedelta(days=6 - today.weekday())
+    with project_service.operation(session, actor, "global_ticket_list"):
+        project_service.actor_is_admin(session, actor)
+        rows, total = repository.filtered_ticket_rows(
+            session,
+            actor.id,
+            scope_name=scope,
+            status=status,
+            due=due,
+            today=today,
+            week_end=week_end,
+            query_text=q.strip(),
+            page=page,
+            page_size=size,
+        )
+        return TicketPage(
+            tickets=[view(row) for row in rows], total=total, page=page, page_size=size
+        )
+
+
+def board(session: Session, actor: Identity, project_key: str):
+    with project_service.operation(session, actor, "ticket_board"):
+        project = _project(session, actor, project_key)
+        rows = repository.board_rows(
+            session, project.id, actor.id, override=_override(project)
+        )
+        indexed = {row[0].id: (row[0], view(row)) for row in rows}
+        epics = [item for item in indexed.values() if item[0].type == TicketType.EPIC]
+        tasks = [item for item in indexed.values() if item[0].type == TicketType.TASK]
+        subtasks_by_parent: dict[int, list[tuple[Ticket, TicketView]]] = {}
+        for item in indexed.values():
+            row, _ = item
+            if row.type == TicketType.SUBTASK and row.parent_id in indexed:
+                subtasks_by_parent.setdefault(row.parent_id, []).append(item)
+
+        groups: list[BoardEpicGroup] = []
+        for epic_item in [*epics, None]:
+            epic_id = epic_item[0].id if epic_item else None
+            group_tasks = [
+                item
+                for item in tasks
+                if (item[0].parent_id if item[0].parent_id in indexed else None) == epic_id
+            ]
+            columns: list[BoardColumn] = []
+            for ticket_status in BOARD_STATUSES:
+                label, code = STATUS_LABELS[ticket_status]
+                task_cards: list[BoardTask] = []
+                detached: list[BoardDetachedGroup] = []
+                for task_row, task_view in group_tasks:
+                    children = subtasks_by_parent.get(task_row.id, [])
+                    if task_row.status == ticket_status:
+                        task_cards.append(
+                            BoardTask(
+                                card=_board_card(task_view),
+                                subtasks=[
+                                    _board_card(child_view)
+                                    for child_row, child_view in children
+                                    if child_row.status == ticket_status
+                                ],
+                            )
+                        )
+                    other_status_children = [
+                        _board_card(child_view)
+                        for child_row, child_view in children
+                        if child_row.status == ticket_status and task_row.status != ticket_status
+                    ]
+                    if other_status_children:
+                        detached.append(
+                            BoardDetachedGroup(
+                                parent_key=task_view.key,
+                                parent_title=task_view.title,
+                                subtasks=other_status_children,
+                            )
+                        )
+                columns.append(
+                    BoardColumn(
+                        status=ticket_status,
+                        label=label,
+                        code=code,
+                        card_count=sum(1 + len(task.subtasks) for task in task_cards)
+                        + sum(len(group.subtasks) for group in detached),
+                        tasks=task_cards,
+                        detached_groups=detached,
+                    )
+                )
+            groups.append(
+                BoardEpicGroup(
+                    key=epic_item[1].key if epic_item else None,
+                    title=epic_item[1].title if epic_item else "Epic 없음",
+                    columns=columns,
+                )
+            )
+        return project, BoardView(groups=groups)
 
 
 def ticket_detail(session: Session, actor: Identity, project_key: str, ticket_key: str):

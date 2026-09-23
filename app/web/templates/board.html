@@ -1,52 +1,46 @@
 {% extends "base.html" %}
 {% import "_macros.html" as ui %}
 
+{% macro card(ticket, nested=false) -%}
+<a class="kanban-card{% if nested %} nested-card{% endif %}" href="/projects/{{ project.key }}/tickets/{{ ticket.key }}">
+  <div class="kanban-card-top"><span>{{ ticket.key }}</span>{{ ui.priority_badge(ticket.priority_label, ticket.priority_code) }}</div>
+  <h3>{{ ticket.title }}</h3>
+  <footer><span>◷ {{ ticket.due_date or '마감일 없음' }}</span><span>{{ ticket.assignee.display_name if ticket.assignee else '미지정' }}</span></footer>
+</a>
+{%- endmacro %}
+
 {% block content %}
 <header class="page-header compact-header">
   <div>
     <div class="breadcrumbs"><a href="/projects">프로젝트</a><span>›</span><strong>{{ project.key }}</strong><span>›</span><span>칸반</span></div>
     <h1>칸반 보드</h1>
-    <p>티켓의 현재 상태와 Epic별 흐름을 한눈에 확인하세요.</p>
+    <p>실제 티켓 상태를 Epic과 상위 Task 기준으로 표시합니다.</p>
   </div>
   <div class="page-actions"><a class="button secondary" href="/projects/{{ project.key }}/tickets">☷ 목록 보기</a><a class="button primary" href="/projects/{{ project.key }}/tickets/new">＋ 새 티켓</a></div>
 </header>
 
-<div class="board-toolbar">
-  <label class="search-field"><span>⌕</span><input placeholder="보드에서 검색"></label>
-  <button class="filter-button" type="button">담당자: 전체 <span>▾</span></button>
-  <button class="filter-button" type="button">중요도 <span>▾</span></button>
-  <button class="filter-button" type="button">기한 <span>▾</span></button>
-  <span class="toolbar-spacer"></span>
-  <div class="avatar-stack">{{ ui.avatar('김민', 'sm') }}{{ ui.avatar('이수', 'sm', 'blue') }}{{ ui.avatar('박서', 'sm', 'slate') }}<span>+6</span></div>
-  <button class="icon-button" type="button">⚙</button>
-</div>
+<div class="board-legend"><span><i class="legend-dot todo"></i>등록</span><span><i class="legend-dot progress"></i>진행중</span><span><i class="legend-dot hold"></i>보류</span><span><i class="legend-dot done"></i>완료</span><p>현재 보드는 읽기 전용입니다.</p></div>
 
-<div class="board-legend"><span><i class="legend-dot todo"></i>등록</span><span><i class="legend-dot progress"></i>진행중</span><span><i class="legend-dot hold"></i>보류</span><span><i class="legend-dot done"></i>완료</span><p>카드 이동은 향후 FSM·권한·의존성 검증 API와 연결됩니다.</p></div>
-
-<section class="epic-board-group">
-  <header class="epic-group-head"><div><button type="button">⌄</button><span class="epic-mark large">◆</span><div><small>EPIC · OPS-120</small><strong>운영 안정성 개선</strong></div></div><div class="epic-progress"><span>5/8 완료</span><div class="mini-progress"><i style="width:62%"></i></div><b>62%</b></div><button type="button">•••</button></header>
+{% for group in board.groups %}
+<details class="epic-board-group" open>
+  <summary class="epic-group-head"><div><span class="epic-mark large">{{ '◆' if group.key else '◇' }}</span><div><small>{{ 'EPIC · ' ~ group.key if group.key else 'EPIC 없음' }}</small><strong>{{ group.title }}</strong></div></div><span>접기·펼치기</span></summary>
   <div class="kanban-board">
-    {% for column in columns %}
+    {% for column in group.columns %}
     <section class="kanban-column column-{{ column.code }}">
-      <header><div><span class="column-dot"></span><strong>{{ column.label }}</strong><b>{{ tickets | selectattr('status_code', 'equalto', column.code) | list | length }}</b></div><button type="button">＋</button></header>
+      <header><div><span class="column-dot"></span><strong>{{ column.label }}</strong><b>{{ column.card_count }}</b></div></header>
       <div class="kanban-stack">
-        {% for ticket in tickets if ticket.status_code == column.code %}
-        <a class="kanban-card" href="/projects/{{ project.key }}/tickets/{{ ticket.key }}">
-          <div class="kanban-card-top"><span>{{ ticket.key }}</span>{{ ui.priority_badge(ticket.priority, ticket.priority_code) }}</div>
-          <h3>{{ ticket.title }}</h3>
-          {% if ticket.type == 'Subtask' %}<div class="parent-reference">↳ 상위 Task · {{ ticket.parent }}</div>{% endif %}
-          {% if ticket.dependency %}<div class="blocked-note">↳ {{ ticket.dependency }} 완료 대기</div>{% endif %}
-          {% if ticket.subtasks_total %}<div class="card-progress"><span>하위 작업</span><div class="mini-progress"><i style="width:{{ (ticket.subtasks_done / ticket.subtasks_total * 100) | int }}%"></i></div><b>{{ ticket.subtasks_done }}/{{ ticket.subtasks_total }}</b></div>{% endif %}
-          <footer><span class="due-{{ ticket.due_tone }}">◷ {{ ticket.due }}</span>{{ ui.avatar(ticket.assignee_initials, 'sm', 'slate') }}</footer>
-        </a>
+        {% for task in column.tasks %}
+          {{ card(task.card) }}
+          {% if task.subtasks %}<div class="nested-subtasks"><div class="parent-reference">{{ task.card.key }}의 같은 상태 Subtask</div>{% for subtask in task.subtasks %}{{ card(subtask, true) }}{% endfor %}</div>{% endif %}
         {% endfor %}
-        {% if not (tickets | selectattr('status_code', 'equalto', column.code) | list) %}<div class="empty-dropzone">이 상태의 티켓이 없습니다</div>{% endif %}
+        {% for detached in column.detached_groups %}
+          <section class="detached-task-group"><div class="parent-reference">상위 Task · {{ detached.parent_key }} · {{ detached.parent_title }}</div>{% for subtask in detached.subtasks %}{{ card(subtask, true) }}{% endfor %}</section>
+        {% endfor %}
+        {% if column.card_count == 0 %}<div class="empty-dropzone">이 상태의 티켓이 없습니다</div>{% endif %}
       </div>
     </section>
     {% endfor %}
   </div>
-</section>
-
-<section class="collapsed-epic"><div><button>›</button><span class="epic-mark">◆</span><strong>OPS-101 · 인증 기반 정비</strong><span>티켓 6개</span></div><div class="mini-progress"><i style="width:84%"></i></div><b>84%</b></section>
-<section class="collapsed-epic"><div><button>›</button><span class="epic-mark muted">◇</span><strong>Epic 없음</strong><span>티켓 3개</span></div><div class="mini-progress"><i style="width:33%"></i></div><b>33%</b></section>
+</details>
+{% endfor %}
 {% endblock %}

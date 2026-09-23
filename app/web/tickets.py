@@ -19,6 +19,62 @@ Database = Annotated[Session, Depends(get_db_session)]
 Actor = Annotated[Identity, Depends(require_web_user)]
 
 
+@router.get("/tickets")
+def global_ticket_list(
+    request: Request,
+    session: Database,
+    actor: Actor,
+    scope: str = "mine",
+    status: str = "open",
+    due: str = "all",
+    q: str = "",
+    page: int = 1,
+    page_size: int | None = None,
+):
+    result = service.global_ticket_list(
+        session,
+        actor,
+        scope=scope,
+        status=status,
+        due=due,
+        q=q,
+        page=page,
+        page_size=page_size,
+    )
+    query = {
+        "scope": scope,
+        "status": status,
+        "due": due,
+        "q": q,
+        "page_size": result.page_size,
+    }
+    return render(
+        request,
+        "global_ticket_list.html",
+        live_page=True,
+        page_title="내 티켓",
+        active="tickets",
+        result=result,
+        filters=query,
+        previous_url="/tickets?" + urlencode(query | {"page": page - 1}),
+        next_url="/tickets?" + urlencode(query | {"page": page + 1}),
+    )
+
+
+@router.get("/projects/{project_key}/board")
+def ticket_board(project_key: str, request: Request, session: Database, actor: Actor):
+    project, board = service.board(session, actor, project_key)
+    return render(
+        request,
+        "board.html",
+        live_page=True,
+        page_title=f"칸반 · {project.key}",
+        active="board",
+        project=project,
+        board=board,
+    )
+
+
 def _create_page(request, session, actor, project_key, **context):
     project, options = service.create_options(session, actor, project_key)
     return render(

@@ -1,13 +1,16 @@
 from fastapi import APIRouter
 
-from app.api.routes import auth, health
+from app.api.routes import auth, dashboard, health
 from app.api.routes.administration import router as administration_router
 from app.api.routes.projects import router as projects_router
+from app.api.routes.tickets import global_router as global_tickets_router
 from app.api.routes.tickets import router as tickets_router
 
 api_router = APIRouter()
 api_router.include_router(administration_router)
 api_router.include_router(projects_router)
 api_router.include_router(tickets_router)
+api_router.include_router(global_tickets_router)
+api_router.include_router(dashboard.router)
 api_router.include_router(health.router)
 api_router.include_router(auth.router)

@@ -1,50 +1,30 @@
-from typing import Any
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
+from sqlalchemy.orm import Session
 
-from app.web.mock_data import (
-    MENTIONS,
-    PROJECTS,
-    TICKETS,
-)
+from app.db.session import get_db_session
+from app.domain.auth import Identity
+from app.services import dashboard as service
 from app.web.rendering import STATIC_DIRECTORY, render  # noqa: F401
 from app.web.security import require_web_user
 
 router = APIRouter(include_in_schema=False, dependencies=[Depends(require_web_user)])
-
-
-def _render(
-    request: Request,
-    template_name: str,
-    *,
-    page_title: str,
-    active: str,
-    project: dict[str, Any] | None = None,
-    **context: Any,
-) -> HTMLResponse:
-    return render(
-        request,
-        template_name,
-        **{
-            "page_title": page_title,
-            "active": active,
-            "projects": PROJECTS,
-            "project": project,
-            **context,
-        },
-    )
+Database = Annotated[Session, Depends(get_db_session)]
+Actor = Annotated[Identity, Depends(require_web_user)]
 
 
 @router.get("/", response_class=HTMLResponse)
-def dashboard(request: Request) -> HTMLResponse:
-    return _render(
+def dashboard(request: Request, session: Database, actor: Actor) -> HTMLResponse:
+    result = service.dashboard(session, actor)
+    return render(
         request,
         "dashboard.html",
+        live_page=True,
         page_title="내 작업",
         active="dashboard",
-        tickets=TICKETS,
-        mentions=MENTIONS,
+        result=result,
     )
 
 

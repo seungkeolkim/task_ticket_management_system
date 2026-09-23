@@ -39,13 +39,13 @@ def authenticated_client(client: TestClient, db_session: Session) -> TestClient:
 @pytest.mark.parametrize(
     ("path", "expected_text"),
     [
-        ("/", "좋은 오후예요"),
+        ("/", "좋은 하루예요"),
         ("/account/password", "새 비밀번호 설정"),
         ("/projects", "내 프로젝트"),
         ("/projects/OPS/tickets", "실제 프로젝트 데이터"),
         ("/projects/OPS/tickets/new", "새 티켓 만들기"),
         ("/projects/OPS/tickets/OPS-142/edit", "이 업무 기능은 준비 중"),
-        ("/projects/OPS/board", "이 업무 기능은 준비 중"),
+        ("/projects/OPS/board", "칸반 보드"),
         ("/projects/OPS/settings", "프로젝트 프로필"),
         ("/projects/OPS/members", "구성원과 역할"),
         ("/projects/OPS/trash", "이 업무 기능은 준비 중"),
@@ -84,9 +84,9 @@ def test_root_retains_authenticated_dashboard(authenticated_client: TestClient) 
     response = client.get("/")
 
     assert response.status_code == 200
-    assert "업무 화면은 예시 데이터" in response.text
+    assert "이 화면은 실제 데이터와 권한을 사용합니다." in response.text
     assert "검증 사용자" in response.text
-    assert 'href="/projects/OPS/tickets/new"' in response.text
+    assert 'href="/tickets"' in response.text
 
 
 def test_mockup_static_styles_are_served(client: TestClient) -> None:

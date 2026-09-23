@@ -87,9 +87,9 @@
           {% endif %}
         </div>
         <div class="topbar-actions">
-          <form class="global-search" action="{% if project and active == 'tickets' %}/projects/{{ project.key }}/tickets{% else %}/projects{% endif %}" method="get">
+          <form class="global-search" action="{% if project and active == 'tickets' %}/projects/{{ project.key }}/tickets{% elif active == 'tickets' %}/tickets{% else %}/projects{% endif %}" method="get">
             <span>⌕</span>
-            <input name="q" aria-label="빠른 검색" placeholder="{{ '티켓 키 또는 제목 검색' if project and active == 'tickets' else '프로젝트 이름 또는 키 검색' }}">
+            <input name="q" aria-label="빠른 검색" placeholder="{{ '티켓 키 또는 제목 검색' if active == 'tickets' else '프로젝트 이름 또는 키 검색' }}">
             <kbd>/</kbd>
           </form>
           <a class="icon-button" href="/" aria-label="알림"><span>♢</span><i></i></a>
@@ -100,7 +100,7 @@
 
       <div class="prototype-note">
         <span class="prototype-dot"></span>
-        {% if live_page %}인증·관리·프로젝트와 티켓 조회·생성은 실제 데이터에 적용됩니다.{% else %}이 업무 화면은 예시 데이터입니다. 인증·관리·프로젝트와 티켓 조회·생성은 실제 데이터에 적용됩니다.{% endif %}
+        {% if live_page %}이 화면은 실제 데이터와 권한을 사용합니다.{% else %}이 업무 화면은 아직 예시 데이터입니다.{% endif %}
       </div>
 
       <main class="page-content">
