@@ -56,6 +56,8 @@ class TicketParentView(BaseModel):
 class TicketView(BaseModel):
     id: int
     project_id: int
+    project_key: str
+    project_name: str
     number: int
     key: str
     type: TicketType
@@ -87,3 +89,48 @@ class TicketPage(BaseModel):
 class TicketCreateOptions(BaseModel):
     assignees: list[TicketUserView]
     parents: list[TicketParentView]
+
+
+class BoardCard(BaseModel):
+    key: str
+    type: TicketType
+    type_label: str
+    title: str
+    status: TicketStatus
+    status_label: str
+    status_code: str
+    priority: Priority
+    priority_label: str
+    priority_code: str
+    assignee: TicketUserView | None
+    due_date: date | None
+
+
+class BoardTask(BaseModel):
+    card: BoardCard
+    subtasks: list[BoardCard] = Field(default_factory=list)
+
+
+class BoardDetachedGroup(BaseModel):
+    parent_key: str
+    parent_title: str
+    subtasks: list[BoardCard] = Field(default_factory=list)
+
+
+class BoardColumn(BaseModel):
+    status: TicketStatus
+    label: str
+    code: str
+    card_count: int
+    tasks: list[BoardTask] = Field(default_factory=list)
+    detached_groups: list[BoardDetachedGroup] = Field(default_factory=list)
+
+
+class BoardEpicGroup(BaseModel):
+    key: str | None
+    title: str
+    columns: list[BoardColumn]
+
+
+class BoardView(BaseModel):
+    groups: list[BoardEpicGroup]
