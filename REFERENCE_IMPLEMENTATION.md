@@ -159,9 +159,10 @@ clone을 다른 커밋으로 갱신할 때는 링크의 파일·행 범위와 �
 - `ProjectMember`
   - `project_id`
   - `user_id`
-  - `role`: `PROJECT_ADMIN` 또는 `PROJECT_USER`
+  - `role`: `PROJECT_GUEST`, `PROJECT_USER` 또는 `PROJECT_ADMIN`
   - 생성일시 및 수정일시
 - `require_project_member(project_id)`
+- `require_project_user(project_id)`
 - `require_project_admin(project_id)`
 - `can_edit_ticket(user_id, ticket_id)`
 - `can_manage_comment(user_id, comment_id)`
@@ -170,6 +171,8 @@ clone을 다른 커밋으로 갱신할 때는 링크의 파일·행 범위와 �
 모든 프로젝트 리소스 조회는 데이터를 가져온 뒤 권한을 확인하는 방식보다 SQL 조회 조건 자체에 `project_id`와 사용자 membership 조건을 포함하는 방식을 우선한다. 목록, 인라인 상세 뷰, 첨부파일 다운로드, 멘션 및 검색 결과에도 같은 조건을 적용한다.
 
 시스템 관리자 override는 별도 분기로 명시하고 감사 로그를 남긴다.
+
+현재 저장소의 확정 정책은 게스트·사용자·관리자 세 역할이며, creator·assignee 기반 수정 제한은 두지 않는다. 이 절은 기존 구현에서 dependency와 조회 조건 패턴만 차용하고 실제 역할 판정은 `REQUIREMENTS.md`와 IAM-015를 따른다.
 
 ## 7. 조직 관리
 

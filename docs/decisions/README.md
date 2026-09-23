@@ -22,7 +22,7 @@
 
 | 파일 | ID 접두사 | 범위 | 다음 ID |
 |---|---|---|---|
-| [architecture-and-configuration.md](architecture-and-configuration.md) | `ARC` | 기술 구조, 실행 환경, 외부 설정 | `ARC-012` |
+| [architecture-and-configuration.md](architecture-and-configuration.md) | `ARC` | 기술 구조, 실행 환경, 외부 설정 | `ARC-013` |
 | [users-auth-and-permissions.md](users-auth-and-permissions.md) | `IAM` | 사용자, 인증, 세션, 역할, 권한 | `IAM-016` |
 | [organizations-and-projects.md](organizations-and-projects.md) | `ORG`, `PRJ` | 조직 계층, 프로젝트, 구성원 격리 | `ORG-006`, `PRJ-009` |
 | [tickets-and-workflow.md](tickets-and-workflow.md) | `TKT` | 티켓 계층, 상태, 관계, 삭제 | `TKT-013` |
@@ -31,4 +31,4 @@
 | [ui-search-and-notifications.md](ui-search-and-notifications.md) | `UI` | 화면, 목록, 검색, 칸반, 알림 범위 | `UI-015` |
 | [planning-and-reporting.md](planning-and-reporting.md) | `RPT` | 간트 일정, 기간 이력, 보고서·LLM·스킬 계약 | `RPT-009` |
 
-마지막 정리일: 2026-09-23
+마지막 정리일: 2026-09-24
