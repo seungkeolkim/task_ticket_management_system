@@ -17,7 +17,7 @@
   <div class="project-card-grid project-live-grid">
   {% for item in result.projects %}
     <article class="project-card">
-      <div class="project-card-head"><span class="ticket-key">{{ item.key }}</span><span class="role-pill">{{ '관리자' if item.role == 'PROJECT_ADMIN' else ('사용자' if item.role else '시스템 관리자 접근') }}</span></div>
+      <div class="project-card-head"><span class="ticket-key">{{ item.key }}</span><span class="role-pill">{{ '관리자' if item.role == 'PROJECT_ADMIN' else ('사용자' if item.role == 'PROJECT_USER' else ('게스트' if item.role == 'PROJECT_GUEST' else '시스템 관리자 접근')) }}</span></div>
       <div class="project-card-copy"><h2>{{ item.name }}</h2><p>{{ item.description or '등록된 설명이 없습니다.' }}</p></div>
       <div class="project-card-foot"><span>{{ '활성' if item.is_active else '비활성' }}</span><a href="/projects/{{ item.key }}">프로젝트 열기 →</a></div>
     </article>

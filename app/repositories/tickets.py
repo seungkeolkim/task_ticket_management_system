@@ -3,6 +3,7 @@ from datetime import date
 from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.orm import Session, aliased
 
+from app.domain.codes import ProjectRole
 from app.models import Project, ProjectMember, Ticket, TicketRelation, User
 
 
@@ -192,6 +193,7 @@ def assignee_is_active_member(session: Session, project_id: int, user_id: int) -
             .where(
                 ProjectMember.project_id == project_id,
                 ProjectMember.user_id == user_id,
+                ProjectMember.role != ProjectRole.GUEST,
                 User.is_active.is_(True),
             )
         )
@@ -207,6 +209,7 @@ def assignees(session: Session, project_id: int, actor_id: int, *, override: boo
             .join(ProjectMember, ProjectMember.user_id == User.id)
             .where(
                 ProjectMember.project_id.in_(select(scope.c.id)),
+                ProjectMember.role != ProjectRole.GUEST,
                 User.is_active.is_(True),
             )
             .order_by(User.display_name, User.id)

@@ -6,6 +6,7 @@ from enum import StrEnum
 class ProjectRole(StrEnum):
     ADMIN = "PROJECT_ADMIN"
     USER = "PROJECT_USER"
+    GUEST = "PROJECT_GUEST"
 
 
 class TicketType(StrEnum):

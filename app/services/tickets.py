@@ -299,37 +299,16 @@ def _project(session: Session, actor: Identity, project_key: str):
     return project_service.require_project_member(session, actor, project_key)
 
 
+def _writable_project(session: Session, actor: Identity, project_key: str):
+    return project_service.require_project_user(session, actor, project_key)
+
+
 def allowed_transitions(status: TicketStatus | str) -> tuple[TicketStatus, ...]:
     return FSM_TRANSITIONS[TicketStatus(status)]
 
 
-def can_edit(project, ticket: Ticket | TicketView, actor: Identity) -> bool:
-    creator_id = ticket.creator_id if isinstance(ticket, Ticket) else ticket.creator.id
-    assignee_id = ticket.assignee_id if isinstance(ticket, Ticket) else (
-        ticket.assignee.id if ticket.assignee else None
-    )
-    return (
-        creator_id == actor.id
-        or assignee_id == actor.id
-        or project.role == ProjectRole.ADMIN
-        or project.can_manage
-    )
-
-
-def _require_edit_permission(
-    session: Session, actor: Identity, project_key: str, project, ticket: Ticket
-) -> None:
-    if project.role is None and project.can_manage:
-        project_service.require_project_admin(session, actor, project_key)
-        return
-    if ticket.creator_id == actor.id or ticket.assignee_id == actor.id:
-        return
-    if project.role == ProjectRole.ADMIN:
-        return
-    if project.can_manage:
-        project_service.require_project_admin(session, actor, project_key)
-        return
-    raise AuthError("ticket_edit_forbidden", "이 티켓을 수정할 권한이 없습니다.", 403)
+def can_edit(project, _ticket: Ticket | TicketView, _actor: Identity) -> bool:
+    return project.role in {ProjectRole.ADMIN, ProjectRole.USER} or project.can_manage
 
 
 def _require_active_project(project) -> None:
@@ -575,7 +554,7 @@ def ticket_detail(session: Session, actor: Identity, project_key: str, ticket_ke
 
 def create_options(session: Session, actor: Identity, project_key: str):
     with project_service.operation(session, actor, "ticket_create_options"):
-        project = _project(session, actor, project_key)
+        project = _writable_project(session, actor, project_key)
         override = _override(project)
         return project, TicketCreateOptions(
             assignees=[
@@ -595,10 +574,9 @@ def edit_options(
     session: Session, actor: Identity, project_key: str, ticket_key: str
 ):
     with project_service.operation(session, actor, "ticket_edit_options"):
-        project = _project(session, actor, project_key)
+        project = _writable_project(session, actor, project_key)
         row = _ticket_row(session, actor, project, ticket_key)
         ticket = row[0]
-        _require_edit_permission(session, actor, project_key, project, ticket)
         _require_active_project(project)
         if TicketStatus(ticket.status) in TERMINAL_STATUSES:
             raise AuthError(
@@ -637,7 +615,7 @@ def create_ticket(
     session: Session, actor: Identity, project_key: str, payload: TicketCreate
 ) -> TicketView:
     with project_service.operation(session, actor, "ticket_create", write=True):
-        project = _project(session, actor, project_key)
+        project = _writable_project(session, actor, project_key)
         if not project.is_active:
             raise AuthError(
                 "project_inactive", "비활성 프로젝트에는 티켓을 생성할 수 없습니다.", 409
@@ -716,11 +694,10 @@ def update_ticket(
         conflict_message="티켓 정보가 중복되거나 변경되었습니다. 다시 확인하세요.",
         stale_code="ticket_version_conflict",
     ):
-        project = _project(session, actor, project_key)
+        project = _writable_project(session, actor, project_key)
         _require_active_project(project)
         row = _ticket_row(session, actor, project, ticket_key)
         ticket = row[0]
-        _require_edit_permission(session, actor, project_key, project, ticket)
         _require_expected_version(ticket, payload.expected_version)
         if TicketStatus(ticket.status) in TERMINAL_STATUSES:
             raise AuthError(
@@ -829,11 +806,10 @@ def transition_ticket(
         conflict_message="티켓 상태가 변경되었습니다. 다시 확인하세요.",
         stale_code="ticket_version_conflict",
     ):
-        project = _project(session, actor, project_key)
+        project = _writable_project(session, actor, project_key)
         _require_active_project(project)
         row = _ticket_row(session, actor, project, ticket_key)
         ticket = row[0]
-        _require_edit_permission(session, actor, project_key, project, ticket)
         _require_expected_version(ticket, payload.expected_version)
         current_status = TicketStatus(ticket.status)
         if payload.target_status not in allowed_transitions(current_status):

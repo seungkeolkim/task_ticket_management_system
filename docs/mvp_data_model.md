@@ -1,14 +1,14 @@
 # MVP 데이터 구조
 
 현재 범위는 ORM·DB 제약·입출력 계약·migration이다. API, 권한 서비스, 이력 수집, 간트 화면과 LLM 실행은 아직 연결하지 않았다.
-원본은 `app/models/`, 데이터 계약은 `app/schemas/contracts.py`, 추가 revision은 `20260917_0002`이다.
+원본은 `app/models/`, 데이터 계약은 `app/schemas/contracts.py`, 최신 추가 revision은 `20260923_0003`이다.
 
 ## 요구사항과 저장 구조
 
 | 요구사항 | 테이블 | 주요 구조 |
 |---|---|---|
 | 사용자·조직·인증·감사 | 기존 organizations, users, user_sessions, audit_logs | 초기 revision 유지. 같은 위치 조직 이름 고유 인덱스 추가 |
-| 프로젝트·참여자 | projects, project_members | 변경하지 않는 project key, 역할, (project, user) 고유 제약, next_ticket_number |
+| 프로젝트·참여자 | projects, project_members | 변경하지 않는 project key, (project, user) 고유 제약, next_ticket_number, 게스트·사용자·관리자 역할 |
 | 티켓·계층·일정 | tickets | project별 번호, 전역 표시 key, 유형·상태·중요도, 부모, 담당자, Markdown, 날짜, 순서, version |
 | 관계·간트 선후행 | ticket_relations | 동일 project의 source/target, Related 정규형, Depends on 방향, dependency_kind, lag_days |
 | 휴지통·복구 | ticket_deletion_batches + tickets | root_ticket_key, 삭제자·시각·purge_after·복구자·시각, ticket의 batch FK |
@@ -67,6 +67,7 @@
 - 같은 위치의 조직 이름 중복은 **DDL 전에** 검사하여 명확히 실패한다. 자동 이름 변경이나 데이터 삭제는 하지 않는다.
 - SQLite DDL 전체의 원자성을 가정하지 않는다. 실제 적용 전 백업하고 다른 실패 시 revision·생성된 구조를 확인해 복구한다.
 - downgrade는 신규 테이블과 데이터를 제거하고 기존 identity 및 이전 revision으로 되돌린다. populated hierarchy의 self-FK를 해제한 뒤 테이블을 제거한다.
+- `20260923_0003` downgrade는 이전 schema에 읽기 전용 역할이 없으므로 게스트 membership을 제거한다. 쓰기 가능한 사용자로 자동 승격하지 않는다.
 - downgrade는 blob 파일을 삭제하지 않는다. 파일과 DB를 동일 시점 백업으로 복구해야 하며 운영에서 downgrade를 데이터 보존 수단으로 사용하지 않는다.
 - 테스트는 임시 SQLite DB에서 빈 DB upgrade, 기존 데이터 보존, populated downgrade/re-upgrade, CHECK/metadata 일치, 잘못된 FK·중복·일정·버전과 I/O 계약을 검사한다.
 - Partial unique index는 SQLite와 PostgreSQL 문법을 함께 정의했다. PostgreSQL 실제 migration/repository 실행 검증은 아직 수행하지 않았다. 다른 DB의 지원을 보장하지 않는다.

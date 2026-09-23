@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.db.base import Base
 from app.db.engine import create_database_engine
-from app.models import Organization, Project, Ticket, User
+from app.models import Organization, Project, ProjectMember, Ticket, User
 
 DOMAIN_TABLES = {"organizations", "users", "user_sessions", "audit_logs"}
 MVP_TABLES = {
@@ -179,5 +179,48 @@ def test_duplicate_organizations_fail_before_schema_changes(
                 connection.scalar(text("SELECT version_num FROM alembic_version"))
                 == "20260916_0001"
             )
+    finally:
+        engine.dispose()
+
+
+def test_project_guest_migration_downgrade_removes_guest_without_promotion(
+    alembic_config: Config, database_url: str
+) -> None:
+    command.upgrade(alembic_config, "head")
+    engine = create_database_engine(database_url)
+    try:
+        with Session(engine) as session:
+            org = Organization(key="guest-org", name="게스트 조직")
+            session.add(org)
+            session.flush()
+            user = User(
+                login_id="guest-user",
+                display_name="게스트",
+                password_hash="hash",
+                organization_id=org.id,
+            )
+            session.add(user)
+            session.flush()
+            project = Project(key="GUEST", name="게스트 프로젝트", created_by_id=user.id)
+            session.add(project)
+            session.flush()
+            session.add(
+                ProjectMember(
+                    project_id=project.id,
+                    user_id=user.id,
+                    role="PROJECT_GUEST",
+                )
+            )
+            session.commit()
+
+        command.downgrade(alembic_config, "20260917_0002")
+        with engine.connect() as connection:
+            assert (
+                connection.scalar(text("SELECT version_num FROM alembic_version"))
+                == "20260917_0002"
+            )
+            assert connection.scalar(
+                text("SELECT count(*) FROM project_members")
+            ) == 0
     finally:
         engine.dispose()

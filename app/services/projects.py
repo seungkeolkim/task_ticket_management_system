@@ -8,6 +8,7 @@ from sqlalchemy.orm.exc import StaleDataError
 from app.core.config import get_settings
 from app.db.transaction import request_transaction
 from app.domain.auth import AuthError, Identity
+from app.domain.codes import ProjectRole
 from app.models import AuditLog, Project, ProjectMember
 from app.repositories import projects as repository
 from app.repositories.auth import lock_security_write
@@ -62,7 +63,9 @@ def view(row, role, admin):
     )
 
 
-def require_project_member(session: Session, actor: Identity, key: str, *, manage=False):
+def require_project_member(
+    session: Session, actor: Identity, key: str, *, manage=False, write=False
+):
     """Use inside a top-level service transaction; override audit commits with that use case."""
     admin = actor_is_admin(session, actor)
     result = repository.accessible_project(session, key, actor.id, admin)
@@ -71,19 +74,31 @@ def require_project_member(session: Session, actor: Identity, key: str, *, manag
     row, role = result
     if manage and not admin and role != "PROJECT_ADMIN":
         raise AuthError("project_admin_required", "프로젝트 관리자 권한이 필요합니다.", 403)
-    if admin and (role is None or (manage and role != "PROJECT_ADMIN")):
+    if write and not admin and role not in {ProjectRole.ADMIN, ProjectRole.USER}:
+        raise AuthError(
+            "project_write_required", "프로젝트 사용자 이상의 권한이 필요합니다.", 403
+        )
+    if admin and (
+        role is None
+        or (manage and role != ProjectRole.ADMIN)
+        or (write and role not in {ProjectRole.ADMIN, ProjectRole.USER})
+    ):
         audit(
             session,
             "project.override_access",
             actor.id,
             row.id,
-            permission="manage" if manage else "read",
+            permission="manage" if manage else ("write" if write else "read"),
         )
     return view(row, role, admin)
 
 
 def require_project_admin(session: Session, actor: Identity, key: str):
     return require_project_member(session, actor, key, manage=True)
+
+
+def require_project_user(session: Session, actor: Identity, key: str):
+    return require_project_member(session, actor, key, write=True)
 
 
 @contextmanager
