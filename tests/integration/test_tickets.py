@@ -1024,10 +1024,20 @@ def test_board_groups_same_and_different_status_subtasks_and_audits_override(
     assert [item["key"] for item in progress["tasks"][0]["subtasks"]] == ["DEV-3"]
     assert hold["detached_groups"][0]["parent_key"] == "DEV-2"
     assert [item["key"] for item in hold["detached_groups"][0]["subtasks"]] == ["DEV-4"]
+    assert progress["tasks"][0]["card"]["version"] == 1
+    assert progress["tasks"][0]["card"]["can_transition"] is True
+    assert progress["tasks"][0]["card"]["allowed_statuses"] == [
+        "DONE",
+        "ON_HOLD",
+        "CANCELLED",
+    ]
     no_epic_group = next(group for group in payload["groups"] if group["key"] is None)
     assert no_epic_group["columns"][0]["tasks"][0]["card"]["key"] == "DEV-5"
     assert "DEV-6" not in str(payload)
-    assert "읽기 전용" in client.get("/projects/DEV/board").text
+    board_html = client.get("/projects/DEV/board").text
+    assert "상태 변경" in board_html
+    assert 'draggable="true"' in board_html
+    assert "/static/board.js" in board_html
 
     login(client, "sysadmin")
     assert client.get("/api/projects/DEV/tickets/board").status_code == 200
@@ -1076,3 +1086,77 @@ def test_dashboard_and_board_query_counts_do_not_grow_with_ticket_count(
 
     assert query_count("/api/dashboard") == empty_dashboard
     assert query_count("/api/projects/DEV/tickets/board") == empty_board
+
+
+def test_board_transition_metadata_dependency_permission_and_javascript(
+    client, ticket_people, db_session
+):
+    people, project = ticket_people
+    target = create_ticket(client, title="보드 선행 티켓").json()
+    source = create_ticket(client, title="보드 후행 티켓").json()
+    transition_ticket(client, source["key"], "IN_PROGRESS", 1)
+    source_row = db_session.scalar(select(Ticket).where(Ticket.key == source["key"]))
+    target_row = db_session.scalar(select(Ticket).where(Ticket.key == target["key"]))
+    db_session.add_all(
+        [
+            TicketRelation(
+                project_id=project.id,
+                source_ticket_id=source_row.id,
+                target_ticket_id=target_row.id,
+                relation_type="DEPENDS_ON",
+                dependency_kind="FS",
+                created_by_id=people["member"].id,
+            ),
+            ProjectMember(
+                project_id=project.id,
+                user_id=people["outsider"].id,
+                role="PROJECT_USER",
+            ),
+        ]
+    )
+    db_session.commit()
+
+    def find_card(payload, key):
+        for group in payload["groups"]:
+            for column in group["columns"]:
+                for task in column["tasks"]:
+                    for card in [task["card"], *task["subtasks"]]:
+                        if card["key"] == key:
+                            return card
+                for detached in column["detached_groups"]:
+                    for card in detached["subtasks"]:
+                        if card["key"] == key:
+                            return card
+        raise AssertionError(f"card not found: {key}")
+
+    member_board = client.get("/api/projects/DEV/tickets/board").json()
+    source_card = find_card(member_board, source["key"])
+    assert source_card["version"] == 2
+    assert source_card["can_transition"] is True
+    assert "DONE" in source_card["allowed_statuses"]
+    assert source_card["completion_blocked"] is True
+    html = client.get("/projects/DEV/board").text
+    assert "의존 대상이 완료될 때까지 완료로 이동할 수 없습니다." in html
+    assert "완료 · 의존성 미완료" in html
+    assert "data-board-status" in html
+
+    login(client, "outsider")
+    outsider_card = find_card(
+        client.get("/api/projects/DEV/tickets/board").json(), source["key"]
+    )
+    assert outsider_card["can_transition"] is False
+    assert outsider_card["allowed_statuses"] == []
+
+    login(client, "member")
+    project.is_active = False
+    db_session.commit()
+    inactive_card = find_card(
+        client.get("/api/projects/DEV/tickets/board").json(), source["key"]
+    )
+    assert inactive_card["can_transition"] is False
+
+    script = client.get("/static/board.js")
+    assert script.status_code == 200
+    assert "expected_version" in script.text
+    assert "X-CSRF-Token" in script.text
+    assert "window.location.reload()" in script.text

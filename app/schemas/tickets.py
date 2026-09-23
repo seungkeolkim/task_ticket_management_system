@@ -137,6 +137,7 @@ class TicketEditOptions(BaseModel):
 
 class BoardCard(BaseModel):
     key: str
+    version: int
     type: TicketType
     type_label: str
     title: str
@@ -148,6 +149,9 @@ class BoardCard(BaseModel):
     priority_code: str
     assignee: TicketUserView | None
     due_date: date | None
+    can_transition: bool
+    allowed_statuses: list[TicketStatus] = Field(default_factory=list)
+    completion_blocked: bool = False
 
 
 class BoardTask(BaseModel):
@@ -176,5 +180,12 @@ class BoardEpicGroup(BaseModel):
     columns: list[BoardColumn]
 
 
+class BoardStatusOption(BaseModel):
+    status: TicketStatus
+    label: str
+    code: str
+
+
 class BoardView(BaseModel):
     groups: list[BoardEpicGroup]
+    statuses: list[BoardStatusOption]

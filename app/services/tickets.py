@@ -17,6 +17,7 @@ from app.schemas.tickets import (
     BoardColumn,
     BoardDetachedGroup,
     BoardEpicGroup,
+    BoardStatusOption,
     BoardTask,
     BoardView,
     TicketCreate,
@@ -150,9 +151,15 @@ def view(row) -> TicketView:
     )
 
 
-def _board_card(ticket: TicketView) -> BoardCard:
+def _board_card(
+    ticket: TicketView,
+    *,
+    can_transition: bool,
+    completion_blocked: bool,
+) -> BoardCard:
     return BoardCard(
         key=ticket.key,
+        version=ticket.version,
         type=ticket.type,
         type_label=ticket.type_label,
         title=ticket.title,
@@ -164,6 +171,9 @@ def _board_card(ticket: TicketView) -> BoardCard:
         priority_code=ticket.priority_code,
         assignee=ticket.assignee,
         due_date=ticket.due_date,
+        can_transition=can_transition,
+        allowed_statuses=list(allowed_transitions(ticket.status)) if can_transition else [],
+        completion_blocked=completion_blocked,
     )
 
 
@@ -465,6 +475,19 @@ def board(session: Session, actor: Identity, project_key: str):
             session, project.id, actor.id, override=_override(project)
         )
         indexed = {row[0].id: (row[0], view(row)) for row in rows}
+        dependency_blocked_ids = repository.incomplete_dependency_source_ids(
+            session, project.id
+        )
+
+        def board_card(item: tuple[Ticket, TicketView]) -> BoardCard:
+            ticket_row, ticket_view = item
+            return _board_card(
+                ticket_view,
+                can_transition=project.is_active
+                and can_edit(project, ticket_row, actor),
+                completion_blocked=ticket_row.id in dependency_blocked_ids,
+            )
+
         epics = [item for item in indexed.values() if item[0].type == TicketType.EPIC]
         tasks = [item for item in indexed.values() if item[0].type == TicketType.TASK]
         subtasks_by_parent: dict[int, list[tuple[Ticket, TicketView]]] = {}
@@ -491,16 +514,16 @@ def board(session: Session, actor: Identity, project_key: str):
                     if task_row.status == ticket_status:
                         task_cards.append(
                             BoardTask(
-                                card=_board_card(task_view),
+                                card=board_card((task_row, task_view)),
                                 subtasks=[
-                                    _board_card(child_view)
+                                    board_card((child_row, child_view))
                                     for child_row, child_view in children
                                     if child_row.status == ticket_status
                                 ],
                             )
                         )
                     other_status_children = [
-                        _board_card(child_view)
+                        board_card((child_row, child_view))
                         for child_row, child_view in children
                         if child_row.status == ticket_status and task_row.status != ticket_status
                     ]
@@ -530,7 +553,17 @@ def board(session: Session, actor: Identity, project_key: str):
                     columns=columns,
                 )
             )
-        return project, BoardView(groups=groups)
+        return project, BoardView(
+            groups=groups,
+            statuses=[
+                BoardStatusOption(
+                    status=status,
+                    label=STATUS_LABELS[status][0],
+                    code=STATUS_LABELS[status][1],
+                )
+                for status in BOARD_STATUSES
+            ],
+        )
 
 
 def ticket_detail(session: Session, actor: Identity, project_key: str, ticket_key: str):
