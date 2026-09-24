@@ -21,6 +21,7 @@ ORIGIN = {"Origin": "http://testserver"}
 
 @pytest.fixture
 def account(db_session: Session) -> User:
+    """인증 테스트용 사용자 계정을 생성한다."""
     org = Organization(key="auth-test", name="테스트 조직")
     db_session.add(org)
     db_session.flush()
@@ -37,10 +38,12 @@ def account(db_session: Session) -> User:
 
 
 def form_token(response) -> str:
+    """로그인 form의 CSRF token을 읽는다."""
     return re.search(r'name="csrf_token" value="([^"]+)"', response.text).group(1)
 
 
 def api_login(client: TestClient, password: str = INITIAL_PASSWORD, login_id: str = "tester"):
+    """인증 API로 테스트 사용자를 로그인시킨다."""
     csrf = client.get("/api/auth/csrf").json()["csrf_token"]
     return client.post(
         "/api/auth/login",
@@ -52,6 +55,7 @@ def api_login(client: TestClient, password: str = INITIAL_PASSWORD, login_id: st
 def test_first_login_change_relogin_and_logout(
     client: TestClient, account: User, db_session: Session
 ):
+    """로그인 관련 동작을 검증한다."""
     original = "/projects/OPS/tickets?selected=OPS-142"
     redirect = client.get(original, follow_redirects=False)
     assert redirect.status_code == 303
@@ -131,6 +135,7 @@ def test_first_login_change_relogin_and_logout(
 
 @pytest.mark.parametrize("path", ["/", "/projects", "/projects/OPS/board", "/admin/users"])
 def test_no_protected_html_without_login(client: TestClient, path: str):
+    """로그인·HTML 관련 동작을 검증한다."""
     response = client.get(path, follow_redirects=False)
     assert response.status_code == 303
     assert response.headers["location"].startswith("/login?")
@@ -140,6 +145,7 @@ def test_no_protected_html_without_login(client: TestClient, path: str):
 def test_logged_in_login_page_returns_to_destination(
     client: TestClient, account: User, db_session: Session
 ):
+    """로그인 관련 동작을 검증한다."""
     account.must_change_password = False
     db_session.commit()
     assert api_login(client).status_code == 200
@@ -163,6 +169,7 @@ def test_logged_in_login_page_returns_to_destination(
     ],
 )
 def test_login_requires_exact_origin(client: TestClient, account: User, headers: dict):
+    """로그인 관련 동작을 검증한다."""
     csrf = client.get("/api/auth/csrf").json()["csrf_token"]
     result = client.post(
         "/api/auth/login",
@@ -173,6 +180,7 @@ def test_login_requires_exact_origin(client: TestClient, account: User, headers:
 
 
 def test_csrf_token_required_and_referer_fallback(client: TestClient, account: User):
+    """CSRF 관련 동작을 검증한다."""
     page = client.get("/login")
     data = {"login_id": "tester", "password": INITIAL_PASSWORD}
     assert client.post("/login", data=data, headers=ORIGIN).status_code == 403
@@ -194,6 +202,7 @@ def test_password_change_revokes_all_sessions_and_csrf_is_session_bound(
     account: User,
     db_session: Session,
 ):
+    """비밀번호·session·CSRF 관련 동작을 검증한다."""
     assert api_login(client).status_code == 200
     with TestClient(app) as second:
         assert api_login(second).status_code == 200
@@ -225,6 +234,7 @@ def test_password_change_revokes_all_sessions_and_csrf_is_session_bound(
 def test_unusable_session_is_rejected(
     client: TestClient, account: User, db_session: Session, change: str
 ):
+    """session 관련 동작을 검증한다."""
     assert api_login(client).status_code == 200
     stored = db_session.scalar(select(UserSession))
     if change == "expired":
@@ -245,6 +255,7 @@ def test_failure_throttle_is_shared_by_clients_and_expires(
     account: User,
     monkeypatch: pytest.MonkeyPatch,
 ):
+    """client 간 로그인 실패 제한 공유와 만료를 검증한다."""
     settings = get_settings()
     monkeypatch.setattr(settings.auth, "login_max_failures", 2)
     assert api_login(client, "wrong-password").status_code == 401
@@ -258,6 +269,7 @@ def test_failure_throttle_is_shared_by_clients_and_expires(
 
 
 def test_ip_throttle_covers_unknown_login_ids(client: TestClient, monkeypatch: pytest.MonkeyPatch):
+    """로그인 관련 동작을 검증한다."""
     monkeypatch.setattr(get_settings().auth, "login_max_ip_failures", 2)
     assert api_login(client, login_id="missing-a").status_code == 401
     assert api_login(client, login_id="missing-b").status_code == 401
@@ -265,6 +277,7 @@ def test_ip_throttle_covers_unknown_login_ids(client: TestClient, monkeypatch: p
 
 
 def test_errors_and_logs_do_not_echo_credentials(client: TestClient, account: User, caplog):
+    """오류 응답과 로그에 인증 정보가 노출되지 않는지 검증한다."""
     root = logging.getLogger()
     root.addHandler(caplog.handler)
     try:
@@ -287,6 +300,7 @@ def test_errors_and_logs_do_not_echo_credentials(client: TestClient, account: Us
 def test_invalid_new_password_preserves_session_and_password(
     client: TestClient, account: User, db_session: Session
 ):
+    """비밀번호·session 관련 동작을 검증한다."""
     old_hash = account.password_hash
     assert api_login(client).status_code == 200
     csrf = client.get("/api/auth/csrf").json()["csrf_token"]
@@ -311,6 +325,7 @@ def test_invalid_new_password_preserves_session_and_password(
 
 
 def test_https_public_origin_and_secure_cookie(client: TestClient, account: User, monkeypatch):
+    """HTTPS 공개 origin과 Secure cookie 설정을 검증한다."""
     settings = get_settings()
     monkeypatch.setattr(settings.session, "cookie_secure", True)
     monkeypatch.setattr(settings.auth, "public_origin", "https://tasks.example.test")

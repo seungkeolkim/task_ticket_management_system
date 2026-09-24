@@ -30,6 +30,7 @@ target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
+    """DB 연결 없이 offline migration을 실행한다."""
     context.configure(
         url=migration_database_url,
         target_metadata=target_metadata,
@@ -44,6 +45,7 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
+    """DB 연결을 사용해 online migration을 실행한다."""
     connectable = create_database_engine(
         migration_database_url,
         echo=False,

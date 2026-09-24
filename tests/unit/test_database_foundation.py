@@ -13,6 +13,7 @@ from app.models import Organization
 
 
 def test_sql_parameters_are_hidden_in_logs_and_exceptions(caplog):
+    """SQL parameter가 로그와 예외에서 숨겨지는지 검증한다."""
     engine = create_database_engine("sqlite://", echo=True)
     secret = "sensitive-authentication-parameter"
     try:
@@ -29,10 +30,12 @@ def test_sql_parameters_are_hidden_in_logs_and_exceptions(caplog):
 
 
 def test_sqlite_foreign_keys_are_enabled(db_session: Session) -> None:
+    """SQLite 관련 동작을 검증한다."""
     assert db_session.scalar(text("PRAGMA foreign_keys")) == 1
 
 
 def test_model_timestamps_are_returned_as_aware_utc(db_session: Session) -> None:
+    """모델 관련 동작을 검증한다."""
     organization = Organization(key="root", name="Root")
     db_session.add(organization)
     db_session.commit()
@@ -45,6 +48,7 @@ def test_model_timestamps_are_returned_as_aware_utc(db_session: Session) -> None
 
 
 def test_utc_datetime_rejects_naive_values() -> None:
+    """UTC datetime 타입의 naive 값 거부를 검증한다."""
     utc_type = UTCDateTime()
 
     with pytest.raises(ValueError, match="Naive datetime"):
@@ -54,6 +58,7 @@ def test_utc_datetime_rejects_naive_values() -> None:
 def test_transaction_scope_commits_and_rolls_back(
     db_session_factory: sessionmaker[Session],
 ) -> None:
+    """transaction scope의 commit과 rollback을 검증한다."""
     with transaction_scope(db_session_factory) as session:
         session.add(Organization(key="committed", name="Committed"))
 

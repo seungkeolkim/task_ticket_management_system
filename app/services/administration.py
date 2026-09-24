@@ -18,12 +18,13 @@ from app.schemas.administration import (
     UserPage,
     UserView,
 )
-from app.services.auth import audit
+from app.services.auth import record_audit_event
 
 logger = logging.getLogger(__name__)
 
 
 def require_administrator(session: Session, actor: Identity) -> None:
+    """관리자 필수 조건을 검증한다."""
     status = repository.administrator_status(session, actor.id)
     if (
         not status
@@ -34,42 +35,48 @@ def require_administrator(session: Session, actor: Identity) -> None:
         raise AuthError("admin_required", "시스템 관리자 권한이 필요합니다.", 403)
 
 
-def organization_list(session: Session, actor: Identity) -> list[OrganizationView]:
+def list_organizations(session: Session, actor: Identity) -> list[OrganizationView]:
+    """조직 목록을 조회한다."""
     require_administrator(session, actor)
-    rows = repository.organizations(session)
+    organization_rows = repository.list_organizations(session)
     counts = repository.member_counts(session)
     children = defaultdict(list)
-    for row in rows:
-        children[row.parent_id].append(row)
-    stack = [(row, 0, True) for row in reversed(children[None])]
+    for organization_row in organization_rows:
+        children[organization_row.parent_id].append(organization_row)
+    stack = [
+        (organization_row, 0, True)
+        for organization_row in reversed(children[None])
+    ]
     result = []
     seen = set()
     while stack:
-        row, depth, parent_active = stack.pop()
-        if row.id in seen:
+        organization_row, depth, parent_active = stack.pop()
+        if organization_row.id in seen:
             raise AuthError("invalid_organization_tree", "조직 구조를 확인하세요.", 409)
-        seen.add(row.id)
-        selectable = parent_active and row.is_active
+        seen.add(organization_row.id)
+        selectable = parent_active and organization_row.is_active
         result.append(
             OrganizationView(
-                id=row.id,
-                key=row.key,
-                name=row.name,
-                parent_id=row.parent_id,
-                description=row.description,
-                is_active=row.is_active,
+                id=organization_row.id,
+                key=organization_row.key,
+                name=organization_row.name,
+                parent_id=organization_row.parent_id,
+                description=organization_row.description,
+                is_active=organization_row.is_active,
                 selectable=selectable,
                 depth=depth,
-                member_count=counts.get(row.id, 0),
+                member_count=counts.get(organization_row.id, 0),
             )
         )
-        stack.extend((child, depth + 1, selectable) for child in reversed(children[row.id]))
-    if len(seen) != len(rows):
+        for child_organization in reversed(children[organization_row.id]):
+            stack.append((child_organization, depth + 1, selectable))
+    if len(seen) != len(organization_rows):
         raise AuthError("invalid_organization_tree", "조직 구조를 확인하세요.", 409)
     return result
 
 
 def user_view(user: User, organization_name: str) -> UserView:
+    """사용자 모델을 공개용 view로 변환한다."""
     return UserView(
         id=user.id,
         login_id=user.login_id,
@@ -84,15 +91,16 @@ def user_view(user: User, organization_name: str) -> UserView:
     )
 
 
-def user_list(
+def list_users(
     session: Session, actor: Identity, query: str = "", page: int = 1, page_size: int | None = None
 ) -> UserPage:
+    """사용자 목록을 조회한다."""
     require_administrator(session, actor)
     if page_size is None:
         page_size = get_settings().pagination.default_size
     if not 1 <= page <= 1_000_000 or page_size not in {10, 20, 50} or len(query) > 100:
         raise AuthError("invalid_filter", "검색 조건과 페이지 범위를 확인하세요.")
-    rows, total = repository.users(session, query.strip(), page, page_size)
+    rows, total = repository.list_users(session, query.strip(), page, page_size)
     return UserPage(
         users=[user_view(user, name) for user, name in rows],
         total=total,
@@ -101,11 +109,12 @@ def user_list(
     )
 
 
-def active_organization(
+def get_active_organization(
     session: Session, actor: Identity, organization_id: int
 ) -> OrganizationView:
+    """active 조직 정보를 조회한다."""
     row = next(
-        (row for row in organization_list(session, actor) if row.id == organization_id), None
+        (row for row in list_organizations(session, actor) if row.id == organization_id), None
     )
     if row is None or not row.selectable:
         raise AuthError(
@@ -117,13 +126,14 @@ def active_organization(
 def create_organization(
     session: Session, actor: Identity, payload: OrganizationCreate, ip_address: str
 ) -> int:
+    """조직 생성을 처리한다."""
     logger.debug("organization_create_started actor_id=%s", actor.id)
     try:
         with request_transaction(session):
             lock_security_write(session)
             require_administrator(session, actor)
             if payload.parent_id:
-                active_organization(session, actor, payload.parent_id)
+                get_active_organization(session, actor, payload.parent_id)
             if repository.duplicate_organization(session, payload.parent_id, payload.name):
                 raise AuthError(
                     "organization_conflict", "같은 상위 조직에 동일한 이름이 이미 있습니다.", 409
@@ -136,7 +146,7 @@ def create_organization(
             )
             session.add(row)
             session.flush()
-            audit(
+            record_audit_event(
                 session,
                 "organization.created",
                 actor.id,
@@ -161,13 +171,14 @@ def create_organization(
 
 
 def create_user(session: Session, actor: Identity, payload: UserCreate, ip_address: str) -> int:
+    """사용자 생성을 처리한다."""
     logger.debug("user_create_started actor_id=%s", actor.id)
     try:
         with request_transaction(session):
             lock_security_write(session)
             require_administrator(session, actor)
             login_id = normalize_login_id(payload.login_id)
-            active_organization(session, actor, payload.organization_id)
+            get_active_organization(session, actor, payload.organization_id)
             if repository.duplicate_user(session, login_id, payload.email):
                 raise AuthError("user_conflict", "로그인 ID 또는 이메일이 이미 사용 중입니다.", 409)
             row = User(
@@ -182,7 +193,7 @@ def create_user(session: Session, actor: Identity, payload: UserCreate, ip_addre
             )
             session.add(row)
             session.flush()
-            audit(
+            record_audit_event(
                 session,
                 "user.created",
                 actor.id,

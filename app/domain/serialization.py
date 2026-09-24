@@ -6,6 +6,7 @@ from typing import Any
 
 
 def canonical_json_sha256(value: Any) -> str:
+    """JSON 값을 canonical 형식으로 직렬화해 SHA-256 hash를 계산한다."""
     encoded = json.dumps(
         value,
         ensure_ascii=False,

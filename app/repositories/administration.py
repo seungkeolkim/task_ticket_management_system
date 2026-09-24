@@ -4,7 +4,8 @@ from sqlalchemy.orm import Session
 from app.models import Organization, User
 
 
-def organizations(session: Session) -> list[Organization]:
+def list_organizations(session: Session) -> list[Organization]:
+    """조직 목록을 조회한다."""
     return list(
         session.scalars(
             select(Organization)
@@ -15,6 +16,7 @@ def organizations(session: Session) -> list[Organization]:
 
 
 def member_counts(session: Session) -> dict[int, int]:
+    """조직별 직속 사용자 수를 조회한다."""
     return dict(
         session.execute(
             select(User.organization_id, func.count()).group_by(User.organization_id)
@@ -22,7 +24,8 @@ def member_counts(session: Session) -> dict[int, int]:
     )
 
 
-def users(session: Session, query: str, page: int, page_size: int):
+def list_users(session: Session, query: str, page: int, page_size: int):
+    """사용자 목록을 조회한다."""
     filters = []
     if query:
         filters.append(
@@ -45,6 +48,7 @@ def users(session: Session, query: str, page: int, page_size: int):
 
 
 def administrator_status(session: Session, user_id: int):
+    """사용자의 관리자 활성 상태를 조회한다."""
     return session.execute(
         select(User.is_active, User.must_change_password, User.system_role).where(
             User.id == user_id
@@ -53,6 +57,7 @@ def administrator_status(session: Session, user_id: int):
 
 
 def duplicate_user(session: Session, login_id: str, email: str | None) -> bool:
+    """사용자 중복 여부를 조회한다."""
     filters = [User.login_id == login_id]
     if email:
         filters.append(User.email == email)
@@ -60,6 +65,7 @@ def duplicate_user(session: Session, login_id: str, email: str | None) -> bool:
 
 
 def duplicate_organization(session: Session, parent_id: int | None, name: str) -> bool:
+    """조직 중복 여부를 조회한다."""
     return (
         session.scalar(
             select(Organization.id)

@@ -1,7 +1,7 @@
 from typing import Annotated
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, Query, Request
 from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
@@ -12,16 +12,19 @@ from app.domain.auth import AuthError, Identity
 from app.schemas.administration import OrganizationCreate, UserCreate
 from app.services import administration as service
 from app.web.rendering import render
-from app.web.security import client_ip, require_web_admin, verify_csrf
+from app.web.security import get_client_ip_address, require_web_admin, verify_csrf
 
 router = APIRouter(include_in_schema=False)
 Database = Annotated[Session, Depends(get_db_session)]
 Administrator = Annotated[Identity, Depends(require_web_admin)]
 
 
-def users_page(request, session, actor, *, q="", page=1, page_size=None, **context):
-    result = service.user_list(session, actor, q, page, page_size)
-    query = {"q": q, "page_size": result.page_size}
+def render_user_management_page(
+    request, session, actor, *, search_query="", page=1, page_size=None, **context
+):
+    """사용자 management 화면 렌더링한다."""
+    result = service.list_users(session, actor, search_query, page, page_size)
+    query = {"q": search_query, "page_size": result.page_size}
     return render(
         request,
         "admin_users.html",
@@ -29,44 +32,55 @@ def users_page(request, session, actor, *, q="", page=1, page_size=None, **conte
         active="admin-users",
         live_page=True,
         result=result,
-        organizations=service.organization_list(session, actor),
-        q=q,
+        organizations=service.list_organizations(session, actor),
+        q=search_query,
         previous_url="/admin/users?" + urlencode(query | {"page": page - 1}),
         next_url="/admin/users?" + urlencode(query | {"page": page + 1}),
         **context,
     )
 
 
-def organizations_page(request, session, actor, **context):
+def render_organization_management_page(request, session, actor, **context):
+    """조직 management 화면 렌더링한다."""
     return render(
         request,
         "admin_organizations.html",
         page_title="조직 관리",
         active="admin-organizations",
         live_page=True,
-        organizations=service.organization_list(session, actor),
+        organizations=service.list_organizations(session, actor),
         **context,
     )
 
 
 @router.get("/admin/users")
-def users(
+def user_management_page(
     request: Request,
     session: Database,
     actor: Administrator,
-    q: str = "",
+    search_query: Annotated[str, Query(alias="q")] = "",
     page: int = 1,
     page_size: int | None = None,
     created: int | None = None,
 ):
-    return users_page(request, session, actor, q=q, page=page, page_size=page_size, created=created)
+    """사용자 관리 화면을 렌더링한다."""
+    return render_user_management_page(
+        request,
+        session,
+        actor,
+        search_query=search_query,
+        page=page,
+        page_size=page_size,
+        created=created,
+    )
 
 
 @router.get("/admin/organizations")
-def organizations(
+def organization_management_page(
     request: Request, session: Database, actor: Administrator, created: int | None = None
 ):
-    return organizations_page(request, session, actor, created=created)
+    """조직 관리 화면을 렌더링한다."""
+    return render_organization_management_page(request, session, actor, created=created)
 
 
 @router.post("/admin/users")
@@ -82,6 +96,7 @@ def user_submit(
     password: Annotated[str, Form()] = "",
     csrf_token: Annotated[str, Form()] = "",
 ):
+    """사용자 생성 form 제출을 처리한다."""
     verify_csrf(request, csrf_token, actor, get_settings())
     values = dict(
         login_id=login_id[:100],
@@ -99,9 +114,9 @@ def user_submit(
             system_role=system_role,
             password=password,
         )
-        row_id = service.create_user(session, actor, payload, client_ip(request))
+        row_id = service.create_user(session, actor, payload, get_client_ip_address(request))
     except ValidationError:
-        return users_page(
+        return render_user_management_page(
             request,
             session,
             actor,
@@ -110,7 +125,7 @@ def user_submit(
             status_code=422,
         )
     except AuthError as error:
-        return users_page(
+        return render_user_management_page(
             request,
             session,
             actor,
@@ -131,15 +146,18 @@ def organization_submit(
     description: Annotated[str, Form()] = "",
     csrf_token: Annotated[str, Form()] = "",
 ):
+    """조직 생성 form 제출을 처리한다."""
     verify_csrf(request, csrf_token, actor, get_settings())
     values = dict(name=name[:200], parent_id=parent_id[:20], description=description[:4000])
     try:
         payload = OrganizationCreate(
             name=name, parent_id=parent_id or None, description=description
         )
-        row_id = service.create_organization(session, actor, payload, client_ip(request))
+        row_id = service.create_organization(
+            session, actor, payload, get_client_ip_address(request)
+        )
     except ValidationError:
-        return organizations_page(
+        return render_organization_management_page(
             request,
             session,
             actor,
@@ -148,7 +166,7 @@ def organization_submit(
             status_code=422,
         )
     except AuthError as error:
-        return organizations_page(
+        return render_organization_management_page(
             request,
             session,
             actor,

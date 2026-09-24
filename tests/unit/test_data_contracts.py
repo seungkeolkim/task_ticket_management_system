@@ -17,6 +17,7 @@ from app.schemas.contracts import (
 
 @pytest.fixture
 def report_data() -> dict:
+    """보고서 계약 테스트용 데이터를 구성한다."""
     before = dict(
         ticket_key="DEV-1",
         project_id=1,
@@ -64,6 +65,7 @@ def report_data() -> dict:
 
 
 def test_report_round_trip_and_source_validation(report_data: dict) -> None:
+    """보고서 관련 동작을 검증한다."""
     report = ReportInput.model_validate(report_data)
     assert report.period.start == datetime(2026, 9, 14, tzinfo=UTC)
     assert ReportInput.model_validate_json(report.model_dump_json()) == report
@@ -80,6 +82,7 @@ def test_report_round_trip_and_source_validation(report_data: dict) -> None:
 
 @pytest.mark.parametrize("time", ["2026-09-13T23:59:59Z", "2026-09-21T00:00:00Z"])
 def test_report_excludes_events_outside_half_open_period(report_data: dict, time: str) -> None:
+    """보고서 관련 동작을 검증한다."""
     report_data["tickets"][0]["events"][0]["occurred_at"] = time
     with pytest.raises(ValidationError, match="outside report period"):
         ReportInput.model_validate(report_data)
@@ -96,11 +99,13 @@ def test_report_excludes_events_outside_half_open_period(report_data: dict, time
     ],
 )
 def test_report_rejects_inconsistent_scope_and_versions(report_data: dict, change: dict) -> None:
+    """보고서 관련 동작을 검증한다."""
     with pytest.raises(ValidationError):
         ReportInput.model_validate(report_data | change)
 
 
 def test_event_rejects_mismatched_before_after_and_missing_version(report_data: dict) -> None:
+    """event snapshot 불일치와 누락 version 거부를 검증한다."""
     event = report_data["tickets"][0]["events"][0]
     for path, value in (("project_id", 2), ("version", 99), ("ticket_key", "DEV-2")):
         modified = deepcopy(event)
@@ -112,6 +117,7 @@ def test_event_rejects_mismatched_before_after_and_missing_version(report_data: 
 
 
 def test_multiple_status_changes_are_preserved(report_data: dict) -> None:
+    """상태 관련 동작을 검증한다."""
     ticket = report_data["tickets"][0]
     first = ticket["events"][0]
     second = deepcopy(first)
@@ -144,11 +150,13 @@ def test_multiple_status_changes_are_preserved(report_data: dict) -> None:
     ],
 )
 def test_saved_filter_contract_rejects_invalid_input(values: dict) -> None:
+    """계약·필터 관련 동작을 검증한다."""
     with pytest.raises(ValidationError):
         TicketFilter.model_validate(values)
 
 
 def test_report_period_and_skill_contracts() -> None:
+    """계약·보고서 관련 동작을 검증한다."""
     with pytest.raises(ValidationError):
         ReportPeriod(start="2026-09-17T00:00:00Z", end="2026-09-16T00:00:00Z")
     with pytest.raises(ValidationError):
@@ -165,6 +173,7 @@ def test_report_period_and_skill_contracts() -> None:
 
 
 def test_snapshot_hash_is_order_independent_and_rejects_non_json_numbers() -> None:
+    """snapshot hash 안정성과 비표준 숫자 거부를 검증한다."""
     assert canonical_json_sha256({"한글": 1, "b": 2}) == canonical_json_sha256({"b": 2, "한글": 1})
     assert canonical_json_sha256({"한글": 1}) != canonical_json_sha256({"한글": 2})
     with pytest.raises(ValueError):

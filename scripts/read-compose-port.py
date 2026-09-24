@@ -7,6 +7,7 @@ from typing import Any
 
 
 def read_server_port(config_file: Path) -> int:
+    """TOML 설정에서 server port를 읽고 검증한다."""
     try:
         with config_file.open("rb") as file_handle:
             settings: dict[str, Any] = tomllib.load(file_handle)
@@ -26,6 +27,7 @@ def read_server_port(config_file: Path) -> int:
 
 
 def main() -> int:
+    """명령행 진입점을 실행한다."""
     if len(sys.argv) != 2:
         print("Usage: read-compose-port.py <application.toml>", file=sys.stderr)
         return 2

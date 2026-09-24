@@ -11,13 +11,14 @@ from app.core.config import ensure_data_directories, get_settings
 from app.core.logging import configure_logging
 from app.db.session import SessionLocal
 from app.domain.auth import AuthError
-from app.repositories.auth import user_count
+from app.repositories.auth import count_users
 from app.services.bootstrap import bootstrap_admin, bootstrap_from_environment
 
 logger = logging.getLogger(__name__)
 
 
 def main() -> int:
+    """명령행 진입점을 실행한다."""
     parser = argparse.ArgumentParser(description="Taskflow management commands")
     subcommands = parser.add_subparsers(dest="command", required=True)
     bootstrap = subcommands.add_parser("bootstrap-admin")
@@ -41,7 +42,7 @@ def main() -> int:
             bootstrap_from_environment(SessionLocal, settings)
             return 0
         with SessionLocal() as session:
-            if user_count(session):
+            if count_users(session):
                 print("사용자가 이미 존재하여 초기 관리자를 추가하지 않았습니다.")
                 return 0
         login_id = args.login_id or input("로그인 ID: ")

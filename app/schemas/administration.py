@@ -25,6 +25,7 @@ class UserCreate(BaseModel):
     @field_validator("email")
     @classmethod
     def normalize_email(cls, value: str | None) -> str | None:
+        """이메일 값을 정규화한다."""
         if not value:
             return None
         value = value.lower()

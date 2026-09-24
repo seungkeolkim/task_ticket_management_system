@@ -8,6 +8,7 @@ from app.models import Organization, Project, ProjectMember, User
 
 @pytest.fixture
 def authenticated_client(client: TestClient, db_session: Session) -> TestClient:
+    """로그인된 HTTP 테스트 client를 제공한다."""
     organization = Organization(key="mockup-test", name="검증 조직")
     db_session.add(organization)
     db_session.flush()
@@ -58,6 +59,7 @@ def test_mockup_page_is_available(
     path: str,
     expected_text: str,
 ) -> None:
+    """주요 화면 경로를 인증 상태에서 조회할 수 있는지 검증한다."""
     response = authenticated_client.get(path)
 
     assert response.status_code == 200
@@ -66,6 +68,7 @@ def test_mockup_page_is_available(
 
 
 def test_unknown_live_ticket_returns_not_found(authenticated_client: TestClient) -> None:
+    """티켓 관련 동작을 검증한다."""
     response = authenticated_client.get("/projects/OPS/tickets/OPS-142")
 
     assert response.status_code == 404
@@ -73,12 +76,14 @@ def test_unknown_live_ticket_returns_not_found(authenticated_client: TestClient)
 
 
 def test_root_redirects_to_login_when_unauthenticated(client: TestClient) -> None:
+    """인증·로그인 관련 동작을 검증한다."""
     response = client.get("/", follow_redirects=False)
     assert response.status_code == 303
     assert response.headers["location"] == "/login?next=%2F"
 
 
 def test_root_retains_authenticated_dashboard(authenticated_client: TestClient) -> None:
+    """인증·대시보드·보드 관련 동작을 검증한다."""
     client = authenticated_client
     response = client.get("/")
 
@@ -89,6 +94,7 @@ def test_root_retains_authenticated_dashboard(authenticated_client: TestClient) 
 
 
 def test_mockup_static_styles_are_served(client: TestClient) -> None:
+    """공통 정적 style 파일 제공을 검증한다."""
     response = client.get("/static/app.css")
 
     assert response.status_code == 200

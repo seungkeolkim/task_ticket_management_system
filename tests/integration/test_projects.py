@@ -8,37 +8,34 @@ from app.domain.auth import AuthError, hash_password
 from app.models import AuditLog, Organization, Project, ProjectMember, User
 from app.schemas.projects import MemberCreate, ProjectCreate
 from app.services import projects as service
-from app.services.auth import current_identity
+from app.services.auth import get_current_identity
 
 PASSWORD = "Project-test-password-123!"
 ORIGIN = {"Origin": "http://testserver"}
 
 
 def token(client):
+    """테스트 client의 CSRF token을 반환한다."""
     return client.get("/api/auth/csrf").json()["csrf_token"]
 
 
 def post(client, path, payload):
+    """CSRF 보호가 적용된 테스트 POST 요청을 보낸다."""
     return client.post(path, json=payload, headers=ORIGIN | {"X-CSRF-Token": token(client)})
 
 
 def login(client, login_id):
+    """사용자 인증 후 session 정보를 반환한다."""
     client.cookies.clear()
     assert (
-        post(
-            client,
-            "/api/auth/login",
-            {
-                "login_id": login_id,
-                "password": PASSWORD,
-            },
-        ).status_code
+        post(client, "/api/auth/login", {"login_id": login_id, "password": PASSWORD}).status_code
         == 200
     )
 
 
 @pytest.fixture
 def people(client, db_session):
+    """프로젝트 테스트용 사용자 집합을 생성한다."""
     org = Organization(key="project-test", name="같은 조직")
     db_session.add(org)
     db_session.flush()
@@ -61,6 +58,7 @@ def people(client, db_session):
 
 
 def create(client, people, key="DEV", **overrides):
+    """동시성 테스트용 생성 시도를 수행한다."""
     return post(
         client,
         "/api/admin/projects",
@@ -75,6 +73,7 @@ def create(client, people, key="DEV", **overrides):
 
 
 def test_create_register_and_my_projects_flow(client, people, db_session):
+    """프로젝트 관련 동작을 검증한다."""
     created = create(client, people, " dev ")
     assert created.status_code == 201
     assert created.json()["key"] == "DEV"
@@ -88,10 +87,7 @@ def test_create_register_and_my_projects_flow(client, people, db_session):
         post(
             client,
             "/api/projects/DEV/members",
-            {
-                "user_id": people["member"].id,
-                "role": "PROJECT_USER",
-            },
+            {"user_id": people["member"].id, "role": "PROJECT_USER"},
         ).status_code
         == 201
     )
@@ -99,10 +95,7 @@ def test_create_register_and_my_projects_flow(client, people, db_session):
         post(
             client,
             "/api/projects/DEV/members",
-            {
-                "user_id": people["outsider"].id,
-                "role": "PROJECT_GUEST",
-            },
+            {"user_id": people["outsider"].id, "role": "PROJECT_GUEST"},
         ).status_code
         == 201
     )
@@ -143,6 +136,7 @@ def test_create_register_and_my_projects_flow(client, people, db_session):
     ],
 )
 def test_project_paths_hide_existence_from_same_organization(client, people, suffix):
+    """조직·프로젝트 관련 동작을 검증한다."""
     assert create(client, people).status_code == 201
     login(client, "outsider")
     assert client.get("/api/projects").json()["total"] == 0
@@ -161,6 +155,7 @@ def test_project_paths_hide_existence_from_same_organization(client, people, suf
 
 
 def test_permissions_csrf_and_inactive_accounts(client, people, db_session):
+    """CSRF·권한 관련 동작을 검증한다."""
     assert create(client, people).status_code == 201
     path = "/api/projects/DEV/members"
     payload = {"user_id": people["member"].id}
@@ -169,10 +164,7 @@ def test_permissions_csrf_and_inactive_accounts(client, people, db_session):
         client.post(
             path,
             json=payload,
-            headers={
-                "Origin": "https://evil.test",
-                "X-CSRF-Token": token(client),
-            },
+            headers={"Origin": "https://evil.test", "X-CSRF-Token": token(client)},
         ).status_code
         == 403
     )
@@ -206,12 +198,14 @@ def test_permissions_csrf_and_inactive_accounts(client, people, db_session):
     ],
 )
 def test_invalid_creation_is_atomic(client, people, db_session, overrides):
+    """잘못된 프로젝트 생성 요청의 원자성을 검증한다."""
     assert create(client, people, **overrides).status_code in {400, 422}
     assert db_session.scalar(select(func.count()).select_from(Project)) == 0
     assert db_session.scalar(select(func.count()).select_from(ProjectMember)) == 0
 
 
 def test_duplicates_inactive_users_and_projects(client, people, db_session):
+    """프로젝트·사용자 관련 동작을 검증한다."""
     assert create(client, people).status_code == 201
     assert create(client, people, "dev").status_code == 409
     assert (
@@ -230,10 +224,7 @@ def test_duplicates_inactive_users_and_projects(client, people, db_session):
         post(
             client,
             "/api/projects/DEV/members",
-            {
-                "user_id": people["outsider"].id,
-                "role": "SYSTEM_ADMIN",
-            },
+            {"user_id": people["outsider"].id, "role": "SYSTEM_ADMIN"},
         ).status_code
         == 422
     )
@@ -248,6 +239,7 @@ def test_duplicates_inactive_users_and_projects(client, people, db_session):
 
 
 def test_override_audits_and_member_role_do_not_leak_privileges(client, people, db_session):
+    """감사 로그 관련 동작을 검증한다."""
     create(client, people)
     before = db_session.scalar(
         select(func.count())
@@ -260,13 +252,7 @@ def test_override_audits_and_member_role_do_not_leak_privileges(client, people, 
     ).all()
     assert len(event) == before + 1 and event[-1].details["permission"] == "read"
     assert (
-        post(
-            client,
-            "/api/projects/DEV/members",
-            {
-                "user_id": people["sysadmin"].id,
-            },
-        ).status_code
+        post(client, "/api/projects/DEV/members", {"user_id": people["sysadmin"].id}).status_code
         == 201
     )
     count = len(
@@ -286,6 +272,7 @@ def test_override_audits_and_member_role_do_not_leak_privileges(client, people, 
 
 
 def test_html_forms_escape_input_and_refresh_from_database(client, people):
+    """DB·HTML 관련 동작을 검증한다."""
     values = dict(
         key="WEB",
         name='<script>alert("x")</script>',
@@ -303,11 +290,7 @@ def test_html_forms_escape_input_and_refresh_from_database(client, people):
     login(client, "manager")
     response = client.post(
         "/projects/WEB/members",
-        data={
-            "csrf_token": token(client),
-            "user_id": people["member"].id,
-            "role": "PROJECT_ADMIN",
-        },
+        data={"csrf_token": token(client), "user_id": people["member"].id, "role": "PROJECT_ADMIN"},
         headers=ORIGIN,
         follow_redirects=False,
     )
@@ -318,6 +301,7 @@ def test_html_forms_escape_input_and_refresh_from_database(client, people):
 
 
 def test_filters_pagination_and_candidate_data(client, people, db_session):
+    """필터 관련 동작을 검증한다."""
     for i in range(23):
         project = Project(
             key=f"PR{i}", name=f"검색 프로젝트 {i:02}", created_by_id=people["sysadmin"].id
@@ -343,15 +327,17 @@ def test_filters_pagination_and_candidate_data(client, people, db_session):
 def test_audit_failures_rollback_create_add_and_override(
     client, people, db_session_factory, monkeypatch
 ):
+    """감사 로그 관련 동작을 검증한다."""
     create(client, people)
     raw_token = client.cookies.get(get_settings().session.cookie_name)
 
     def fail(*args, **kwargs):
+        """실패 rollback 상황을 재현한다."""
         raise RuntimeError("audit unavailable")
 
-    monkeypatch.setattr(service, "audit", fail)
+    monkeypatch.setattr(service, "record_project_audit_event", fail)
     with db_session_factory() as session:
-        actor = current_identity(session, raw_token)
+        actor = get_current_identity(session, raw_token)
         with pytest.raises(RuntimeError):
             service.create_project(
                 session,
@@ -360,12 +346,16 @@ def test_audit_failures_rollback_create_add_and_override(
             )
         assert session.scalar(select(Project).where(Project.key == "ROLLBACK")) is None
         with pytest.raises(RuntimeError):
-            service.project_detail(session, actor, "DEV")
+            service.get_project_detail(session, actor, "DEV")
     login(client, "manager")
     with db_session_factory() as session:
-        actor = current_identity(session, client.cookies.get(get_settings().session.cookie_name))
+        actor = get_current_identity(
+            session, client.cookies.get(get_settings().session.cookie_name)
+        )
         with pytest.raises(RuntimeError):
-            service.add_member(session, actor, "DEV", MemberCreate(user_id=people["member"].id))
+            service.add_project_member(
+                session, actor, "DEV", MemberCreate(user_id=people["member"].id)
+            )
         assert (
             session.scalar(
                 select(ProjectMember).where(ProjectMember.user_id == people["member"].id)
@@ -375,14 +365,16 @@ def test_audit_failures_rollback_create_add_and_override(
 
 
 def test_concurrent_project_and_membership_creation(client, people, db_session_factory):
+    """프로젝트·동시성 관련 동작을 검증한다."""
     raw_token = client.cookies.get(get_settings().session.cookie_name)
 
     def attempt(member):
+        """동시성 테스트용 작업 시도를 수행한다."""
         with db_session_factory() as session:
-            actor = current_identity(session, raw_token)
+            actor = get_current_identity(session, raw_token)
             try:
                 if member:
-                    service.add_member(
+                    service.add_project_member(
                         session, actor, "RACE", MemberCreate(user_id=people["member"].id)
                     )
                 else:
@@ -403,11 +395,12 @@ def test_concurrent_project_and_membership_creation(client, people, db_session_f
 
 
 def test_repository_member_scope_and_cross_organization_membership(client, people, db_session):
+    """조직 관련 동작을 검증한다."""
     from app.repositories import projects as repository
 
     create(client, people)
     project = db_session.scalar(select(Project))
-    assert repository.members(db_session, project.id, people["outsider"].id) == []
+    assert repository.list_project_members(db_session, project.id, people["outsider"].id) == []
     other = Organization(key="another", name="다른 조직")
     db_session.add(other)
     db_session.flush()
@@ -426,10 +419,11 @@ def test_repository_member_scope_and_cross_organization_membership(client, peopl
 
 
 def test_stale_identity_does_not_allow_project_writes(client, people, db_session_factory):
+    """프로젝트 관련 동작을 검증한다."""
     create(client, people)
     raw_token = client.cookies.get(get_settings().session.cookie_name)
     with db_session_factory() as session:
-        actor = current_identity(session, raw_token)
+        actor = get_current_identity(session, raw_token)
         with db_session_factory() as changed:
             user = changed.get(User, people["sysadmin"].id)
             user.system_role = "USER"
@@ -443,7 +437,9 @@ def test_stale_identity_does_not_allow_project_writes(client, people, db_session
         assert error.value.status_code == 403
     login(client, "manager")
     with db_session_factory() as session:
-        actor = current_identity(session, client.cookies.get(get_settings().session.cookie_name))
+        actor = get_current_identity(
+            session, client.cookies.get(get_settings().session.cookie_name)
+        )
         with db_session_factory() as changed:
             membership = changed.scalar(
                 select(ProjectMember).where(ProjectMember.user_id == people["manager"].id)
@@ -451,5 +447,7 @@ def test_stale_identity_does_not_allow_project_writes(client, people, db_session
             membership.role = "PROJECT_USER"
             changed.commit()
         with pytest.raises(AuthError) as error:
-            service.add_member(session, actor, "DEV", MemberCreate(user_id=people["member"].id))
+            service.add_project_member(
+                session, actor, "DEV", MemberCreate(user_id=people["member"].id)
+            )
         assert error.value.status_code == 403

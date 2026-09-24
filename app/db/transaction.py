@@ -6,11 +6,7 @@ from sqlalchemy.orm import Session
 
 @contextmanager
 def request_transaction(session: Session) -> Iterator[None]:
-    """A top-level application use case owns the injected request session transaction.
-
-    Includes any preceding authentication reads. Do not nest this context or call it
-    from repositories; one write use case commits once per request.
-    """
+    """요청 단위 최상위 transaction을 한 번만 commit 또는 rollback한다."""
     try:
         yield
         session.commit()

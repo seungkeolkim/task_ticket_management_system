@@ -16,8 +16,9 @@ Actor = Annotated[Identity, Depends(require_web_user)]
 
 
 @router.get("/", response_class=HTMLResponse)
-def dashboard(request: Request, session: Database, actor: Actor) -> HTMLResponse:
-    result = service.dashboard(session, actor)
+def dashboard_page(request: Request, session: Database, actor: Actor) -> HTMLResponse:
+    """내 작업 대시보드 화면을 렌더링한다."""
+    result = service.get_dashboard(session, actor)
     return render(
         request,
         "dashboard.html",
@@ -30,4 +31,5 @@ def dashboard(request: Request, session: Database, actor: Actor) -> HTMLResponse
 
 @router.get("/dashboard", include_in_schema=False)
 def dashboard_alias() -> RedirectResponse:
+    """대시보드 별칭 경로를 기본 화면으로 redirect한다."""
     return RedirectResponse(url="/", status_code=307)

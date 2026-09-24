@@ -25,6 +25,7 @@ CONTRACTS = {
 
 
 def example_contracts() -> dict:
+    """data contract별 예시 payload를 구성한다."""
     before = dict(
         ticket_key="DEMO-1",
         project_id=1,
@@ -109,6 +110,7 @@ def example_contracts() -> dict:
 
 
 def main() -> None:
+    """명령행 진입점을 실행한다."""
     settings = get_settings()
     ensure_data_directories(settings)
     configure_logging(

@@ -47,6 +47,7 @@ class TicketFilter(Contract):
 
     @model_validator(mode="after")
     def valid_filters(self) -> Self:
+        """저장 필터의 필드와 연산자 조합을 검증한다."""
         if self.unassigned and self.assignee_ids:
             raise ValueError("unassigned and assignee_ids are mutually exclusive")
         for start, end in (
@@ -69,6 +70,7 @@ class RelationSnapshot(Contract):
 
     @model_validator(mode="after")
     def valid_relation(self) -> Self:
+        """티켓 관계 snapshot의 필수 필드를 검증한다."""
         if self.source_ticket_key == self.target_ticket_key:
             raise ValueError("a ticket cannot relate to itself")
         if self.relation_type == RelationType.DEPENDS_ON and self.dependency_kind is None:
@@ -110,6 +112,7 @@ class TicketState(Contract):
 
     @model_validator(mode="after")
     def valid_state(self) -> Self:
+        """티켓 상태 snapshot의 필드 일관성을 검증한다."""
         if self.updated_at < self.created_at:
             raise ValueError("updated_at cannot precede created_at")
         if self.planned_start_date and self.planned_end_date:
@@ -146,6 +149,7 @@ class TicketEvent(Contract):
 
     @model_validator(mode="after")
     def matching_states(self) -> Self:
+        """states 일치 여부를 검증한다."""
         for state in (self.before_state, self.after_state):
             if state and (
                 state.project_id != self.project_id or state.ticket_key != self.ticket_key
@@ -169,6 +173,7 @@ class ReportPeriod(Contract):
     @field_validator("timezone")
     @classmethod
     def known_timezone(cls, value: str) -> str:
+        """timezone 지원 여부를 검증한다."""
         try:
             ZoneInfo(value)
         except (ZoneInfoNotFoundError, ValueError) as exc:
@@ -178,10 +183,12 @@ class ReportPeriod(Contract):
     @field_validator("start", "end")
     @classmethod
     def normalize_utc(cls, value: datetime) -> datetime:
+        """utc 값을 정규화한다."""
         return value.astimezone(UTC)
 
     @model_validator(mode="after")
     def valid_period(self) -> Self:
+        """보고서 기간의 시작·종료 순서를 검증한다."""
         if self.start >= self.end:
             raise ValueError("report period must be a nonempty [start, end) interval")
         return self
@@ -197,6 +204,7 @@ class ReportTicketEvidence(Contract):
 
     @model_validator(mode="after")
     def matching_sources(self) -> Self:
+        """sources 일치 여부를 검증한다."""
         if self.source_id != f"ticket:{self.ticket_key}":
             raise ValueError("source ID must identify the ticket")
         for state in (self.state_at_start, self.state_at_end):
@@ -223,6 +231,7 @@ class ReportInput(Contract):
 
     @model_validator(mode="after")
     def validate_scope(self) -> Self:
+        """scope 값을 검증한다."""
         if len(self.project_ids) != len(set(self.project_ids)):
             raise ValueError("project IDs must be unique")
         if self.captured_at < self.period.end:
@@ -244,6 +253,7 @@ class ReportInput(Contract):
         return self
 
     def evidence_ids(self) -> set[str]:
+        """보고서 근거 ID 목록을 반환한다."""
         return {ticket.source_id for ticket in self.tickets} | {
             f"event:{event.event_key}" for ticket in self.tickets for event in ticket.events
         }
@@ -257,6 +267,7 @@ class ReportOutput(Contract):
     warnings: list[str] = Field(default_factory=list)
 
     def validate_sources(self, report_input: ReportInput) -> None:
+        """sources 값을 검증한다."""
         if not set(self.cited_source_ids) <= report_input.evidence_ids():
             raise ValueError("report cites evidence that was not supplied")
 

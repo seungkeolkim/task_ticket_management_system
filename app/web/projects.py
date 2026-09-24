@@ -1,7 +1,7 @@
 from typing import Annotated
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, Query, Request
 from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
@@ -20,25 +20,44 @@ Actor = Annotated[Identity, Depends(require_web_user)]
 Administrator = Annotated[Identity, Depends(require_web_admin)]
 
 
-def list_page(
-    request, session, actor, *, admin=False, q="", page=1, page_size=None, candidate_q="", **context
+def render_project_list_page(
+    request,
+    session,
+    actor,
+    *,
+    is_administrator_page=False,
+    search_query="",
+    page=1,
+    page_size=None,
+    candidate_search_query="",
+    **context,
 ):
-    result = service.project_list(
-        session, actor, all_projects=admin, q=q, page=page, page_size=page_size
+    """프로젝트 list 화면 렌더링한다."""
+    result = service.list_projects(
+        session,
+        actor,
+        include_all_projects=is_administrator_page,
+        search_query=search_query,
+        page=page,
+        page_size=page_size,
     )
-    path = "/admin/projects" if admin else "/projects"
-    query = {"q": q, "page_size": result.page_size}
+    path = "/admin/projects" if is_administrator_page else "/projects"
+    query = {"q": search_query, "page_size": result.page_size}
     return render(
         request,
         "projects.html",
         live_page=True,
-        admin_page=admin,
-        page_title="전체 프로젝트 관리" if admin else "내 프로젝트",
-        active="admin-projects" if admin else "projects",
+        admin_page=is_administrator_page,
+        page_title="전체 프로젝트 관리" if is_administrator_page else "내 프로젝트",
+        active="admin-projects" if is_administrator_page else "projects",
         result=result,
-        q=q,
-        candidates=service.candidate_list(session, actor, q=candidate_q) if admin else [],
-        candidate_q=candidate_q,
+        q=search_query,
+        candidates=(
+            service.list_project_candidates(session, actor, search_query=candidate_search_query)
+            if is_administrator_page
+            else []
+        ),
+        candidate_q=candidate_search_query,
         previous_url=path + "?" + urlencode(query | {"page": page - 1}),
         next_url=path + "?" + urlencode(query | {"page": page + 1}),
         **context,
@@ -46,41 +65,45 @@ def list_page(
 
 
 @router.get("/projects")
-def mine(
+def my_projects_page(
     request: Request,
     session: Database,
     actor: Actor,
-    q: str = "",
+    search_query: Annotated[str, Query(alias="q")] = "",
     page: int = 1,
     page_size: int | None = None,
 ):
-    return list_page(request, session, actor, q=q, page=page, page_size=page_size)
+    """현재 사용자의 프로젝트 목록 화면을 렌더링한다."""
+    return render_project_list_page(
+        request, session, actor, search_query=search_query, page=page, page_size=page_size
+    )
 
 
 @router.get("/admin/projects")
-def all_projects(
+def all_projects_page(
     request: Request,
     session: Database,
     actor: Administrator,
-    q: str = "",
+    search_query: Annotated[str, Query(alias="q")] = "",
     page: int = 1,
     page_size: int | None = None,
-    candidate_q: str = "",
+    candidate_search_query: Annotated[str, Query(alias="candidate_q")] = "",
 ):
-    return list_page(
+    """관리자용 전체 프로젝트 목록 화면을 렌더링한다."""
+    return render_project_list_page(
         request,
         session,
         actor,
-        admin=True,
-        q=q,
+        is_administrator_page=True,
+        search_query=search_query,
         page=page,
         page_size=page_size,
-        candidate_q=candidate_q,
+        candidate_search_query=candidate_search_query,
     )
 
 
 @router.post("/admin/projects")
-def create(
+def create_project(
     request: Request,
     session: Database,
     actor: Administrator,
@@ -91,6 +114,7 @@ def create(
     csrf_token: Annotated[str, Form()] = "",
     candidate_q: Annotated[str, Form()] = "",
 ):
+    """프로젝트 생성을 처리한다."""
     verify_csrf(request, csrf_token, actor, get_settings())
     values = dict(
         key=key[:32],
@@ -104,13 +128,13 @@ def create(
         )
         service.create_project(session, actor, payload)
     except (ValidationError, AuthError) as error:
-        return list_page(
+        return render_project_list_page(
             request,
             session,
             actor,
-            admin=True,
+            is_administrator_page=True,
             values=values,
-            candidate_q=candidate_q[:100],
+            candidate_search_query=candidate_q[:100],
             error=error.message
             if isinstance(error, AuthError)
             else "키(영문자로 시작하는 영문·숫자 2~32자), 이름과 관리자를 확인하세요.",
@@ -119,11 +143,16 @@ def create(
     return RedirectResponse(f"/projects/{payload.key}?created=1", status_code=303)
 
 
-def detail_page(request, session, actor, key, *, member_page=False, candidate_q="", **context):
-    detail = service.project_detail(session, actor, key)
+def render_project_detail_page(
+    request, session, actor, project_key, *, member_page=False, candidate_search_query="", **context
+):
+    """프로젝트 상세 화면 렌더링한다."""
+    detail = service.get_project_detail(session, actor, project_key)
     project = detail.project
     candidates = (
-        service.candidate_list(session, actor, key=key, q=candidate_q)
+        service.list_project_candidates(
+            session, actor, project_key=project_key, search_query=candidate_search_query
+        )
         if (member_page and project.can_manage and project.is_active)
         else []
     )
@@ -136,35 +165,43 @@ def detail_page(request, session, actor, key, *, member_page=False, candidate_q=
         project=project,
         members=detail.members,
         candidates=candidates,
-        candidate_q=candidate_q,
+        candidate_q=candidate_search_query,
         **context,
     )
 
 
 @router.get("/projects/{project_key}")
 @router.get("/projects/{project_key}/settings")
-def overview(
+def project_overview_page(
     project_key: str, request: Request, session: Database, actor: Actor, created: bool = False
 ):
-    return detail_page(request, session, actor, project_key, created=created)
+    """프로젝트 개요 화면을 렌더링한다."""
+    return render_project_detail_page(request, session, actor, project_key, created=created)
 
 
 @router.get("/projects/{project_key}/members")
-def members(
+def project_members_page(
     project_key: str,
     request: Request,
     session: Database,
     actor: Actor,
-    candidate_q: str = "",
+    candidate_search_query: Annotated[str, Query(alias="candidate_q")] = "",
     added: bool = False,
 ):
-    return detail_page(
-        request, session, actor, project_key, member_page=True, candidate_q=candidate_q, added=added
+    """프로젝트 구성원 관리 화면을 렌더링한다."""
+    return render_project_detail_page(
+        request,
+        session,
+        actor,
+        project_key,
+        member_page=True,
+        candidate_search_query=candidate_search_query,
+        added=added,
     )
 
 
 @router.post("/projects/{project_key}/members")
-def add_member(
+def add_project_member(
     project_key: str,
     request: Request,
     session: Database,
@@ -174,19 +211,22 @@ def add_member(
     csrf_token: Annotated[str, Form()] = "",
     candidate_q: Annotated[str, Form()] = "",
 ):
+    """프로젝트 구성원 추가를 처리한다."""
     verify_csrf(request, csrf_token, actor, get_settings())
     try:
-        service.add_member(session, actor, project_key, MemberCreate(user_id=user_id, role=role))
+        service.add_project_member(
+            session, actor, project_key, MemberCreate(user_id=user_id, role=role)
+        )
     except (ValidationError, AuthError) as error:
         if isinstance(error, AuthError) and error.status_code in {401, 403, 404}:
             raise
-        return detail_page(
+        return render_project_detail_page(
             request,
             session,
             actor,
             project_key,
             member_page=True,
-            candidate_q=candidate_q[:100],
+            candidate_search_query=candidate_q[:100],
             values={"user_id": user_id[:20], "role": role[:32]},
             error=error.message
             if isinstance(error, AuthError)
@@ -197,5 +237,6 @@ def add_member(
 
 
 @router.get("/projects/{project_key}/trash")
-def pending(project_key: str, request: Request, session: Database, actor: Actor):
-    return detail_page(request, session, actor, project_key, pending=True)
+def project_trash_page(project_key: str, request: Request, session: Database, actor: Actor):
+    """프로젝트 휴지통 화면을 렌더링한다."""
+    return render_project_detail_page(request, session, actor, project_key, pending=True)

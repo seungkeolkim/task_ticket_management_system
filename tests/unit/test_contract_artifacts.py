@@ -11,12 +11,14 @@ from app.schemas.contracts import (
 
 
 def read_artifact(name: str) -> dict:
+    """계약 artifact JSON을 읽는다."""
     root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
     with open(os.path.join(root, "docs", "contracts", name), encoding="utf-8") as handle:
         return json.load(handle)
 
 
 def test_published_json_schemas_match_python_contracts() -> None:
+    """schema·계약 관련 동작을 검증한다."""
     for name, model in (
         ("ticket-filter", TicketFilter),
         ("ticket-event", TicketEvent),
@@ -28,6 +30,7 @@ def test_published_json_schemas_match_python_contracts() -> None:
 
 
 def test_weekly_report_examples_are_valid_and_cite_supplied_evidence() -> None:
+    """보고서 관련 동작을 검증한다."""
     data = ReportInput.model_validate(read_artifact("weekly-report-input.v1.json"))
     output = ReportOutput.model_validate(read_artifact("weekly-report-output.v1.json"))
     skill = ReportSkillDefinition.model_validate(read_artifact("weekly-report-skill.v1.json"))

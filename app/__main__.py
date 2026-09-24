@@ -5,6 +5,7 @@ from app.core.logging import configure_logging
 
 
 def main() -> None:
+    """명령행 진입점을 실행한다."""
     settings = get_settings()
     ensure_data_directories(settings)
     configure_logging(

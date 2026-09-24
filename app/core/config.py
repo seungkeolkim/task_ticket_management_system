@@ -46,6 +46,7 @@ class LoggingSettings(StrictSettingsModel):
 
     @model_validator(mode="after")
     def validate_file_name(self) -> LoggingSettings:
+        """file name 값을 검증한다."""
         if os.path.basename(self.file_name) != self.file_name:
             raise ValueError("logging.file_name must be a file name without a path")
         return self
@@ -82,6 +83,7 @@ class SessionSettings(StrictSettingsModel):
 
     @model_validator(mode="after")
     def validate_cookie(self) -> SessionSettings:
+        """cookie 값을 검증한다."""
         if self.cookie_samesite == "none" and not self.cookie_secure:
             raise ValueError("SameSite=None requires cookie_secure=true")
         return self
@@ -96,6 +98,7 @@ class AuthSettings(StrictSettingsModel):
 
     @model_validator(mode="after")
     def validate_origin(self) -> AuthSettings:
+        """origin 값을 검증한다."""
         if self.public_origin is not None:
             value = urlsplit(self.public_origin)
             if (
@@ -124,6 +127,7 @@ class PaginationSettings(StrictSettingsModel):
 
     @model_validator(mode="after")
     def validate_default_size(self) -> PaginationSettings:
+        """default size 값을 검증한다."""
         if not self.allowed_sizes:
             raise ValueError("pagination.allowed_sizes must not be empty")
         if self.default_size not in self.allowed_sizes:
@@ -155,26 +159,32 @@ class Settings(StrictSettingsModel):
 
     @property
     def database_directory(self) -> str:
+        """DB 파일을 저장할 절대 경로를 반환한다."""
         return os.path.abspath(os.path.join(self.storage.data_root, self.storage.database_dir))
 
     @property
     def attachments_directory(self) -> str:
+        """첨부파일을 저장할 절대 경로를 반환한다."""
         return os.path.abspath(os.path.join(self.storage.data_root, self.storage.attachments_dir))
 
     @property
     def backups_directory(self) -> str:
+        """backup 파일을 저장할 절대 경로를 반환한다."""
         return os.path.abspath(os.path.join(self.storage.data_root, self.storage.backups_dir))
 
     @property
     def logs_directory(self) -> str:
+        """시스템 로그를 저장할 절대 경로를 반환한다."""
         return os.path.abspath(os.path.join(self.storage.data_root, self.storage.logs_dir))
 
     @property
     def log_file_path(self) -> str:
+        """시스템 로그 파일의 전체 경로를 반환한다."""
         return os.path.join(self.logs_directory, self.logging.file_name)
 
     @property
     def database_url(self) -> str:
+        """설정에 따른 DB 연결 URL을 반환한다."""
         if self.database.url:
             return self.database.url
         database_path = os.path.join(self.database_directory, "task_tickets.db")
@@ -183,6 +193,7 @@ class Settings(StrictSettingsModel):
 
 
 def _read_toml(config_file: str) -> dict[str, Any]:
+    """외부 TOML 설정 파일을 읽는다."""
     if not os.path.exists(config_file):
         return {}
     if not os.path.isfile(config_file):
@@ -195,6 +206,7 @@ def _read_toml(config_file: str) -> dict[str, Any]:
 
 
 def _parse_environment_value(value: str) -> Any:
+    """환경 변수 문자열을 가능한 JSON 값으로 변환한다."""
     try:
         return json.loads(value)
     except json.JSONDecodeError:
@@ -202,6 +214,7 @@ def _parse_environment_value(value: str) -> Any:
 
 
 def _set_nested_value(target: dict[str, Any], path: list[str], value: Any) -> None:
+    """중첩 설정 경로에 값을 저장한다."""
     current = target
     for part in path[:-1]:
         existing = current.setdefault(part, {})
@@ -212,6 +225,7 @@ def _set_nested_value(target: dict[str, Any], path: list[str], value: Any) -> No
 
 
 def _environment_overrides() -> dict[str, Any]:
+    """애플리케이션 환경 변수 override를 구성한다."""
     overrides: dict[str, Any] = {}
     for key, value in os.environ.items():
         normalized_key = key.upper()
@@ -230,6 +244,7 @@ def _environment_overrides() -> dict[str, Any]:
 
 
 def _deep_merge(base: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
+    """기본 설정과 override를 재귀적으로 병합한다."""
     merged = dict(base)
     for key, value in overrides.items():
         if isinstance(value, dict) and isinstance(merged.get(key), dict):
@@ -240,6 +255,7 @@ def _deep_merge(base: dict[str, Any], overrides: dict[str, Any]) -> dict[str, An
 
 
 def load_settings(config_file: str | None = None) -> Settings:
+    """외부 파일과 환경 변수를 반영해 설정을 불러온다."""
     resolved_config_file = (
         config_file
         or os.getenv("APP_CONFIG_FILE")
@@ -252,10 +268,12 @@ def load_settings(config_file: str | None = None) -> Settings:
 
 @lru_cache
 def get_settings() -> Settings:
+    """cache된 애플리케이션 설정을 반환한다."""
     return load_settings()
 
 
 def ensure_data_directories(settings: Settings) -> None:
+    """설정된 영속 데이터 디렉터리를 생성한다."""
     for directory in (
         settings.database_directory,
         settings.attachments_directory,

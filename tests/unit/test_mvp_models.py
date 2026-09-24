@@ -34,6 +34,7 @@ NOW = datetime(2026, 9, 17, 0, 0, tzinfo=UTC)
 
 @pytest.fixture
 def work(db_session: Session) -> tuple[User, Project, Ticket, Ticket, Project, Ticket]:
+    """업무 모델 테스트용 데이터를 생성한다."""
     org = Organization(key="root", name="조직")
     db_session.add(org)
     db_session.flush()
@@ -70,6 +71,7 @@ def work(db_session: Session) -> tuple[User, Project, Ticket, Ticket, Project, T
     ],
 )
 def test_ticket_constraints(db_session: Session, work: tuple, invalid: dict) -> None:
+    """티켓 관련 동작을 검증한다."""
     _, project, ticket, *_ = work
     # SQL UPDATE exercises the DB without the ORM version generator repairing input.
     with pytest.raises(IntegrityError), db_session.begin_nested():
@@ -79,6 +81,7 @@ def test_ticket_constraints(db_session: Session, work: tuple, invalid: dict) -> 
 
 
 def test_membership_and_ticket_number_uniqueness(db_session: Session, work: tuple) -> None:
+    """티켓 관련 동작을 검증한다."""
     user, project, ticket, *_ = work
     membership = ProjectMember(project_id=project.id, user_id=user.id)
     db_session.add(membership)
@@ -111,6 +114,7 @@ def test_cross_project_parent_relation_and_deletion_batch_rejected(
     db_session: Session,
     work: tuple,
 ) -> None:
+    """프로젝트·관계 관련 동작을 검증한다."""
     user, project, a, _, other, foreign = work
     batch = TicketDeletionBatch(
         project_id=other.id,
@@ -143,6 +147,7 @@ def test_cross_project_parent_relation_and_deletion_batch_rejected(
 
 
 def test_relation_direction_uniqueness_and_schedule(db_session: Session, work: tuple) -> None:
+    """관계 관련 동작을 검증한다."""
     user, project, a, b, *_ = work
     relation = dict(
         project_id=project.id,
@@ -182,6 +187,7 @@ def test_relation_direction_uniqueness_and_schedule(db_session: Session, work: t
 def test_comment_attachment_mention_scope_and_deduplication(
     db_session: Session, work: tuple
 ) -> None:
+    """첨부파일·멘션 관련 동작을 검증한다."""
     user, project, a, b, other, foreign = work
     comment = Comment(project_id=project.id, ticket_id=a.id, author_id=user.id, body="**진행**")
     db_session.add(comment)
@@ -227,6 +233,7 @@ def test_comment_attachment_mention_scope_and_deduplication(
 def test_round_trip_schedule_body_filter_history_and_report(
     db_session: Session, work: tuple
 ) -> None:
+    """보고서·필터·이력 관련 동작을 검증한다."""
     user, project, ticket, *_ = work
     ticket.planned_start_date = date(2026, 9, 14)
     ticket.planned_end_date = date(2026, 9, 18)
@@ -316,6 +323,7 @@ def test_round_trip_schedule_body_filter_history_and_report(
 def test_report_success_requires_output_and_skill_version_unique(
     db_session: Session, work: tuple
 ) -> None:
+    """보고서 관련 동작을 검증한다."""
     user, *_ = work
     skill = ReportSkill(key="weekly", name="주간", created_by_id=user.id)
     db_session.add(skill)
@@ -367,6 +375,7 @@ def test_optimistic_locking_rejects_stale_ticket(
     db_session_factory: sessionmaker[Session],
     work: tuple,
 ) -> None:
+    """티켓 관련 동작을 검증한다."""
     _, _, ticket, *_ = work
     db_session.commit()
     with db_session_factory() as second:
@@ -380,6 +389,7 @@ def test_optimistic_locking_rejects_stale_ticket(
 
 
 def test_root_and_sibling_organization_names_are_unique(db_session: Session) -> None:
+    """조직 관련 동작을 검증한다."""
     root = Organization(key="a", name="본부")
     db_session.add(root)
     db_session.flush()
@@ -393,6 +403,7 @@ def test_root_and_sibling_organization_names_are_unique(db_session: Session) -> 
 
 
 def test_history_coverage_and_purge_marker_round_trip(db_session: Session, work: tuple) -> None:
+    """이력 관련 동작을 검증한다."""
     user, project, ticket, *_ = work
     assert project.history_complete_from is None  # Unknown until history recording is initialized.
     project.history_complete_from = NOW

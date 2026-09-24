@@ -8,15 +8,18 @@ from sqlalchemy.orm import Session
 from app.models import AuditLog, Organization, User, UserSession
 
 
-def user_count(session: Session) -> int:
+def count_users(session: Session) -> int:
+    """사용자 수를 조회한다."""
     return session.scalar(select(func.count()).select_from(User)) or 0
 
 
 def find_user(session: Session, login_id: str) -> User | None:
+    """사용자 정보를 조회한다."""
     return session.scalar(select(User).where(User.login_id == login_id))
 
 
 def find_active_session(session: Session, token_hash: str, now: datetime) -> UserSession | None:
+    """active session 정보를 조회한다."""
     return session.scalar(
         select(UserSession)
         .join(User)
@@ -31,13 +34,10 @@ def find_active_session(session: Session, token_hash: str, now: datetime) -> Use
 
 def lock_verified_user(session: Session, user_id: int, verified_hash: str) -> bool:
     # Serialize session creation with concurrent password changes/deactivation.
+    """verified 사용자 동시성 보호를 위해 잠근다."""
     result = session.execute(
         update(User)
-        .where(
-            User.id == user_id,
-            User.password_hash == verified_hash,
-            User.is_active.is_(True),
-        )
+        .where(User.id == user_id, User.password_hash == verified_hash, User.is_active.is_(True))
         .values(updated_at=User.updated_at)
         .execution_options(synchronize_session=False)
     )
@@ -45,13 +45,10 @@ def lock_verified_user(session: Session, user_id: int, verified_hash: str) -> bo
 
 
 def replace_password(session: Session, user_id: int, verified_hash: str, new_hash: str) -> bool:
+    """비밀번호 교체한다."""
     result = session.execute(
         update(User)
-        .where(
-            User.id == user_id,
-            User.password_hash == verified_hash,
-            User.is_active.is_(True),
-        )
+        .where(User.id == user_id, User.password_hash == verified_hash, User.is_active.is_(True))
         .values(password_hash=new_hash, must_change_password=False)
         .execution_options(synchronize_session=False)
     )
@@ -59,27 +56,27 @@ def replace_password(session: Session, user_id: int, verified_hash: str, new_has
 
 
 def revoke_token(session: Session, token_hash: str) -> None:
+    """token 무효화한다."""
     session.execute(delete(UserSession).where(UserSession.token_hash == token_hash))
 
 
 def revoke_user_sessions(session: Session, user_id: int) -> None:
+    """사용자 sessions 무효화한다."""
     session.execute(delete(UserSession).where(UserSession.user_id == user_id))
 
 
-def failure_count(
+def count_authentication_failures(
     session: Session,
     since: datetime,
     *,
     identity_key: str | None = None,
     ip_address: str | None = None,
 ) -> int:
+    """인증 실패 수를 조회한다."""
     query = (
         select(func.count())
         .select_from(AuditLog)
-        .where(
-            AuditLog.action == "auth.login_failed",
-            AuditLog.occurred_at >= since,
-        )
+        .where(AuditLog.action == "auth.login_failed", AuditLog.occurred_at >= since)
     )
     if identity_key is not None:
         query = query.where(
@@ -92,6 +89,7 @@ def failure_count(
 
 def lock_security_write(session: Session) -> None:
     # The supported deployment is SQLite. Keep engine-specific locking in this adapter.
+    """security write 동시성 보호를 위해 잠근다."""
     if session.get_bind().dialect.name == "sqlite":
         session.execute(text("BEGIN IMMEDIATE"))
     else:
@@ -99,6 +97,7 @@ def lock_security_write(session: Session) -> None:
 
 
 def bootstrap_organization(session: Session, key: str, name: str) -> Organization:
+    """조직 bootstrap을 수행한다."""
     organization = session.scalar(select(Organization).where(Organization.key == key))
     if organization is None:
         organization = Organization(key=key, name=name)

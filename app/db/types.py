@@ -24,9 +24,11 @@ class UTCDateTime(TypeDecorator[datetime]):
     cache_ok = True
 
     def load_dialect_impl(self, dialect: Dialect):  # type: ignore[no-untyped-def]
+        """dialect impl 불러온다."""
         return dialect.type_descriptor(DateTime(timezone=dialect.name != "sqlite"))
 
     def process_bind_param(self, value: datetime | None, dialect: Dialect) -> datetime | None:
+        """bind param 값을 변환한다."""
         if value is None:
             return None
         if value.tzinfo is None or value.utcoffset() is None:
@@ -35,6 +37,7 @@ class UTCDateTime(TypeDecorator[datetime]):
         return value.replace(tzinfo=None) if dialect.name == "sqlite" else value
 
     def process_result_value(self, value: datetime | None, _: Dialect) -> datetime | None:
+        """result value 값을 변환한다."""
         if value is None:
             return None
         if value.tzinfo is None or value.utcoffset() is None:

@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(application: FastAPI) -> AsyncIterator[None]:
+    """애플리케이션 시작과 종료 수명 주기를 관리한다."""
     settings = get_settings()
     ensure_data_directories(settings)
     configure_logging(
@@ -51,6 +52,7 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
 
 
 def create_app() -> FastAPI:
+    """설정에 맞는 FastAPI 애플리케이션을 생성한다."""
     settings = get_settings()
     application = FastAPI(
         title=settings.app.name,
@@ -62,6 +64,7 @@ def create_app() -> FastAPI:
 
     @application.exception_handler(AuthError)
     async def auth_error_handler(_: Request, error: AuthError) -> JSONResponse:
+        """인증·권한 오류를 JSON 응답으로 변환한다."""
         headers = {"Retry-After": str(error.retry_after)} if error.retry_after else None
         return JSONResponse(
             {"code": error.code, "message": error.message},
@@ -72,12 +75,14 @@ def create_app() -> FastAPI:
     @application.exception_handler(RequestValidationError)
     async def validation_handler(_: Request, error: RequestValidationError) -> JSONResponse:
         # Default Pydantic errors may contain submitted passwords and tokens.
+        """요청 검증 오류를 JSON 응답으로 변환한다."""
         return JSONResponse(
             {"code": "invalid_request", "message": "입력 항목을 확인하세요."}, status_code=422
         )
 
     @application.middleware("http")
     async def private_page_headers(request: Request, call_next):
+        """보호된 화면 응답에 cache 방지 header를 추가한다."""
         response = await call_next(request)
         if not request.url.path.startswith(("/static/", "/health")):
             response.headers["Cache-Control"] = "no-store"

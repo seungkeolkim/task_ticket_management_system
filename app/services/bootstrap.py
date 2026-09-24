@@ -9,7 +9,7 @@ from app.db.transaction import transaction_scope
 from app.domain.auth import hash_password, normalize_login_id
 from app.models import SystemRole, User
 from app.repositories import auth as repository
-from app.services.auth import audit
+from app.services.auth import record_audit_event
 
 logger = logging.getLogger(__name__)
 
@@ -21,10 +21,11 @@ def bootstrap_admin(
     password: str,
     display_name: str,
 ) -> int | None:
+    """관리자 bootstrap을 수행한다."""
     logger.info("auth_bootstrap_started")
     with transaction_scope(session_factory) as session:
         repository.lock_security_write(session)
-        if repository.user_count(session):
+        if repository.count_users(session):
             logger.info("auth_bootstrap_skipped reason=users_exist")
             return None
         login_id = normalize_login_id(login_id)
@@ -32,9 +33,7 @@ def bootstrap_admin(
             raise ValueError("Bootstrap display name must contain 1 to 200 characters")
         password_hash = hash_password(password)
         organization = repository.bootstrap_organization(
-            session,
-            settings.bootstrap.organization_key,
-            settings.bootstrap.organization_name,
+            session, settings.bootstrap.organization_key, settings.bootstrap.organization_name
         )
         user = User(
             login_id=login_id,
@@ -46,7 +45,7 @@ def bootstrap_admin(
         )
         session.add(user)
         session.flush()
-        audit(
+        record_audit_event(
             session,
             "auth.bootstrap_admin_created",
             user.id,
@@ -59,6 +58,7 @@ def bootstrap_admin(
 
 
 def bootstrap_from_environment(session_factory: Callable[[], Session], settings: Settings) -> None:
+    """from 환경 변수 bootstrap을 수행한다."""
     keys = (
         "BOOTSTRAP_ADMIN_LOGIN_ID",
         "BOOTSTRAP_ADMIN_PASSWORD",
@@ -68,7 +68,7 @@ def bootstrap_from_environment(session_factory: Callable[[], Session], settings:
     if not any(os.getenv(key) for key in keys):
         return
     with session_factory() as session:
-        if repository.user_count(session):
+        if repository.count_users(session):
             logger.info("auth_bootstrap_skipped reason=users_exist")
             return
     login_id = os.getenv(keys[0], "")

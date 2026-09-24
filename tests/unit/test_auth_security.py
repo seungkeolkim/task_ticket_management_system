@@ -6,12 +6,13 @@ from sqlalchemy import func, select
 from app.core.config import Settings
 from app.domain.auth import AuthError, hash_password, normalize_login_id, verify_password
 from app.models import AuditLog, Organization, User
-from app.services.auth import login
+from app.services.auth import authenticate_user
 from app.services.bootstrap import bootstrap_admin, bootstrap_from_environment
-from app.web.security import safe_return_path
+from app.web.security import normalize_return_path
 
 
 def test_argon2id_and_password_policy():
+    """비밀번호 관련 동작을 검증한다."""
     password = "한글을 포함하는 긴 비밀번호123"
     first = hash_password(password)
     second = hash_password(password)
@@ -26,6 +27,7 @@ def test_argon2id_and_password_policy():
 
 
 def test_login_id_normalization():
+    """로그인 관련 동작을 검증한다."""
     assert normalize_login_id(" Admin.Test-1 ") == "admin.test-1"
     for invalid in ("ab", "한글아이디", "admin@test", "-admin", "a" * 101):
         with pytest.raises(AuthError):
@@ -50,17 +52,20 @@ def test_login_id_normalization():
     ],
 )
 def test_redirect_rejects_external_ambiguous_and_auth_targets(path: str):
-    assert safe_return_path(path) == "/"
+    """인증 관련 동작을 검증한다."""
+    assert normalize_return_path(path) == "/"
 
 
 def test_redirect_preserves_internal_query():
+    """안전한 내부 redirect가 query를 보존하는지 검증한다."""
     assert (
-        safe_return_path("/projects/OPS/tickets?selected=OPS-142")
+        normalize_return_path("/projects/OPS/tickets?selected=OPS-142")
         == "/projects/OPS/tickets?selected=OPS-142"
     )
 
 
 def test_bootstrap_is_atomic_and_idempotent(db_session_factory):
+    """bootstrap 관련 동작을 검증한다."""
     settings = Settings()
     first = bootstrap_admin(
         db_session_factory, settings, "Initial.Admin", "Bootstrap-password-123", "관리자"
@@ -79,7 +84,9 @@ def test_bootstrap_is_atomic_and_idempotent(db_session_factory):
 
 
 def test_concurrent_bootstrap_creates_one_admin(db_session_factory):
+    """bootstrap·동시성 관련 동작을 검증한다."""
     def create(login_id):
+        """동시성 테스트용 생성 시도를 수행한다."""
         return bootstrap_admin(
             db_session_factory, Settings(), login_id, "Bootstrap-password-123", "관리자"
         )
@@ -93,6 +100,7 @@ def test_concurrent_bootstrap_creates_one_admin(db_session_factory):
 
 
 def test_invalid_bootstrap_does_not_leave_an_organization(db_session_factory):
+    """조직·bootstrap 관련 동작을 검증한다."""
     with pytest.raises(AuthError):
         bootstrap_admin(db_session_factory, Settings(), "admin", "short", "관리자")
     with db_session_factory() as session:
@@ -102,6 +110,7 @@ def test_invalid_bootstrap_does_not_leave_an_organization(db_session_factory):
 def test_environment_bootstrap_secret_file_and_existing_user_skip(
     db_session_factory, tmp_path, monkeypatch
 ):
+    """사용자·bootstrap 관련 동작을 검증한다."""
     secret_file = tmp_path / "password.secret"
     secret_file.write_text("Bootstrap-password-123\n", encoding="utf-8")
     monkeypatch.setenv("BOOTSTRAP_ADMIN_LOGIN_ID", "env.admin")
@@ -114,20 +123,23 @@ def test_environment_bootstrap_secret_file_and_existing_user_skip(
 
 
 def test_environment_bootstrap_partial_configuration_fails(db_session_factory, monkeypatch):
+    """bootstrap·설정 관련 동작을 검증한다."""
     monkeypatch.setenv("BOOTSTRAP_ADMIN_LOGIN_ID", "admin")
     with pytest.raises(ValueError, match="requires"):
         bootstrap_from_environment(db_session_factory, Settings())
 
 
 def test_concurrent_failures_obey_the_configured_limit(db_session_factory):
+    """동시성·설정 관련 동작을 검증한다."""
     settings = Settings()
     settings.auth.login_max_failures = 2
     bootstrap_admin(db_session_factory, settings, "admin", "Bootstrap-password-123", "관리자")
 
     def attempt(_):
+        """동시성 테스트용 작업 시도를 수행한다."""
         with db_session_factory() as session:
             try:
-                login(session, settings, "admin", "wrong-password", "127.0.0.1")
+                authenticate_user(session, settings, "admin", "wrong-password", "127.0.0.1")
             except AuthError as error:
                 return error.status_code
 

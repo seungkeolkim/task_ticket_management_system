@@ -1,7 +1,7 @@
 from typing import Annotated
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, Query, Request
 from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
@@ -20,24 +20,25 @@ Actor = Annotated[Identity, Depends(require_web_user)]
 
 
 @router.get("/tickets")
-def global_ticket_list(
+def global_ticket_list_page(
     request: Request,
     session: Database,
     actor: Actor,
     scope: str = "mine",
     status: str = "open",
     due: str = "all",
-    q: str = "",
+    search_query: Annotated[str, Query(alias="q")] = "",
     page: int = 1,
     page_size: int | None = None,
 ):
-    result = service.global_ticket_list(
+    """전체 티켓 목록 화면을 렌더링한다."""
+    result = service.list_global_tickets(
         session,
         actor,
         scope=scope,
         status=status,
         due=due,
-        q=q,
+        search_query=search_query,
         page=page,
         page_size=page_size,
     )
@@ -45,7 +46,7 @@ def global_ticket_list(
         "scope": scope,
         "status": status,
         "due": due,
-        "q": q,
+        "q": search_query,
         "page_size": result.page_size,
     }
     return render(
@@ -62,8 +63,9 @@ def global_ticket_list(
 
 
 @router.get("/projects/{project_key}/board")
-def ticket_board(project_key: str, request: Request, session: Database, actor: Actor):
-    project, board = service.board(session, actor, project_key)
+def project_ticket_board_page(project_key: str, request: Request, session: Database, actor: Actor):
+    """프로젝트 티켓 보드 화면을 렌더링한다."""
+    project, board = service.build_ticket_board(session, actor, project_key)
     return render(
         request,
         "board.html",
@@ -75,8 +77,9 @@ def ticket_board(project_key: str, request: Request, session: Database, actor: A
     )
 
 
-def _create_page(request, session, actor, project_key, **context):
-    project, options = service.create_options(session, actor, project_key)
+def _render_ticket_create_page(request, session, actor, project_key, **context):
+    """티켓 create 화면 렌더링한다."""
+    project, options = service.get_ticket_creation_options(session, actor, project_key)
     return render(
         request,
         "ticket_form.html",
@@ -90,8 +93,9 @@ def _create_page(request, session, actor, project_key, **context):
     )
 
 
-def _edit_page(request, session, actor, project_key, ticket_key, **context):
-    project, ticket, options = service.edit_options(
+def _render_ticket_edit_page(request, session, actor, project_key, ticket_key, **context):
+    """티켓 edit 화면 렌더링한다."""
+    project, ticket, options = service.get_ticket_edit_options(
         session, actor, project_key, ticket_key
     )
     values = context.pop(
@@ -121,11 +125,12 @@ def _edit_page(request, session, actor, project_key, ticket_key, **context):
     )
 
 
-def _detail_page(request, session, actor, project_key, ticket_key, **context):
-    project, ticket = service.ticket_detail(session, actor, project_key, ticket_key)
+def _render_ticket_detail_page(request, session, actor, project_key, ticket_key, **context):
+    """티켓 상세 화면 렌더링한다."""
+    project, ticket = service.get_ticket_detail(session, actor, project_key, ticket_key)
     transitions = [
         (status, service.STATUS_LABELS[status][0])
-        for status in service.allowed_transitions(ticket.status)
+        for status in service.get_allowed_transitions(ticket.status)
     ]
     return render(
         request,
@@ -135,31 +140,32 @@ def _detail_page(request, session, actor, project_key, ticket_key, **context):
         active="tickets",
         project=project,
         ticket=ticket,
-        can_edit=service.can_edit(project, ticket, actor),
+        can_edit=service.can_edit_ticket(project, ticket, actor),
         transitions=transitions,
         **context,
     )
 
 
 @router.get("/projects/{project_key}/tickets")
-def ticket_list(
+def project_ticket_list_page(
     project_key: str,
     request: Request,
     session: Database,
     actor: Actor,
-    q: str = "",
+    search_query: Annotated[str, Query(alias="q")] = "",
     page: int = 1,
     page_size: int | None = None,
     selected: str | None = None,
     created: bool = False,
 ):
-    project, result = service.ticket_list(
-        session, actor, project_key, q=q, page=page, page_size=page_size
+    """프로젝트 티켓 목록 화면을 렌더링한다."""
+    project, result = service.list_project_tickets(
+        session, actor, project_key, search_query=search_query, page=page, page_size=page_size
     )
     selected_ticket = None
     if selected:
-        _, selected_ticket = service.ticket_detail(session, actor, project_key, selected)
-    query = {"q": q, "page_size": result.page_size}
+        _, selected_ticket = service.get_ticket_detail(session, actor, project_key, selected)
+    query = {"q": search_query, "page_size": result.page_size}
     return render(
         request,
         "ticket_list.html",
@@ -168,33 +174,30 @@ def ticket_list(
         active="tickets",
         project=project,
         result=result,
-        q=q,
+        q=search_query,
         selected_ticket=selected_ticket,
         created=created,
-        previous_url=f"/projects/{project.key}/tickets?"
-        + urlencode(query | {"page": page - 1}),
+        previous_url=f"/projects/{project.key}/tickets?" + urlencode(query | {"page": page - 1}),
         next_url=f"/projects/{project.key}/tickets?" + urlencode(query | {"page": page + 1}),
     )
 
 
 @router.get("/projects/{project_key}/tickets/new")
-def new_ticket(project_key: str, request: Request, session: Database, actor: Actor):
-    return _create_page(request, session, actor, project_key)
+def new_ticket_page(project_key: str, request: Request, session: Database, actor: Actor):
+    """티켓 화면 새 값을 생성한다."""
+    return _render_ticket_create_page(request, session, actor, project_key)
 
 
 @router.get("/projects/{project_key}/tickets/{ticket_key}/edit")
-def edit_ticket(
-    project_key: str,
-    ticket_key: str,
-    request: Request,
-    session: Database,
-    actor: Actor,
+def edit_ticket_page(
+    project_key: str, ticket_key: str, request: Request, session: Database, actor: Actor
 ):
-    return _edit_page(request, session, actor, project_key, ticket_key)
+    """티켓 편집 화면을 렌더링한다."""
+    return _render_ticket_edit_page(request, session, actor, project_key, ticket_key)
 
 
 @router.post("/projects/{project_key}/tickets")
-def create_ticket(
+def create_ticket_submit(
     project_key: str,
     request: Request,
     session: Database,
@@ -208,6 +211,7 @@ def create_ticket(
     due_date: Annotated[str, Form()] = "",
     csrf_token: Annotated[str, Form()] = "",
 ):
+    """티켓 submit 생성을 처리한다."""
     verify_csrf(request, csrf_token, actor, get_settings())
     values = {
         "type": type[:16],
@@ -232,7 +236,7 @@ def create_ticket(
     except (ValidationError, AuthError) as error:
         if isinstance(error, AuthError) and error.status_code in {401, 403, 404}:
             raise
-        return _create_page(
+        return _render_ticket_create_page(
             request,
             session,
             actor,
@@ -249,7 +253,7 @@ def create_ticket(
 
 
 @router.post("/projects/{project_key}/tickets/{ticket_key}")
-def update_ticket(
+def update_ticket_submit(
     project_key: str,
     ticket_key: str,
     request: Request,
@@ -264,6 +268,7 @@ def update_ticket(
     expected_version: Annotated[str, Form()] = "",
     csrf_token: Annotated[str, Form()] = "",
 ):
+    """티켓 submit 수정을 처리한다."""
     verify_csrf(request, csrf_token, actor, get_settings())
     values = {
         "title": title[:200],
@@ -292,7 +297,7 @@ def update_ticket(
             isinstance(error, AuthError)
             and error.code == "ticket_version_conflict"
         )
-        return _edit_page(
+        return _render_ticket_edit_page(
             request,
             session,
             actor,
@@ -311,7 +316,7 @@ def update_ticket(
 
 
 @router.post("/projects/{project_key}/tickets/{ticket_key}/transition")
-def transition_ticket(
+def transition_ticket_submit(
     project_key: str,
     ticket_key: str,
     request: Request,
@@ -322,6 +327,7 @@ def transition_ticket(
     confirm_incomplete_children: Annotated[bool, Form()] = False,
     csrf_token: Annotated[str, Form()] = "",
 ):
+    """티켓 submit 상태 전이를 처리한다."""
     verify_csrf(request, csrf_token, actor, get_settings())
     try:
         payload = TicketTransition(
@@ -329,9 +335,7 @@ def transition_ticket(
             expected_version=expected_version,
             confirm_incomplete_children=confirm_incomplete_children,
         )
-        ticket = service.transition_ticket(
-            session, actor, project_key, ticket_key, payload
-        )
+        ticket = service.transition_ticket(session, actor, project_key, ticket_key, payload)
     except (ValidationError, AuthError) as error:
         if isinstance(error, AuthError) and error.status_code in {401, 403, 404}:
             raise
@@ -339,15 +343,13 @@ def transition_ticket(
             isinstance(error, AuthError)
             and error.code == "incomplete_child_confirmation_required"
         )
-        return _detail_page(
+        return _render_ticket_detail_page(
             request,
             session,
             actor,
             project_key,
             ticket_key,
-            error=error.message
-            if isinstance(error, AuthError)
-            else "상태 변경 요청을 확인하세요.",
+            error=error.message if isinstance(error, AuthError) else "상태 변경 요청을 확인하세요.",
             confirmation_status=target_status if confirmation else None,
             status_code=error.status_code if isinstance(error, AuthError) else 422,
         )
@@ -357,7 +359,7 @@ def transition_ticket(
 
 
 @router.get("/projects/{project_key}/tickets/{ticket_key}")
-def ticket_detail(
+def ticket_detail_page(
     project_key: str,
     ticket_key: str,
     request: Request,
@@ -367,7 +369,8 @@ def ticket_detail(
     updated: bool = False,
     transitioned: bool = False,
 ):
-    return _detail_page(
+    """티켓 상세 화면을 렌더링한다."""
+    return _render_ticket_detail_page(
         request,
         session,
         actor,

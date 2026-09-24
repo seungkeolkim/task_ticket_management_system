@@ -29,6 +29,7 @@ from app.domain.codes import HistoryEventType, Priority, ProjectRole, TicketStat
 
 
 def allowed(column: str, values: Any, name: str) -> CheckConstraint:
+    """현재 상태에서 대상 상태로 전이 가능한지 반환한다."""
     codes = ", ".join(f"'{item.value}'" for item in values)
     return CheckConstraint(f"{column} IN ({codes})", name=name)
 

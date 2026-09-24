@@ -9,7 +9,8 @@ from app.repositories.tickets import accessible_ticket_query, my_ticket_conditio
 OPEN_STATUSES = ("TODO", "IN_PROGRESS", "ON_HOLD")
 
 
-def counts(session: Session, actor_id: int, today: date, week_end: date):
+def get_dashboard_counts(session: Session, actor_id: int, today: date, week_end: date):
+    """대시보드 counts 정보를 조회한다."""
     project_scope = select(ProjectMember.project_id).where(ProjectMember.user_id == actor_id)
     base = (
         Ticket.project_id.in_(project_scope),
@@ -30,7 +31,8 @@ def counts(session: Session, actor_id: int, today: date, week_end: date):
     ).one()
 
 
-def recent_tickets(session: Session, actor_id: int, *, limit: int = 5):
+def list_recent_tickets(session: Session, actor_id: int, *, limit: int = 5):
+    """recent 티켓 목록을 조회한다."""
     return session.execute(
         accessible_ticket_query(actor_id)
         .where(my_ticket_condition(actor_id))
@@ -39,7 +41,8 @@ def recent_tickets(session: Session, actor_id: int, *, limit: int = 5):
     ).all()
 
 
-def unread_mentions(session: Session, actor_id: int, *, limit: int = 5):
+def list_unread_mentions(session: Session, actor_id: int, *, limit: int = 5):
+    """unread 멘션 목록을 조회한다."""
     mentioned_by = aliased(User)
     return (
         session.execute(
@@ -63,10 +66,7 @@ def unread_mentions(session: Session, actor_id: int, *, limit: int = 5):
             )
             .join(
                 Ticket,
-                and_(
-                    Ticket.project_id == Mention.project_id,
-                    Ticket.id == Mention.ticket_id,
-                ),
+                and_(Ticket.project_id == Mention.project_id, Ticket.id == Mention.ticket_id),
             )
             .join(mentioned_by, mentioned_by.id == Mention.mentioned_by_id)
             .outerjoin(Comment, Comment.id == Mention.comment_id)

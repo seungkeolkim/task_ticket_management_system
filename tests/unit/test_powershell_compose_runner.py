@@ -12,11 +12,13 @@ POWERSHELLS = [path for name in ("powershell", "pwsh") if (path := shutil.which(
 
 
 def ps_quote(value):
+    """PowerShell 문자열 인자를 안전하게 quote한다."""
     return "'" + str(value).replace("'", "''") + "'"
 
 
 @pytest.fixture(params=POWERSHELLS or [None])
 def runner(request, tmp_path):
+    """PowerShell 실행 래퍼 테스트 helper를 제공한다."""
     if request.param is None:
         pytest.skip("PowerShell is not installed")
     root = tmp_path / "repo with spaces [literal]"
@@ -28,6 +30,7 @@ def runner(request, tmp_path):
     default_config.write_text("[server]\nport = 9123\n", encoding="utf-8")
 
     def run(action="start", *, config=None, docker_exit=0):
+        """PowerShell 실행 래퍼를 테스트 환경에서 실행한다."""
         result_file = tmp_path / "docker.json"
         state_file = tmp_path / "state.json"
         harness = tmp_path / "invoke.ps1"
@@ -87,6 +90,7 @@ exit $result
 
 
 def test_start_reads_default_config_and_runs_from_script_directory(runner):
+    """설정 관련 동작을 검증한다."""
     run, root, config = runner
     result, call = run()
     assert result.returncode == 0, result.stderr
@@ -99,6 +103,7 @@ def test_start_reads_default_config_and_runs_from_script_directory(runner):
 
 
 def test_custom_relative_config_with_spaces_and_unicode(runner):
+    """설정 관련 동작을 검증한다."""
     run, root, _ = runner
     custom = root.parent / "외부 설정 [test].toml"
     custom.write_text("[server]\nport = 9234\n", encoding="utf-8")
@@ -109,6 +114,7 @@ def test_custom_relative_config_with_spaces_and_unicode(runner):
 
 @pytest.mark.parametrize("contents", [None, "[server\n", "[server]\nport = true\n"])
 def test_start_rejects_invalid_config_before_docker(runner, contents):
+    """설정 관련 동작을 검증한다."""
     run, _, config = runner
     if contents is None:
         config.unlink()
@@ -122,6 +128,7 @@ def test_start_rejects_invalid_config_before_docker(runner, contents):
 
 @pytest.mark.parametrize("contents", [None, "invalid toml"])
 def test_stop_works_without_valid_config(runner, contents):
+    """설정 관련 동작을 검증한다."""
     run, _, config = runner
     if contents is None:
         config.unlink()
@@ -135,6 +142,7 @@ def test_stop_works_without_valid_config(runner, contents):
 
 @pytest.mark.parametrize("action", ["start", "stop"])
 def test_docker_exit_code_is_preserved(runner, action):
+    """Compose wrapper가 Docker 종료 코드를 보존하는지 검증한다."""
     run, _, _ = runner
     result, call = run(action, docker_exit=17)
     assert call is not None and result.returncode == 17
@@ -142,6 +150,7 @@ def test_docker_exit_code_is_preserved(runner, action):
 
 @pytest.mark.parametrize("action", ["", "restart", "START"])
 def test_invalid_action_prints_usage_without_docker(runner, action):
+    """잘못된 wrapper 명령이 Docker 없이 사용법을 출력하는지 검증한다."""
     run, _, _ = runner
     result, call = run(action)
     assert result.returncode == 2 and "Usage:" in result.stderr

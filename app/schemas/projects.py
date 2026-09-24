@@ -14,6 +14,7 @@ class ProjectCreate(BaseModel):
     @field_validator("key")
     @classmethod
     def normalize_key(cls, value: str) -> str:
+        """key 값을 정규화한다."""
         value = value.upper()
         if not re.fullmatch(r"[A-Z][A-Z0-9]{1,31}", value):
             raise ValueError("프로젝트 키는 영문자로 시작하는 영문·숫자 2~32자입니다.")

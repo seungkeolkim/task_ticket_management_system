@@ -32,6 +32,7 @@ def test_upgrade_creates_identity_schema(
     alembic_config: Config,
     migrated_database_url: str,
 ) -> None:
+    """schema 관련 동작을 검증한다."""
     engine = create_engine(migrated_database_url)
     try:
         assert DOMAIN_TABLES | MVP_TABLES <= set(inspect(engine).get_table_names())
@@ -43,6 +44,7 @@ def test_downgrade_removes_identity_schema(
     alembic_config: Config,
     migrated_database_url: str,
 ) -> None:
+    """schema 관련 동작을 검증한다."""
     command.downgrade(alembic_config, "base")
     engine = create_engine(migrated_database_url)
     try:
@@ -55,10 +57,12 @@ def test_migration_matches_model_metadata(
     alembic_config: Config,
     migrated_database_url: str,
 ) -> None:
+    """migration·모델 관련 동작을 검증한다."""
     command.check(alembic_config)
 
 
 def test_populated_organization_tree_can_downgrade_to_base(alembic_config, database_url):
+    """조직 관련 동작을 검증한다."""
     command.upgrade(alembic_config, "head")
     engine = create_database_engine(database_url)
     try:
@@ -81,6 +85,7 @@ def test_populated_organization_tree_can_downgrade_to_base(alembic_config, datab
 
 def test_migrated_checks_match_models(migrated_database_url: str) -> None:
     # Alembic check does not detect every CHECK constraint difference.
+    """모델 관련 동작을 검증한다."""
     engine = create_database_engine(migrated_database_url)
     try:
         inspector = inspect(engine)
@@ -102,6 +107,7 @@ def test_migrated_checks_match_models(migrated_database_url: str) -> None:
 def test_populated_upgrade_downgrade_preserves_identity(
     alembic_config: Config, database_url: str
 ) -> None:
+    """데이터가 있는 migration 왕복에서 identity 보존을 검증한다."""
     command.upgrade(alembic_config, "20260916_0001")
     engine = create_database_engine(database_url)
     try:
@@ -160,6 +166,7 @@ def test_populated_upgrade_downgrade_preserves_identity(
 def test_duplicate_organizations_fail_before_schema_changes(
     alembic_config: Config, database_url: str
 ) -> None:
+    """조직·schema 관련 동작을 검증한다."""
     command.upgrade(alembic_config, "20260916_0001")
     engine = create_database_engine(database_url)
     try:
@@ -186,6 +193,7 @@ def test_duplicate_organizations_fail_before_schema_changes(
 def test_project_guest_migration_downgrade_removes_guest_without_promotion(
     alembic_config: Config, database_url: str
 ) -> None:
+    """프로젝트·migration 관련 동작을 검증한다."""
     command.upgrade(alembic_config, "head")
     engine = create_database_engine(database_url)
     try:

@@ -11,18 +11,18 @@ from app.domain.auth import Identity
 from app.services import auth as service
 from app.web.security import (
     clear_auth_cookies,
-    client_ip,
-    csrf_for_page,
-    optional_identity,
+    create_page_csrf_token,
+    get_client_ip_address,
+    get_optional_identity,
+    normalize_return_path,
     require_identity,
-    safe_return_path,
     set_session_cookie,
     verify_csrf,
 )
 
 router = APIRouter(prefix="/api/auth", tags=["authentication"])
 Database = Annotated[Session, Depends(get_db_session)]
-OptionalIdentity = Annotated[Identity | None, Depends(optional_identity)]
+OptionalIdentity = Annotated[Identity | None, Depends(get_optional_identity)]
 RequiredIdentity = Annotated[Identity, Depends(require_identity)]
 
 
@@ -41,9 +41,10 @@ class PasswordInput(BaseModel):
 
 
 @router.get("/csrf")
-def csrf(request: Request, identity: OptionalIdentity):
+def get_csrf_token(request: Request, identity: OptionalIdentity):
+    """CSRF token 정보를 조회한다."""
     temporary = JSONResponse({})
-    token = csrf_for_page(request, temporary, identity, get_settings())
+    token = create_page_csrf_token(request, temporary, identity, get_settings())
     response = JSONResponse({"csrf_token": token})
     for key, value in temporary.raw_headers:
         if key == b"set-cookie":
@@ -52,7 +53,8 @@ def csrf(request: Request, identity: OptionalIdentity):
 
 
 @router.get("/me")
-def me(identity: RequiredIdentity):
+def get_current_user(identity: RequiredIdentity):
+    """현재 사용자 정보를 조회한다."""
     return {
         "id": identity.id,
         "login_id": identity.login_id,
@@ -64,37 +66,42 @@ def me(identity: RequiredIdentity):
 
 @router.post("/login")
 def login(request: Request, payload: LoginInput, session: Database, identity: OptionalIdentity):
+    """사용자 인증 후 session 정보를 반환한다."""
     settings = get_settings()
     verify_csrf(request, request.headers.get("x-csrf-token", ""), identity, settings)
-    token, user = service.login(
+    token, user = service.authenticate_user(
         session,
         settings,
         payload.login_id,
         payload.password.get_secret_value(),
-        client_ip(request),
+        get_client_ip_address(request),
         request.cookies.get(settings.session.cookie_name),
     )
     response = JSONResponse(
-        {"must_change_password": user.must_change_password, "next": safe_return_path(payload.next)}
+        {
+            "must_change_password": user.must_change_password,
+            "next": normalize_return_path(payload.next),
+        }
     )
     set_session_cookie(response, token, settings)
     return response
 
 
 @router.post("/password")
-def password(
+def change_current_user_password(
     request: Request, payload: PasswordInput, session: Database, identity: RequiredIdentity
 ):
+    """현재 사용자 비밀번호 변경을 처리한다."""
     settings = get_settings()
     verify_csrf(request, request.headers.get("x-csrf-token", ""), identity, settings)
-    service.change_password(
+    service.change_user_password(
         session,
         settings,
         identity,
         payload.current_password.get_secret_value(),
         payload.new_password.get_secret_value(),
         payload.confirmation.get_secret_value(),
-        client_ip(request),
+        get_client_ip_address(request),
     )
     response = JSONResponse({"reauthentication_required": True})
     clear_auth_cookies(response, settings)
@@ -103,10 +110,14 @@ def password(
 
 @router.post("/logout")
 def logout(request: Request, session: Database, identity: RequiredIdentity):
+    """현재 사용자의 session을 종료한다."""
     settings = get_settings()
     verify_csrf(request, request.headers.get("x-csrf-token", ""), identity, settings)
-    service.logout(
-        session, identity, request.cookies[settings.session.cookie_name], client_ip(request)
+    service.logout_user(
+        session,
+        identity,
+        request.cookies[settings.session.cookie_name],
+        get_client_ip_address(request),
     )
     response = JSONResponse({"logged_out": True})
     clear_auth_cookies(response, settings)
