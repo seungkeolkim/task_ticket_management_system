@@ -17,6 +17,7 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
+    """schema를 다음 revision으로 upgrade한다."""
     op.create_table(
         "organizations",
         sa.Column("key", sa.String(length=64), nullable=False),
@@ -199,6 +200,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """schema를 이전 revision으로 downgrade한다."""
     op.drop_index("ix_user_sessions_user_id_expires_at", table_name="user_sessions")
     op.drop_index(op.f("ix_user_sessions_user_id"), table_name="user_sessions")
     op.drop_index(op.f("ix_user_sessions_expires_at"), table_name="user_sessions")

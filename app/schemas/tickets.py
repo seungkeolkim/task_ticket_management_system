@@ -19,6 +19,7 @@ class TicketCreate(BaseModel):
     @field_validator("title")
     @classmethod
     def normalize_title(cls, value: str) -> str:
+        """title 값을 정규화한다."""
         normalized = value.strip()
         if not normalized:
             raise ValueError("제목을 입력하세요.")
@@ -27,6 +28,7 @@ class TicketCreate(BaseModel):
     @field_validator("parent_key", mode="before")
     @classmethod
     def normalize_parent_key(cls, value: object) -> object:
+        """상위 항목 key 값을 정규화한다."""
         if value is None:
             return None
         normalized = str(value).strip().upper()
@@ -34,6 +36,7 @@ class TicketCreate(BaseModel):
 
     @model_validator(mode="after")
     def validate_parent_shape(self):
+        """상위 항목 shape 값을 검증한다."""
         if self.type == TicketType.EPIC and self.parent_key is not None:
             raise ValueError("Epic은 상위 티켓을 가질 수 없습니다.")
         if self.type == TicketType.SUBTASK and self.parent_key is None:
@@ -55,6 +58,7 @@ class TicketUpdate(BaseModel):
     @field_validator("title")
     @classmethod
     def normalize_title(cls, value: str) -> str:
+        """title 값을 정규화한다."""
         normalized = value.strip()
         if not normalized:
             raise ValueError("제목을 입력하세요.")
@@ -63,6 +67,7 @@ class TicketUpdate(BaseModel):
     @field_validator("parent_key", mode="before")
     @classmethod
     def normalize_parent_key(cls, value: object) -> object:
+        """상위 항목 key 값을 정규화한다."""
         if value is None:
             return None
         normalized = str(value).strip().upper()

@@ -73,6 +73,7 @@ FSM_TRANSITIONS = {
 def record_ticket_audit_event(
     session: Session, action: str, actor_id: int, ticket: Ticket, **details: object
 ) -> None:
+    """티켓 변경 감사 event를 기록한다."""
     session.add(
         AuditLog(
             action=action,
@@ -90,16 +91,19 @@ def record_ticket_audit_event(
 
 
 def uses_system_administrator_override(project) -> bool:
+    """프로젝트 접근이 시스템 관리자 override인지 확인한다."""
     return project.role is None and project.can_manage
 
 
 def _build_ticket_user_view(user_id: int | None, login_id: str | None, display_name: str | None):
+    """티켓 사용자 정보를 view로 변환한다."""
     if user_id is None:
         return None
     return TicketUserView(id=user_id, login_id=login_id or "", display_name=display_name or "")
 
 
 def build_ticket_view(ticket_row) -> TicketView:
+    """티켓 row를 상세 view로 변환한다."""
     ticket = ticket_row[0]
     mapping = ticket_row._mapping
     ticket_type = TicketType(ticket.type)
@@ -150,6 +154,7 @@ def build_ticket_view(ticket_row) -> TicketView:
 def _build_board_card(
     ticket: TicketView, *, can_transition: bool, completion_blocked: bool
 ) -> BoardCard:
+    """티켓 view와 전이 권한으로 보드 카드를 구성한다."""
     return BoardCard(
         key=ticket.key,
         version=ticket.version,
@@ -173,6 +178,7 @@ def _build_board_card(
 def _build_ticket_state_snapshot(
     ticket: Ticket, parent_key: str | None, relations: list[RelationSnapshot] | None = None
 ) -> TicketState:
+    """티켓의 현재 업무 상태 snapshot을 구성한다."""
     return TicketState(
         ticket_key=ticket.key,
         project_id=ticket.project_id,
@@ -204,6 +210,7 @@ def _build_ticket_state_snapshot(
 def _build_ticket_creation_history(
     ticket: Ticket, parent_key: str | None, actor_id: int
 ) -> TicketHistory:
+    """티켓 생성 이력 event를 구성한다."""
     state = _build_ticket_state_snapshot(ticket, parent_key)
     event = TicketEvent(
         event_key=uuid4(),
@@ -235,6 +242,7 @@ def _build_ticket_creation_history(
 
 
 def _build_ticket_snapshot(session: Session, ticket: Ticket, parent_key: str | None) -> TicketState:
+    """티켓과 관계를 포함한 상태 snapshot을 구성한다."""
     relations = [
         RelationSnapshot(**row)
         for row in repository.relation_rows(session, ticket.project_id, ticket.id)
@@ -250,6 +258,7 @@ def _build_ticket_change_history(
     after: TicketState,
     fields: tuple[str, ...],
 ) -> TicketHistory:
+    """변경 전후 snapshot으로 티켓 이력을 구성한다."""
     before_data = before.model_dump(mode="json")
     after_data = after.model_dump(mode="json")
     changes = [
@@ -287,18 +296,22 @@ def _build_ticket_change_history(
 
 
 def _get_project(session: Session, actor: Identity, project_key: str):
+    """읽기 가능한 프로젝트를 조회한다."""
     return project_service.require_project_member(session, actor, project_key)
 
 
 def _get_writable_project(session: Session, actor: Identity, project_key: str):
+    """쓰기 가능한 프로젝트를 조회한다."""
     return project_service.require_project_user_access(session, actor, project_key)
 
 
 def get_allowed_transitions(status: TicketStatus | str) -> tuple[TicketStatus, ...]:
+    """현재 상태에서 허용되는 다음 상태를 반환한다."""
     return FSM_TRANSITIONS[TicketStatus(status)]
 
 
 def can_edit_ticket(project_view, ticket: Ticket | TicketView, actor: Identity) -> bool:
+    """현재 사용자의 티켓 편집 가능 여부를 반환한다."""
     return (
         project_view.role in {ProjectRole.ADMIN, ProjectRole.USER}
         or project_view.can_manage
@@ -306,11 +319,13 @@ def can_edit_ticket(project_view, ticket: Ticket | TicketView, actor: Identity) 
 
 
 def _require_active_project(project) -> None:
+    """프로젝트가 활성 상태인지 검증한다."""
     if not project.is_active:
         raise AuthError("project_inactive", "비활성 프로젝트의 티켓은 변경할 수 없습니다.", 409)
 
 
 def _require_expected_version(ticket: Ticket, expected_version: int) -> None:
+    """요청 version과 현재 티켓 version이 같은지 검증한다."""
     if ticket.version != expected_version:
         raise AuthError(
             "ticket_version_conflict",
@@ -320,6 +335,7 @@ def _require_expected_version(ticket: Ticket, expected_version: int) -> None:
 
 
 def _get_ticket_row(session: Session, actor: Identity, project_view, ticket_key: str):
+    """프로젝트 권한 범위에서 티켓 row를 조회한다."""
     ticket_row = repository.ticket_row(
         session,
         project_view.id,
@@ -335,6 +351,7 @@ def _get_ticket_row(session: Session, actor: Identity, project_view, ticket_key:
 def _parent_for_update(
     session: Session, actor: Identity, project, ticket: Ticket, parent_key: str | None
 ) -> Ticket | None:
+    """변경 요청에 맞는 상위 티켓을 조회하고 검증한다."""
     if ticket.type == TicketType.EPIC:
         if parent_key is not None:
             raise AuthError("invalid_parent", "Epic은 상위 티켓을 가질 수 없습니다.")
@@ -374,6 +391,7 @@ def list_project_tickets(
     page: int = 1,
     page_size: int | None = None,
 ):
+    """프로젝트 티켓 목록을 조회한다."""
     size = page_size if page_size is not None else get_settings().pagination.default_size
     if (
         len(search_query) > 200
@@ -411,6 +429,7 @@ def list_global_tickets(
     page: int = 1,
     page_size: int | None = None,
 ):
+    """전체 티켓 목록을 조회한다."""
     size = page_size if page_size is not None else get_settings().pagination.default_size
     if (
         scope not in {"mine", "created", "all"}
@@ -446,6 +465,7 @@ def list_global_tickets(
 
 
 def build_ticket_board(session: Session, actor: Identity, project_key: str):
+    """티켓 보드 구성한다."""
     with project_service.project_operation_context(session, actor, "ticket_board"):
         project = _get_project(session, actor, project_key)
         rows = repository.board_rows(
@@ -458,6 +478,7 @@ def build_ticket_board(session: Session, actor: Identity, project_key: str):
         dependency_blocked_ids = repository.incomplete_dependency_source_ids(session, project.id)
 
         def board_card(item: tuple[Ticket, TicketView]) -> BoardCard:
+            """티켓과 전이 권한으로 보드 카드를 구성한다."""
             ticket_row, ticket_view = item
             return _build_board_card(
                 ticket_view,
@@ -542,6 +563,7 @@ def build_ticket_board(session: Session, actor: Identity, project_key: str):
 
 
 def get_ticket_detail(session: Session, actor: Identity, project_key: str, ticket_key: str):
+    """티켓 상세 정보를 조회한다."""
     with project_service.project_operation_context(session, actor, "ticket_read"):
         project = _get_project(session, actor, project_key)
         ticket_row = _get_ticket_row(session, actor, project, ticket_key)
@@ -549,6 +571,7 @@ def get_ticket_detail(session: Session, actor: Identity, project_key: str, ticke
 
 
 def get_ticket_creation_options(session: Session, actor: Identity, project_key: str):
+    """티켓 생성에 필요한 담당자·상위 티켓 후보를 조회한다."""
     with project_service.project_operation_context(session, actor, "ticket_create_options"):
         project = _get_writable_project(session, actor, project_key)
         override = uses_system_administrator_override(project)
@@ -567,6 +590,7 @@ def get_ticket_creation_options(session: Session, actor: Identity, project_key: 
 
 
 def get_ticket_edit_options(session: Session, actor: Identity, project_key: str, ticket_key: str):
+    """티켓 편집에 필요한 담당자·상위 티켓 후보를 조회한다."""
     with project_service.project_operation_context(session, actor, "ticket_edit_options"):
         project = _get_writable_project(session, actor, project_key)
         ticket_row = _get_ticket_row(session, actor, project, ticket_key)
@@ -606,6 +630,7 @@ def get_ticket_edit_options(session: Session, actor: Identity, project_key: str,
 def create_ticket(
     session: Session, actor: Identity, project_key: str, payload: TicketCreate
 ) -> TicketView:
+    """티켓 생성을 처리한다."""
     with project_service.project_operation_context(
         session, actor, "ticket_create", write_operation=True
     ):
@@ -670,6 +695,7 @@ def create_ticket(
 def update_ticket(
     session: Session, actor: Identity, project_key: str, ticket_key: str, payload: TicketUpdate
 ) -> TicketView:
+    """티켓 수정을 처리한다."""
     changed_fields: list[str] = []
     with project_service.project_operation_context(
         session,
@@ -764,6 +790,7 @@ def update_ticket(
 def transition_ticket(
     session: Session, actor: Identity, project_key: str, ticket_key: str, payload: TicketTransition
 ) -> TicketView:
+    """티켓 상태 전이를 처리한다."""
     with project_service.project_operation_context(
         session,
         actor,

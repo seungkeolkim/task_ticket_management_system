@@ -18,6 +18,7 @@ from app.services.auth import get_current_identity
 
 
 def normalize_return_path(value: str | None) -> str:
+    """return path 값을 정규화한다."""
     if not value or not value.startswith("/") or len(value) > 2048:
         return "/"
     decoded = value
@@ -46,6 +47,7 @@ def normalize_return_path(value: str | None) -> str:
 
 
 def build_login_url(next_path: str = "/", *, changed: bool = False) -> str:
+    """로그인 url 구성한다."""
     query = {"next": normalize_return_path(next_path)}
     if changed:
         query["changed"] = "1"
@@ -53,6 +55,7 @@ def build_login_url(next_path: str = "/", *, changed: bool = False) -> str:
 
 
 def build_password_change_url(next_path: str = "/") -> str:
+    """비밀번호 change url 구성한다."""
     return "/account/password?" + urlencode({"next": normalize_return_path(next_path)})
 
 
@@ -61,6 +64,7 @@ def get_optional_identity(
     session: Annotated[Session, Depends(get_db_session)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> Identity | None:
+    """optional identity 정보를 조회한다."""
     identity = get_current_identity(session, request.cookies.get(settings.session.cookie_name))
     request.state.current_user = identity
     return identity
@@ -69,6 +73,7 @@ def get_optional_identity(
 def require_web_user(
     request: Request, identity: Annotated[Identity | None, Depends(get_optional_identity)]
 ) -> Identity:
+    """web 사용자 필수 조건을 검증한다."""
     next_path = request.url.path + ("?" + request.url.query if request.url.query else "")
     if identity is None:
         raise HTTPException(303, headers={"Location": build_login_url(next_path)})
@@ -78,6 +83,7 @@ def require_web_user(
 
 
 def require_web_admin(identity: Annotated[Identity, Depends(require_web_user)]) -> Identity:
+    """web 관리자 필수 조건을 검증한다."""
     if not identity.is_admin:
         raise HTTPException(403, detail="시스템 관리자 권한이 필요합니다.")
     return identity
@@ -86,34 +92,40 @@ def require_web_admin(identity: Annotated[Identity, Depends(require_web_user)]) 
 def require_identity(
     identity: Annotated[Identity | None, Depends(get_optional_identity)]
 ) -> Identity:
+    """identity 필수 조건을 검증한다."""
     if identity is None:
         raise AuthError("authentication_required", "로그인이 필요합니다.", 401)
     return identity
 
 
 def require_api_user(identity: Annotated[Identity, Depends(require_identity)]) -> Identity:
+    """API 사용자 필수 조건을 검증한다."""
     if identity.must_change_password:
         raise AuthError("password_change_required", "비밀번호를 먼저 변경하세요.", 403)
     return identity
 
 
 def require_api_admin(identity: Annotated[Identity, Depends(require_api_user)]) -> Identity:
+    """API 관리자 필수 조건을 검증한다."""
     if not identity.is_admin:
         raise AuthError("admin_required", "시스템 관리자 권한이 필요합니다.", 403)
     return identity
 
 
 def get_csrf_cookie_name(settings: Settings) -> str:
+    """CSRF cookie name 정보를 조회한다."""
     return settings.session.cookie_name + "_csrf"
 
 
 def create_session_csrf_token(token: str) -> str:
+    """session CSRF token 생성을 처리한다."""
     return hmac.new(token.encode("utf-8"), b"taskflow-csrf-v1", hashlib.sha256).hexdigest()
 
 
 def create_page_csrf_token(
     request: Request, response: Response, identity: Identity | None, settings: Settings
 ) -> str:
+    """화면 CSRF token 생성을 처리한다."""
     if identity:
         return create_session_csrf_token(request.cookies[settings.session.cookie_name])
     token = request.cookies.get(get_csrf_cookie_name(settings), "")
@@ -132,6 +144,7 @@ def create_page_csrf_token(
 
 
 def _parse_request_origin(value: str) -> tuple[str, str, int] | None:
+    """요청 origin을 비교 가능한 구조로 해석한다."""
     try:
         parsed = urlsplit(value)
         if (
@@ -153,6 +166,7 @@ def _parse_request_origin(value: str) -> tuple[str, str, int] | None:
 def verify_csrf(
     request: Request, submitted: str, identity: Identity | None, settings: Settings
 ) -> None:
+    """CSRF 검증한다."""
     supplied_origin = request.headers.get("origin")
     if supplied_origin is None:
         supplied_origin = request.headers.get("referer", "")
@@ -188,6 +202,7 @@ def verify_csrf(
 
 
 def set_session_cookie(response: Response, token: str, settings: Settings) -> None:
+    """session cookie 설정한다."""
     response.set_cookie(
         settings.session.cookie_name,
         token,
@@ -201,6 +216,7 @@ def set_session_cookie(response: Response, token: str, settings: Settings) -> No
 
 
 def clear_auth_cookies(response: Response, settings: Settings) -> None:
+    """인증 cookies 제거한다."""
     response.delete_cookie(
         settings.session.cookie_name,
         path="/",
@@ -218,4 +234,5 @@ def clear_auth_cookies(response: Response, settings: Settings) -> None:
 
 
 def get_client_ip_address(request: Request) -> str:
+    """client ip address 정보를 조회한다."""
     return (request.client.host if request.client else "unknown")[:45]

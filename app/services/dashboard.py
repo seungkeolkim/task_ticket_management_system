@@ -13,10 +13,12 @@ SEOUL = ZoneInfo("Asia/Seoul")
 
 
 def get_local_today():
+    """로컬 today 정보를 조회한다."""
     return datetime.now(SEOUL).date()
 
 
 def get_dashboard(session: Session, actor: Identity) -> DashboardView:
+    """대시보드 정보를 조회한다."""
     today = get_local_today()
     week_end = today + timedelta(days=6 - today.weekday())
     with project_service.project_operation_context(session, actor, "dashboard_read"):

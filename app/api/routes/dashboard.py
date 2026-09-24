@@ -16,4 +16,5 @@ Actor = Annotated[Identity, Depends(require_api_user)]
 
 @router.get("", response_model=DashboardView)
 def get_dashboard_api(session: Database, actor: Actor):
+    """대시보드 API 정보를 조회한다."""
     return service.get_dashboard(session, actor)

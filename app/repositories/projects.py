@@ -5,6 +5,7 @@ from app.models import Project, ProjectMember, User
 
 
 def get_actor_status(session: Session, user_id: int):
+    """actor 상태 정보를 조회한다."""
     return session.execute(
         select(User.is_active, User.must_change_password, User.system_role).where(
             User.id == user_id
@@ -13,6 +14,7 @@ def get_actor_status(session: Session, user_id: int):
 
 
 def build_project_access_query(actor_id: int, override: bool = False):
+    """프로젝트 access query 구성한다."""
     query = select(Project, ProjectMember.role).outerjoin(
         ProjectMember,
         (ProjectMember.project_id == Project.id) & (ProjectMember.user_id == actor_id),
@@ -23,6 +25,7 @@ def build_project_access_query(actor_id: int, override: bool = False):
 
 
 def accessible_project(session: Session, project_key: str, actor_id: int, override: bool):
+    """프로젝트 접근 가능한 범위를 조회한다."""
     return session.execute(
         build_project_access_query(actor_id, override).where(Project.key == project_key)
     ).one_or_none()
@@ -36,6 +39,7 @@ def list_projects(
     page: int,
     page_size: int,
 ):
+    """프로젝트 목록을 조회한다."""
     query = build_project_access_query(actor_id, include_all_projects)
     if search_query:
         query = query.where(
@@ -52,6 +56,7 @@ def list_projects(
 
 
 def active_user(session: Session, user_id: int) -> bool:
+    """활성 사용자 정보를 조회한다."""
     return (
         session.scalar(select(User.id).where(User.id == user_id, User.is_active.is_(True)))
         is not None
@@ -59,10 +64,12 @@ def active_user(session: Session, user_id: int) -> bool:
 
 
 def duplicate_key(session: Session, key: str) -> bool:
+    """key 중복 여부를 조회한다."""
     return session.scalar(select(Project.id).where(Project.key == key)) is not None
 
 
 def duplicate_member(session: Session, project_id: int, user_id: int) -> bool:
+    """구성원 중복 여부를 조회한다."""
     return (
         session.scalar(
             select(ProjectMember.id).where(
@@ -76,6 +83,7 @@ def duplicate_member(session: Session, project_id: int, user_id: int) -> bool:
 def list_project_members(
     session: Session, project_id: int, actor_id: int, *, override: bool = False
 ):
+    """프로젝트 구성원 목록을 조회한다."""
     accessible_projects = (
         build_project_access_query(actor_id, override).with_only_columns(Project.id).subquery()
     )
@@ -102,6 +110,7 @@ def list_project_members(
 
 
 def list_candidate_users(session: Session, search_query: str, project_id: int | None):
+    """후보 사용자 목록을 조회한다."""
     query = select(User.id, User.login_id, User.display_name).where(User.is_active.is_(True))
     if project_id is not None:
         query = query.where(

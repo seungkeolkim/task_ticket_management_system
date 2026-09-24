@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 def record_project_audit_event(session, action, actor_id, project_id=None, **details):
+    """프로젝트 audit event 기록한다."""
     session.add(
         AuditLog(
             action=action,
@@ -38,6 +39,7 @@ def record_project_audit_event(session, action, actor_id, project_id=None, **det
 
 
 def is_system_administrator(session: Session, actor: Identity) -> bool:
+    """현재 사용자의 시스템 관리자 여부를 반환한다."""
     status = repository.get_actor_status(session, actor.id)
     if not status or not status.is_active:
         raise AuthError("authentication_required", "로그인이 필요합니다.", 401)
@@ -47,11 +49,13 @@ def is_system_administrator(session: Session, actor: Identity) -> bool:
 
 
 def require_system_administrator(session, actor):
+    """system 관리자 필수 조건을 검증한다."""
     if not is_system_administrator(session, actor):
         raise AuthError("admin_required", "시스템 관리자 권한이 필요합니다.", 403)
 
 
 def build_project_view(project_row, project_role, is_system_administrator):
+    """프로젝트 view 구성한다."""
     return ProjectView(
         id=project_row.id,
         key=project_row.key,
@@ -107,10 +111,12 @@ def require_project_member(
 
 
 def require_project_administrator(session: Session, actor: Identity, project_key: str):
+    """프로젝트 관리자 필수 조건을 검증한다."""
     return require_project_member(session, actor, project_key, require_management_access=True)
 
 
 def require_project_user_access(session: Session, actor: Identity, project_key: str):
+    """프로젝트 사용자 access 필수 조건을 검증한다."""
     return require_project_member(session, actor, project_key, require_write_access=True)
 
 
@@ -126,6 +132,7 @@ def project_operation_context(
     stale_code=None,
     stale_message="다른 사용자가 먼저 변경했습니다. 최신 내용을 다시 불러오세요.",
 ):
+    """프로젝트 작업의 transaction과 시스템 로그를 관리한다."""
     logger.debug("%s_started actor_id=%s", operation_name, actor.id)
     try:
         with request_transaction(session):
@@ -148,6 +155,7 @@ def project_operation_context(
 def list_projects(
     session, actor, *, include_all_projects=False, search_query="", page=1, page_size=None
 ):
+    """프로젝트 목록을 조회한다."""
     size = page_size if page_size is not None else get_settings().pagination.default_size
     if (
         len(search_query) > 100
@@ -184,6 +192,7 @@ def list_projects(
 
 
 def get_project_detail(session, actor, project_key):
+    """프로젝트 상세 정보를 조회한다."""
     with project_operation_context(session, actor, "project_read"):
         project = require_project_member(session, actor, project_key)
         return ProjectDetail(
@@ -201,6 +210,7 @@ def get_project_detail(session, actor, project_key):
 
 
 def list_project_candidates(session, actor, *, project_key=None, search_query=""):
+    """프로젝트 후보 목록을 조회한다."""
     if len(search_query) > 100:
         raise AuthError("invalid_filter", "검색어는 100자 이하로 입력하세요.")
     with project_operation_context(session, actor, "project_candidates"):
@@ -218,6 +228,7 @@ def list_project_candidates(session, actor, *, project_key=None, search_query=""
 
 
 def create_project(session, actor, payload: ProjectCreate):
+    """프로젝트 생성을 처리한다."""
     with project_operation_context(session, actor, "project_create", write_operation=True):
         require_system_administrator(session, actor)
         if not repository.active_user(session, payload.administrator_id):
@@ -250,6 +261,7 @@ def create_project(session, actor, payload: ProjectCreate):
 
 
 def add_project_member(session, actor, project_key, payload: MemberCreate):
+    """프로젝트 구성원 추가를 처리한다."""
     with project_operation_context(session, actor, "project_member_add", write_operation=True):
         project = require_project_administrator(session, actor, project_key)
         if not project.is_active:

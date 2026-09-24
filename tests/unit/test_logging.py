@@ -8,6 +8,7 @@ from app.core.logging import configure_logging
 
 
 def test_configure_logging_uses_requested_level_and_time_first_format() -> None:
+    """로깅·설정 관련 동작을 검증한다."""
     output = io.StringIO()
     configure_logging("WARNING", stream=output)
 
@@ -25,6 +26,7 @@ def test_configure_logging_uses_requested_level_and_time_first_format() -> None:
 
 
 def test_configure_logging_routes_framework_loggers_through_root() -> None:
+    """로깅·설정 관련 동작을 검증한다."""
     output = io.StringIO()
     configure_logging("INFO", stream=output)
 
@@ -38,6 +40,7 @@ def test_configure_logging_routes_framework_loggers_through_root() -> None:
 
 
 def test_configure_logging_writes_and_rotates_file(tmp_path) -> None:
+    """로깅·설정 관련 동작을 검증한다."""
     output = io.StringIO()
     log_file = tmp_path / "logs" / "application.log"
     configure_logging(

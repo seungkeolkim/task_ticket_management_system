@@ -18,6 +18,7 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     # Fail before any DDL rather than renaming or deleting pre-existing organizations.
+    """schema를 다음 revision으로 upgrade한다."""
     if not op.get_context().as_sql:
         duplicate = (
             op.get_bind()
@@ -829,6 +830,7 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     # Destructive: restore a backup to recover work/report data after downgrading.
+    """schema를 이전 revision으로 downgrade한다."""
     with op.batch_alter_table("organizations", schema=None) as batch_op:
         batch_op.drop_index("uq_organizations_sibling_name")
         batch_op.drop_index(

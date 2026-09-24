@@ -16,6 +16,7 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
+    """schema를 다음 revision으로 upgrade한다."""
     with op.batch_alter_table("project_members", schema=None) as batch_op:
         batch_op.drop_constraint("role_allowed", type_="check")
         batch_op.create_check_constraint(
@@ -27,6 +28,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     # The previous schema has no read-only role. Removing guest memberships is
     # safer than silently promoting them to writable PROJECT_USER access.
+    """schema를 이전 revision으로 downgrade한다."""
     op.execute("DELETE FROM project_members WHERE role = 'PROJECT_GUEST'")
     with op.batch_alter_table("project_members", schema=None) as batch_op:
         batch_op.drop_constraint("role_allowed", type_="check")

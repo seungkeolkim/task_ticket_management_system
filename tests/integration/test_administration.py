@@ -18,19 +18,23 @@ ORIGIN = {"Origin": "http://testserver"}
 
 
 def token(client):
+    """테스트 client의 CSRF token을 반환한다."""
     return client.get("/api/auth/csrf").json()["csrf_token"]
 
 
 def post(client, path, payload):
+    """CSRF 보호가 적용된 테스트 POST 요청을 보낸다."""
     return client.post(path, json=payload, headers=ORIGIN | {"X-CSRF-Token": token(client)})
 
 
 def login(client, login_id="admin", password=PASSWORD):
+    """사용자 인증 후 session 정보를 반환한다."""
     return post(client, "/api/auth/login", {"login_id": login_id, "password": password})
 
 
 @pytest.fixture
 def admin(client, db_session):
+    """관리 기능 테스트용 관리자 계정을 제공한다."""
     org = Organization(key="root", name="기본 조직")
     db_session.add(org)
     db_session.flush()
@@ -49,6 +53,7 @@ def admin(client, db_session):
 
 
 def new_user(default_organization_id, **overrides):
+    """관리 기능 테스트용 신규 사용자 정보를 제공한다."""
     return {
         "login_id": " New.User ",
         "display_name": " 새 사용자 ",
@@ -60,6 +65,7 @@ def new_user(default_organization_id, **overrides):
 
 
 def test_organization_user_and_first_login_flow(client, admin, db_session):
+    """조직·로그인·사용자 관련 동작을 검증한다."""
     root = post(client, "/api/admin/organizations", {"name": "개발 본부"})
     assert root.status_code == 201
     child = post(
@@ -111,6 +117,7 @@ def test_organization_user_and_first_login_flow(client, admin, db_session):
 
 @pytest.mark.parametrize("path", ["/api/admin/users", "/api/admin/organizations"])
 def test_permissions_and_csrf(client, admin, db_session, path):
+    """CSRF·권한 관련 동작을 검증한다."""
     payload = new_user(admin.organization_id) if path.endswith("users") else {"name": "신규 조직"}
     assert client.post(path, json=payload, headers=ORIGIN).status_code == 403
     assert (
@@ -141,6 +148,7 @@ def test_permissions_and_csrf(client, admin, db_session, path):
 
 @pytest.mark.parametrize("path", ["/admin/users", "/admin/organizations"])
 def test_web_writes_require_admin_and_csrf(client, admin, db_session, path):
+    """CSRF 관련 동작을 검증한다."""
     assert client.post(path, data={}, headers=ORIGIN).status_code == 403
     admin.system_role = "USER"
     db_session.commit()
@@ -151,6 +159,7 @@ def test_web_writes_require_admin_and_csrf(client, admin, db_session, path):
 
 
 def test_duplicate_names_ids_emails_and_rollback(client, admin, db_session):
+    """사용자·조직 중복 검증과 rollback을 확인한다."""
     assert post(client, "/api/admin/organizations", {"name": " 기본 조직 "}).status_code == 409
     assert (
         post(
@@ -194,6 +203,7 @@ def test_duplicate_names_ids_emails_and_rollback(client, admin, db_session):
 
 
 def test_inactive_ancestors_and_missing_organizations(client, admin, db_session):
+    """조직 관련 동작을 검증한다."""
     parent = Organization(key="inactive", name="비활성 본부", is_active=False)
     db_session.add(parent)
     db_session.flush()
@@ -227,12 +237,14 @@ def test_inactive_ancestors_and_missing_organizations(client, admin, db_session)
     ],
 )
 def test_invalid_user_inputs_leave_no_data(client, admin, db_session, overrides):
+    """사용자 관련 동작을 검증한다."""
     response = post(client, "/api/admin/users", new_user(admin.organization_id, **overrides))
     assert response.status_code in {400, 422}
     assert db_session.scalar(select(func.count()).select_from(User)) == 1
 
 
 def test_form_preserves_safe_values_but_never_password(client, admin, db_session):
+    """비밀번호 관련 동작을 검증한다."""
     values = new_user(admin.organization_id, display_name='<script>alert("x")</script>')
     values.update(csrf_token=token(client), password="ShortSecret")
     response = client.post("/admin/users", data=values, headers=ORIGIN)
@@ -249,6 +261,7 @@ def test_form_preserves_safe_values_but_never_password(client, admin, db_session
 
 
 def test_organization_form_and_empty_validation(client, admin):
+    """조직 관련 동작을 검증한다."""
     page = client.get("/admin/organizations")
     csrf = re.search('name="csrf_token" value="([^"]+)"', page.text).group(1)
     response = client.post(
@@ -266,6 +279,7 @@ def test_organization_form_and_empty_validation(client, admin):
 
 
 def test_search_pagination_and_public_fields(client, admin, db_session):
+    """검색 관련 동작을 검증한다."""
     for index in range(23):
         db_session.add(
             User(
@@ -290,7 +304,9 @@ def test_search_pagination_and_public_fields(client, admin, db_session):
 
 
 def test_creation_audit_failure_rolls_back(client, admin, db_session_factory, monkeypatch):
+    """감사 로그 관련 동작을 검증한다."""
     def fail(*args, **kwargs):
+        """실패 rollback 상황을 재현한다."""
         raise RuntimeError("simulated audit failure")
 
     monkeypatch.setattr(service, "record_audit_event", fail)
@@ -306,9 +322,11 @@ def test_creation_audit_failure_rolls_back(client, admin, db_session_factory, mo
 
 
 def test_concurrent_organization_creation_is_unique(client, admin, db_session_factory):
+    """조직·동시성 관련 동작을 검증한다."""
     raw_token = client.cookies.get(get_settings().session.cookie_name)
 
     def create(_):
+        """동시성 테스트용 생성 시도를 수행한다."""
         from app.domain.auth import AuthError
 
         with db_session_factory() as session:

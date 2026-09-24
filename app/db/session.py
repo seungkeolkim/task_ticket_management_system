@@ -17,6 +17,7 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False
 
 
 def get_db_session() -> Generator[Session, None, None]:
+    """db session 정보를 조회한다."""
     session = SessionLocal()
     try:
         yield session

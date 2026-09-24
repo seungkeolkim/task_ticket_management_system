@@ -31,6 +31,7 @@ def global_ticket_list_page(
     page: int = 1,
     page_size: int | None = None,
 ):
+    """전체 티켓 목록 화면을 렌더링한다."""
     result = service.list_global_tickets(
         session,
         actor,
@@ -63,6 +64,7 @@ def global_ticket_list_page(
 
 @router.get("/projects/{project_key}/board")
 def project_ticket_board_page(project_key: str, request: Request, session: Database, actor: Actor):
+    """프로젝트 티켓 보드 화면을 렌더링한다."""
     project, board = service.build_ticket_board(session, actor, project_key)
     return render(
         request,
@@ -76,6 +78,7 @@ def project_ticket_board_page(project_key: str, request: Request, session: Datab
 
 
 def _render_ticket_create_page(request, session, actor, project_key, **context):
+    """티켓 create 화면 렌더링한다."""
     project, options = service.get_ticket_creation_options(session, actor, project_key)
     return render(
         request,
@@ -91,6 +94,7 @@ def _render_ticket_create_page(request, session, actor, project_key, **context):
 
 
 def _render_ticket_edit_page(request, session, actor, project_key, ticket_key, **context):
+    """티켓 edit 화면 렌더링한다."""
     project, ticket, options = service.get_ticket_edit_options(
         session, actor, project_key, ticket_key
     )
@@ -122,6 +126,7 @@ def _render_ticket_edit_page(request, session, actor, project_key, ticket_key, *
 
 
 def _render_ticket_detail_page(request, session, actor, project_key, ticket_key, **context):
+    """티켓 상세 화면 렌더링한다."""
     project, ticket = service.get_ticket_detail(session, actor, project_key, ticket_key)
     transitions = [
         (status, service.STATUS_LABELS[status][0])
@@ -153,6 +158,7 @@ def project_ticket_list_page(
     selected: str | None = None,
     created: bool = False,
 ):
+    """프로젝트 티켓 목록 화면을 렌더링한다."""
     project, result = service.list_project_tickets(
         session, actor, project_key, search_query=search_query, page=page, page_size=page_size
     )
@@ -178,6 +184,7 @@ def project_ticket_list_page(
 
 @router.get("/projects/{project_key}/tickets/new")
 def new_ticket_page(project_key: str, request: Request, session: Database, actor: Actor):
+    """티켓 화면 새 값을 생성한다."""
     return _render_ticket_create_page(request, session, actor, project_key)
 
 
@@ -185,6 +192,7 @@ def new_ticket_page(project_key: str, request: Request, session: Database, actor
 def edit_ticket_page(
     project_key: str, ticket_key: str, request: Request, session: Database, actor: Actor
 ):
+    """티켓 편집 화면을 렌더링한다."""
     return _render_ticket_edit_page(request, session, actor, project_key, ticket_key)
 
 
@@ -203,6 +211,7 @@ def create_ticket_submit(
     due_date: Annotated[str, Form()] = "",
     csrf_token: Annotated[str, Form()] = "",
 ):
+    """티켓 submit 생성을 처리한다."""
     verify_csrf(request, csrf_token, actor, get_settings())
     values = {
         "type": type[:16],
@@ -259,6 +268,7 @@ def update_ticket_submit(
     expected_version: Annotated[str, Form()] = "",
     csrf_token: Annotated[str, Form()] = "",
 ):
+    """티켓 submit 수정을 처리한다."""
     verify_csrf(request, csrf_token, actor, get_settings())
     values = {
         "title": title[:200],
@@ -317,6 +327,7 @@ def transition_ticket_submit(
     confirm_incomplete_children: Annotated[bool, Form()] = False,
     csrf_token: Annotated[str, Form()] = "",
 ):
+    """티켓 submit 상태 전이를 처리한다."""
     verify_csrf(request, csrf_token, actor, get_settings())
     try:
         payload = TicketTransition(
@@ -358,6 +369,7 @@ def ticket_detail_page(
     updated: bool = False,
     transitioned: bool = False,
 ):
+    """티켓 상세 화면을 렌더링한다."""
     return _render_ticket_detail_page(
         request,
         session,

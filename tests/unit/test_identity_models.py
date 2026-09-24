@@ -8,6 +8,7 @@ from app.models import AuditLog, Organization, SystemRole, User, UserSession
 
 
 def test_identity_models_round_trip(db_session: Session) -> None:
+    """모델 관련 동작을 검증한다."""
     organization = Organization(key="engineering", name="Engineering")
     user = User(
         login_id="admin",

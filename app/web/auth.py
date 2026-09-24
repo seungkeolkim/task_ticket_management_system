@@ -34,6 +34,7 @@ def login_page(
     next: str = "/",
     changed: str = "",
 ):
+    """로그인 화면을 렌더링한다."""
     destination = normalize_return_path(next)
     if identity:
         return RedirectResponse(
@@ -66,6 +67,7 @@ def login_submit(
     csrf_token: Annotated[str, Form()] = "",
     next: Annotated[str, Form()] = "/",
 ):
+    """로그인 form 제출을 처리한다."""
     settings = get_settings()
     verify_csrf(request, csrf_token, identity, settings)
     destination = normalize_return_path(next)
@@ -101,6 +103,7 @@ def login_submit(
 
 @router.get("/account/password")
 def password_page(request: Request, identity: OptionalIdentity, next: str = "/"):
+    """비밀번호 변경 화면을 렌더링한다."""
     if identity is None:
         return RedirectResponse(build_login_url(next), status_code=303)
     return render(
@@ -119,6 +122,7 @@ def password_submit(
     csrf_token: Annotated[str, Form()] = "",
     next: Annotated[str, Form()] = "/",
 ):
+    """비밀번호 변경 form 제출을 처리한다."""
     if identity is None:
         return RedirectResponse(build_login_url(next), status_code=303)
     settings = get_settings()
@@ -158,6 +162,7 @@ def logout_submit(
     identity: OptionalIdentity,
     csrf_token: Annotated[str, Form()] = "",
 ):
+    """로그아웃 form 제출을 처리한다."""
     settings = get_settings()
     if identity:
         verify_csrf(request, csrf_token, identity, settings)

@@ -32,6 +32,7 @@ def render_project_list_page(
     candidate_search_query="",
     **context,
 ):
+    """프로젝트 list 화면 렌더링한다."""
     result = service.list_projects(
         session,
         actor,
@@ -72,6 +73,7 @@ def my_projects_page(
     page: int = 1,
     page_size: int | None = None,
 ):
+    """현재 사용자의 프로젝트 목록 화면을 렌더링한다."""
     return render_project_list_page(
         request, session, actor, search_query=search_query, page=page, page_size=page_size
     )
@@ -87,6 +89,7 @@ def all_projects_page(
     page_size: int | None = None,
     candidate_search_query: Annotated[str, Query(alias="candidate_q")] = "",
 ):
+    """관리자용 전체 프로젝트 목록 화면을 렌더링한다."""
     return render_project_list_page(
         request,
         session,
@@ -111,6 +114,7 @@ def create_project(
     csrf_token: Annotated[str, Form()] = "",
     candidate_q: Annotated[str, Form()] = "",
 ):
+    """프로젝트 생성을 처리한다."""
     verify_csrf(request, csrf_token, actor, get_settings())
     values = dict(
         key=key[:32],
@@ -142,6 +146,7 @@ def create_project(
 def render_project_detail_page(
     request, session, actor, project_key, *, member_page=False, candidate_search_query="", **context
 ):
+    """프로젝트 상세 화면 렌더링한다."""
     detail = service.get_project_detail(session, actor, project_key)
     project = detail.project
     candidates = (
@@ -170,6 +175,7 @@ def render_project_detail_page(
 def project_overview_page(
     project_key: str, request: Request, session: Database, actor: Actor, created: bool = False
 ):
+    """프로젝트 개요 화면을 렌더링한다."""
     return render_project_detail_page(request, session, actor, project_key, created=created)
 
 
@@ -182,6 +188,7 @@ def project_members_page(
     candidate_search_query: Annotated[str, Query(alias="candidate_q")] = "",
     added: bool = False,
 ):
+    """프로젝트 구성원 관리 화면을 렌더링한다."""
     return render_project_detail_page(
         request,
         session,
@@ -204,6 +211,7 @@ def add_project_member(
     csrf_token: Annotated[str, Form()] = "",
     candidate_q: Annotated[str, Form()] = "",
 ):
+    """프로젝트 구성원 추가를 처리한다."""
     verify_csrf(request, csrf_token, actor, get_settings())
     try:
         service.add_project_member(
@@ -230,4 +238,5 @@ def add_project_member(
 
 @router.get("/projects/{project_key}/trash")
 def project_trash_page(project_key: str, request: Request, session: Database, actor: Actor):
+    """프로젝트 휴지통 화면을 렌더링한다."""
     return render_project_detail_page(request, session, actor, project_key, pending=True)

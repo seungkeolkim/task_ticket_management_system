@@ -13,6 +13,7 @@ templates = Jinja2Templates(directory=os.path.join(WEB_DIRECTORY, "templates"))
 
 
 def render(request: Request, template_name: str, *, status_code: int = 200, **context):
+    """공통 context와 보안 header를 적용해 template을 렌더링한다."""
     identity = getattr(request.state, "current_user", None)
     # Set the token before rendering. Copy cookies onto the final template response.
     cookie_response = Response()

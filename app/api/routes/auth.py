@@ -42,6 +42,7 @@ class PasswordInput(BaseModel):
 
 @router.get("/csrf")
 def get_csrf_token(request: Request, identity: OptionalIdentity):
+    """CSRF token 정보를 조회한다."""
     temporary = JSONResponse({})
     token = create_page_csrf_token(request, temporary, identity, get_settings())
     response = JSONResponse({"csrf_token": token})
@@ -53,6 +54,7 @@ def get_csrf_token(request: Request, identity: OptionalIdentity):
 
 @router.get("/me")
 def get_current_user(identity: RequiredIdentity):
+    """현재 사용자 정보를 조회한다."""
     return {
         "id": identity.id,
         "login_id": identity.login_id,
@@ -64,6 +66,7 @@ def get_current_user(identity: RequiredIdentity):
 
 @router.post("/login")
 def login(request: Request, payload: LoginInput, session: Database, identity: OptionalIdentity):
+    """사용자 인증 후 session 정보를 반환한다."""
     settings = get_settings()
     verify_csrf(request, request.headers.get("x-csrf-token", ""), identity, settings)
     token, user = service.authenticate_user(
@@ -88,6 +91,7 @@ def login(request: Request, payload: LoginInput, session: Database, identity: Op
 def change_current_user_password(
     request: Request, payload: PasswordInput, session: Database, identity: RequiredIdentity
 ):
+    """현재 사용자 비밀번호 변경을 처리한다."""
     settings = get_settings()
     verify_csrf(request, request.headers.get("x-csrf-token", ""), identity, settings)
     service.change_user_password(
@@ -106,6 +110,7 @@ def change_current_user_password(
 
 @router.post("/logout")
 def logout(request: Request, session: Database, identity: RequiredIdentity):
+    """현재 사용자의 session을 종료한다."""
     settings = get_settings()
     verify_csrf(request, request.headers.get("x-csrf-token", ""), identity, settings)
     service.logout_user(

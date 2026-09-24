@@ -8,6 +8,7 @@ from app.models import Project, ProjectMember, Ticket, TicketRelation, User
 
 
 def project_scope(project_id: int, actor_id: int, *, override: bool):
+    """사용자가 접근 가능한 단일 프로젝트 scope를 구성한다."""
     query = (
         select(Project.id)
         .outerjoin(
@@ -22,10 +23,12 @@ def project_scope(project_id: int, actor_id: int, *, override: bool):
 
 
 def member_project_scope(actor_id: int):
+    """사용자가 구성원인 프로젝트 scope를 구성한다."""
     return select(ProjectMember.project_id).where(ProjectMember.user_id == actor_id)
 
 
 def my_ticket_condition(actor_id: int):
+    """현재 사용자의 내 티켓 조회 조건을 구성한다."""
     return or_(
         Ticket.assignee_id == actor_id,
         and_(Ticket.assignee_id.is_(None), Ticket.creator_id == actor_id),
@@ -33,6 +36,7 @@ def my_ticket_condition(actor_id: int):
 
 
 def _ticket_select():
+    """티켓과 표시용 연관 정보를 조회하는 select를 구성한다."""
     creator = aliased(User)
     assignee = aliased(User)
     parent = aliased(Ticket)
@@ -64,6 +68,7 @@ def _ticket_select():
 
 
 def ticket_query(project_id: int, actor_id: int, *, override: bool):
+    """프로젝트 권한이 적용된 티켓 query를 구성한다."""
     scope = project_scope(project_id, actor_id, override=override).subquery()
     return _ticket_select().where(
         Ticket.project_id.in_(select(scope.c.id)),
@@ -72,6 +77,7 @@ def ticket_query(project_id: int, actor_id: int, *, override: bool):
 
 
 def accessible_ticket_query(actor_id: int):
+    """티켓 query 접근 가능한 범위를 조회한다."""
     scope = member_project_scope(actor_id).subquery()
     return _ticket_select().where(
         Ticket.project_id.in_(select(scope.c.project_id)),
@@ -92,6 +98,7 @@ def filtered_ticket_rows(
     page: int = 1,
     page_size: int = 20,
 ):
+    """티켓 rows 필터링해 조회한다."""
     query = accessible_ticket_query(actor_id)
     if scope_name == "mine":
         query = query.where(my_ticket_condition(actor_id))
@@ -120,6 +127,7 @@ def filtered_ticket_rows(
 
 
 def board_rows(session: Session, project_id: int, actor_id: int, *, override: bool):
+    """보드에 표시할 티켓 row를 조회한다."""
     return session.execute(
         ticket_query(project_id, actor_id, override=override).order_by(
             Ticket.sort_order, Ticket.number, Ticket.id
@@ -137,6 +145,7 @@ def ticket_rows(
     page: int = 1,
     page_size: int = 20,
 ):
+    """프로젝트 티켓 목록 row를 검색·조회한다."""
     query = ticket_query(project_id, actor_id, override=override)
     if query_text:
         query = query.where(
@@ -162,6 +171,7 @@ def ticket_row(
     *,
     override: bool,
 ):
+    """권한 범위에서 단일 티켓 row를 조회한다."""
     return session.execute(
         ticket_query(project_id, actor_id, override=override).where(Ticket.key == ticket_key)
     ).one_or_none()
@@ -175,6 +185,7 @@ def parent_ticket(
     *,
     override: bool,
 ) -> Ticket | None:
+    """권한 범위에서 상위 티켓을 조회한다."""
     scope = project_scope(project_id, actor_id, override=override).subquery()
     return session.scalar(
         select(Ticket).where(
@@ -186,6 +197,7 @@ def parent_ticket(
 
 
 def assignee_is_active_member(session: Session, project_id: int, user_id: int) -> bool:
+    """담당자가 활성 프로젝트 구성원인지 확인한다."""
     return (
         session.scalar(
             select(ProjectMember.id)
@@ -202,6 +214,7 @@ def assignee_is_active_member(session: Session, project_id: int, user_id: int) -
 
 
 def assignees(session: Session, project_id: int, actor_id: int, *, override: bool):
+    """지정 가능한 활성 담당자 후보를 조회한다."""
     scope = project_scope(project_id, actor_id, override=override).subquery()
     return (
         session.execute(
@@ -228,6 +241,7 @@ def parent_candidates(
     allowed_types: tuple[str, ...] = ("EPIC", "TASK"),
     exclude_ticket_id: int | None = None,
 ):
+    """유형과 권한에 맞는 상위 티켓 후보를 조회한다."""
     scope = project_scope(project_id, actor_id, override=override).subquery()
     query = select(Ticket.key, Ticket.type, Ticket.title).where(
         Ticket.project_id.in_(select(scope.c.id)),
@@ -242,6 +256,7 @@ def parent_candidates(
 def parent_would_cycle(
     session: Session, project_id: int, ticket_id: int, parent_id: int | None
 ) -> bool:
+    """상위 티켓 변경이 계층 순환을 만드는지 확인한다."""
     seen = {ticket_id}
     current_id = parent_id
     while current_id is not None:
@@ -258,6 +273,7 @@ def parent_would_cycle(
 
 
 def relation_rows(session: Session, project_id: int, ticket_id: int):
+    """티켓의 정방향·역방향 관계 row를 조회한다."""
     source = aliased(Ticket)
     target = aliased(Ticket)
     return session.execute(
@@ -290,6 +306,7 @@ def relation_rows(session: Session, project_id: int, ticket_id: int):
 
 
 def incomplete_dependency_count(session: Session, project_id: int, ticket_id: int) -> int:
+    """티켓의 미완료 의존 대상 수를 조회한다."""
     target = aliased(Ticket)
     return (
         session.scalar(
@@ -312,6 +329,7 @@ def incomplete_dependency_count(session: Session, project_id: int, ticket_id: in
 
 
 def incomplete_dependency_source_ids(session: Session, project_id: int) -> set[int]:
+    """미완료 의존성을 가진 티켓 ID를 조회한다."""
     target = aliased(Ticket)
     return set(
         session.scalars(
@@ -332,6 +350,7 @@ def incomplete_dependency_source_ids(session: Session, project_id: int) -> set[i
 
 
 def incomplete_child_count(session: Session, project_id: int, epic_id: int) -> int:
+    """Epic의 미완료 하위 Task 수를 조회한다."""
     return (
         session.scalar(
             select(func.count())
@@ -349,6 +368,7 @@ def incomplete_child_count(session: Session, project_id: int, epic_id: int) -> i
 
 
 def allocate_number(session: Session, project_id: int) -> int:
+    """프로젝트의 다음 티켓 번호를 원자적으로 할당한다."""
     next_value = session.scalar(
         update(Project)
         .where(Project.id == project_id)

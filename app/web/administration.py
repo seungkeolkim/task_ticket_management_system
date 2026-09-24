@@ -22,6 +22,7 @@ Administrator = Annotated[Identity, Depends(require_web_admin)]
 def render_user_management_page(
     request, session, actor, *, search_query="", page=1, page_size=None, **context
 ):
+    """사용자 management 화면 렌더링한다."""
     result = service.list_users(session, actor, search_query, page, page_size)
     query = {"q": search_query, "page_size": result.page_size}
     return render(
@@ -40,6 +41,7 @@ def render_user_management_page(
 
 
 def render_organization_management_page(request, session, actor, **context):
+    """조직 management 화면 렌더링한다."""
     return render(
         request,
         "admin_organizations.html",
@@ -61,6 +63,7 @@ def user_management_page(
     page_size: int | None = None,
     created: int | None = None,
 ):
+    """사용자 관리 화면을 렌더링한다."""
     return render_user_management_page(
         request,
         session,
@@ -76,6 +79,7 @@ def user_management_page(
 def organization_management_page(
     request: Request, session: Database, actor: Administrator, created: int | None = None
 ):
+    """조직 관리 화면을 렌더링한다."""
     return render_organization_management_page(request, session, actor, created=created)
 
 
@@ -92,6 +96,7 @@ def user_submit(
     password: Annotated[str, Form()] = "",
     csrf_token: Annotated[str, Form()] = "",
 ):
+    """사용자 생성 form 제출을 처리한다."""
     verify_csrf(request, csrf_token, actor, get_settings())
     values = dict(
         login_id=login_id[:100],
@@ -141,6 +146,7 @@ def organization_submit(
     description: Annotated[str, Form()] = "",
     csrf_token: Annotated[str, Form()] = "",
 ):
+    """조직 생성 form 제출을 처리한다."""
     verify_csrf(request, csrf_token, actor, get_settings())
     values = dict(name=name[:200], parent_id=parent_id[:20], description=description[:4000])
     try:

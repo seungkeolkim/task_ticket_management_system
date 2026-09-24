@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 def main() -> int:
+    """명령행 진입점을 실행한다."""
     parser = argparse.ArgumentParser(description="Taskflow management commands")
     subcommands = parser.add_subparsers(dest="command", required=True)
     bootstrap = subcommands.add_parser("bootstrap-admin")

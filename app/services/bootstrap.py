@@ -21,6 +21,7 @@ def bootstrap_admin(
     password: str,
     display_name: str,
 ) -> int | None:
+    """관리자 bootstrap을 수행한다."""
     logger.info("auth_bootstrap_started")
     with transaction_scope(session_factory) as session:
         repository.lock_security_write(session)
@@ -57,6 +58,7 @@ def bootstrap_admin(
 
 
 def bootstrap_from_environment(session_factory: Callable[[], Session], settings: Settings) -> None:
+    """from 환경 변수 bootstrap을 수행한다."""
     keys = (
         "BOOTSTRAP_ADMIN_LOGIN_ID",
         "BOOTSTRAP_ADMIN_PASSWORD",

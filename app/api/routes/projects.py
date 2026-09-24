@@ -31,6 +31,7 @@ def list_my_projects(
     page: int = 1,
     page_size: int | None = None,
 ):
+    """my 프로젝트 목록을 조회한다."""
     return service.list_projects(
         session, actor, search_query=search_query, page=page, page_size=page_size
     )
@@ -44,6 +45,7 @@ def list_all_projects(
     page: int = 1,
     page_size: int | None = None,
 ):
+    """all 프로젝트 목록을 조회한다."""
     return service.list_projects(
         session,
         actor,
@@ -58,6 +60,7 @@ def list_all_projects(
 def list_project_administrator_candidates(
     session: Database, actor: Administrator, search_query: Annotated[str, Query(alias="q")] = ""
 ):
+    """프로젝트 관리자 후보 목록을 조회한다."""
     return service.list_project_candidates(session, actor, search_query=search_query)
 
 
@@ -65,17 +68,20 @@ def list_project_administrator_candidates(
 def create_project(
     request: Request, payload: ProjectCreate, session: Database, actor: Administrator
 ):
+    """프로젝트 생성을 처리한다."""
     verify_csrf(request, request.headers.get("x-csrf-token", ""), actor, get_settings())
     return {"id": service.create_project(session, actor, payload), "key": payload.key}
 
 
 @router.get("/projects/{project_key}", response_model=ProjectDetail)
 def get_project_detail(project_key: str, session: Database, actor: Actor):
+    """프로젝트 상세 정보를 조회한다."""
     return service.get_project_detail(session, actor, project_key)
 
 
 @router.get("/projects/{project_key}/members", response_model=list[MemberView])
 def list_project_members(project_key: str, session: Database, actor: Actor):
+    """프로젝트 구성원 목록을 조회한다."""
     return service.get_project_detail(session, actor, project_key).members
 
 
@@ -86,6 +92,7 @@ def list_project_candidates(
     actor: Actor,
     search_query: Annotated[str, Query(alias="q")] = "",
 ):
+    """프로젝트 후보 목록을 조회한다."""
     return service.list_project_candidates(
         session, actor, project_key=project_key, search_query=search_query
     )
@@ -95,5 +102,6 @@ def list_project_candidates(
 def add_project_member(
     project_key: str, request: Request, payload: MemberCreate, session: Database, actor: Actor
 ):
+    """프로젝트 구성원 추가를 처리한다."""
     verify_csrf(request, request.headers.get("x-csrf-token", ""), actor, get_settings())
     return {"id": service.add_project_member(session, actor, project_key, payload)}

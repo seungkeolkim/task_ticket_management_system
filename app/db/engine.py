@@ -12,6 +12,7 @@ def create_database_engine(
     pool_pre_ping: bool = True,
     **engine_options: Any,
 ) -> Engine:
+    """DB engine 생성을 처리한다."""
     options: dict[str, Any] = {
         "echo": echo,
         "pool_pre_ping": pool_pre_ping,
@@ -29,6 +30,7 @@ def create_database_engine(
 
         @event.listens_for(engine, "connect")
         def enable_sqlite_foreign_keys(dbapi_connection: Any, _: Any) -> None:
+            """sqlite foreign keys 활성화한다."""
             cursor = dbapi_connection.cursor()
             cursor.execute("PRAGMA foreign_keys=ON")
             cursor.close()

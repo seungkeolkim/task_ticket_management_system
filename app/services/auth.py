@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 def _build_identity(user: User, session_id: int) -> Identity:
+    """identity 구성한다."""
     return Identity(
         user.id,
         user.login_id,
@@ -35,6 +36,7 @@ def _build_identity(user: User, session_id: int) -> Identity:
 
 
 def get_current_identity(session: Session, token: str | None) -> Identity | None:
+    """현재 identity 정보를 조회한다."""
     if not token or len(token) != 43:
         return None
     stored = repository.find_active_session(session, token_digest(token), utc_now())
@@ -50,6 +52,7 @@ def record_audit_event(
     target_type: str | None = None,
     target_id: str | None = None,
 ) -> None:
+    """audit event 기록한다."""
     session.add(
         AuditLog(
             actor_user_id=actor_id,
@@ -70,6 +73,7 @@ def authenticate_user(
     ip_address: str,
     previous_token: str | None = None,
 ) -> tuple[str, Identity]:
+    """로그인 자격 증명을 검증하고 session을 생성한다."""
     error: AuthError | None = None
     identity_key = token_digest(login_id.strip().lower()[:100])
     now = utc_now()
@@ -139,6 +143,7 @@ def authenticate_user(
 
 
 def logout_user(session: Session, identity: Identity, token: str, ip_address: str) -> None:
+    """session을 폐기하고 로그아웃 감사를 기록한다."""
     with request_transaction(session):
         repository.revoke_token(session, token_digest(token))
         record_audit_event(session, "auth.logout", identity.id, ip_address=ip_address)
@@ -154,6 +159,7 @@ def change_user_password(
     confirmation: str,
     ip_address: str,
 ) -> None:
+    """사용자 비밀번호 변경을 처리한다."""
     if new_password != confirmation:
         raise AuthError("password_confirmation_mismatch", "새 비밀번호 확인이 일치하지 않습니다.")
     validate_password(new_password)

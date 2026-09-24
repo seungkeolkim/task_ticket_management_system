@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 def require_administrator(session: Session, actor: Identity) -> None:
+    """관리자 필수 조건을 검증한다."""
     status = repository.administrator_status(session, actor.id)
     if (
         not status
@@ -35,6 +36,7 @@ def require_administrator(session: Session, actor: Identity) -> None:
 
 
 def list_organizations(session: Session, actor: Identity) -> list[OrganizationView]:
+    """조직 목록을 조회한다."""
     require_administrator(session, actor)
     organization_rows = repository.list_organizations(session)
     counts = repository.member_counts(session)
@@ -74,6 +76,7 @@ def list_organizations(session: Session, actor: Identity) -> list[OrganizationVi
 
 
 def user_view(user: User, organization_name: str) -> UserView:
+    """사용자 모델을 공개용 view로 변환한다."""
     return UserView(
         id=user.id,
         login_id=user.login_id,
@@ -91,6 +94,7 @@ def user_view(user: User, organization_name: str) -> UserView:
 def list_users(
     session: Session, actor: Identity, query: str = "", page: int = 1, page_size: int | None = None
 ) -> UserPage:
+    """사용자 목록을 조회한다."""
     require_administrator(session, actor)
     if page_size is None:
         page_size = get_settings().pagination.default_size
@@ -108,6 +112,7 @@ def list_users(
 def get_active_organization(
     session: Session, actor: Identity, organization_id: int
 ) -> OrganizationView:
+    """active 조직 정보를 조회한다."""
     row = next(
         (row for row in list_organizations(session, actor) if row.id == organization_id), None
     )
@@ -121,6 +126,7 @@ def get_active_organization(
 def create_organization(
     session: Session, actor: Identity, payload: OrganizationCreate, ip_address: str
 ) -> int:
+    """조직 생성을 처리한다."""
     logger.debug("organization_create_started actor_id=%s", actor.id)
     try:
         with request_transaction(session):
@@ -165,6 +171,7 @@ def create_organization(
 
 
 def create_user(session: Session, actor: Identity, payload: UserCreate, ip_address: str) -> int:
+    """사용자 생성을 처리한다."""
     logger.debug("user_create_started actor_id=%s", actor.id)
     try:
         with request_transaction(session):
