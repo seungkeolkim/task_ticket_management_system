@@ -23,7 +23,7 @@ from app.schemas.contracts import TicketEvent
 from app.schemas.tickets import TicketCreate, TicketTransition, TicketUpdate
 from app.services import dashboard as dashboard_service
 from app.services import tickets as service
-from app.services.auth import current_identity
+from app.services.auth import get_current_identity
 
 PASSWORD = "Ticket-test-password-123!"
 ORIGIN = {"Origin": "http://testserver"}
@@ -308,7 +308,7 @@ def test_concurrent_number_allocation_is_monotonic(
 
     def attempt(index):
         with db_session_factory() as session:
-            actor = current_identity(session, raw_token)
+            actor = get_current_identity(session, raw_token)
             return service.create_ticket(
                 session, actor, "DEV", TicketCreate(title=f"동시 티켓 {index}")
             ).key
@@ -330,9 +330,9 @@ def test_audit_failure_rolls_back_ticket_history_and_counter(
     def fail(*args, **kwargs):
         raise RuntimeError("audit unavailable")
 
-    monkeypatch.setattr(service, "audit", fail)
+    monkeypatch.setattr(service, "record_ticket_audit_event", fail)
     with db_session_factory() as session:
-        actor = current_identity(session, raw_token)
+        actor = get_current_identity(session, raw_token)
         with pytest.raises(RuntimeError):
             service.create_ticket(session, actor, "DEV", TicketCreate(title="롤백 티켓"))
         assert session.scalar(select(func.count()).select_from(Ticket)) == 0
@@ -753,9 +753,9 @@ def test_update_audit_failure_rolls_back_ticket_and_history(
     def fail(*args, **kwargs):
         raise RuntimeError("audit unavailable")
 
-    monkeypatch.setattr(service, "audit", fail)
+    monkeypatch.setattr(service, "record_ticket_audit_event", fail)
     with db_session_factory() as session:
-        actor = current_identity(session, raw_token)
+        actor = get_current_identity(session, raw_token)
         with pytest.raises(RuntimeError):
             service.update_ticket(
                 session,
@@ -870,7 +870,7 @@ def test_dashboard_and_global_filters_use_assignee_then_unassigned_creator_rule(
     client, ticket_people, db_session, monkeypatch
 ):
     people, project = ticket_people
-    monkeypatch.setattr(dashboard_service, "local_today", lambda: date(2026, 9, 22))
+    monkeypatch.setattr(dashboard_service, "get_local_today", lambda: date(2026, 9, 22))
     rows = [
         Ticket(
             project_id=project.id,

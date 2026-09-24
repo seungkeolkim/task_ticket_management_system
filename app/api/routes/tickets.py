@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -25,49 +25,54 @@ Actor = Annotated[Identity, Depends(require_api_user)]
 
 
 @global_router.get("", response_model=TicketPage)
-def global_ticket_list(
+def list_global_tickets_api(
     session: Database,
     actor: Actor,
     scope: str = "mine",
     status: str = "open",
     due: str = "all",
-    q: str = "",
+    search_query: Annotated[str, Query(alias="q")] = "",
     page: int = 1,
     page_size: int | None = None,
 ):
-    return service.global_ticket_list(
+    return service.list_global_tickets(
         session,
         actor,
         scope=scope,
         status=status,
         due=due,
-        q=q,
+        search_query=search_query,
         page=page,
         page_size=page_size,
     )
 
 
 @router.get("", response_model=TicketPage)
-def ticket_list(
+def list_project_tickets_api(
     project_key: str,
     session: Database,
     actor: Actor,
-    q: str = "",
+    search_query: Annotated[str, Query(alias="q")] = "",
     page: int = 1,
     page_size: int | None = None,
 ):
-    return service.ticket_list(
-        session, actor, project_key, q=q, page=page, page_size=page_size
+    return service.list_project_tickets(
+        session,
+        actor,
+        project_key,
+        search_query=search_query,
+        page=page,
+        page_size=page_size,
     )[1]
 
 
 @router.get("/creation-options", response_model=TicketCreateOptions)
-def creation_options(project_key: str, session: Database, actor: Actor):
-    return service.create_options(session, actor, project_key)[1]
+def get_ticket_creation_options_api(project_key: str, session: Database, actor: Actor):
+    return service.get_ticket_creation_options(session, actor, project_key)[1]
 
 
 @router.post("", response_model=TicketView, status_code=201)
-def create_ticket(
+def create_ticket_api(
     project_key: str,
     request: Request,
     payload: TicketCreate,
@@ -79,12 +84,12 @@ def create_ticket(
 
 
 @router.get("/board", response_model=BoardView)
-def ticket_board(project_key: str, session: Database, actor: Actor):
-    return service.board(session, actor, project_key)[1]
+def get_ticket_board_api(project_key: str, session: Database, actor: Actor):
+    return service.build_ticket_board(session, actor, project_key)[1]
 
 
 @router.patch("/{ticket_key}", response_model=TicketView)
-def update_ticket(
+def update_ticket_api(
     project_key: str,
     ticket_key: str,
     request: Request,
@@ -97,7 +102,7 @@ def update_ticket(
 
 
 @router.post("/{ticket_key}/transitions", response_model=TicketView)
-def transition_ticket(
+def transition_ticket_api(
     project_key: str,
     ticket_key: str,
     request: Request,
@@ -110,5 +115,5 @@ def transition_ticket(
 
 
 @router.get("/{ticket_key}", response_model=TicketView)
-def ticket_detail(project_key: str, ticket_key: str, session: Database, actor: Actor):
-    return service.ticket_detail(session, actor, project_key, ticket_key)[1]
+def get_ticket_detail_api(project_key: str, ticket_key: str, session: Database, actor: Actor):
+    return service.get_ticket_detail(session, actor, project_key, ticket_key)[1]

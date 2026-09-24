@@ -8,7 +8,7 @@ from app.domain.auth import AuthError, hash_password
 from app.models import AuditLog, Organization, Project, ProjectMember, User
 from app.schemas.projects import MemberCreate, ProjectCreate
 from app.services import projects as service
-from app.services.auth import current_identity
+from app.services.auth import get_current_identity
 
 PASSWORD = "Project-test-password-123!"
 ORIGIN = {"Origin": "http://testserver"}
@@ -349,9 +349,9 @@ def test_audit_failures_rollback_create_add_and_override(
     def fail(*args, **kwargs):
         raise RuntimeError("audit unavailable")
 
-    monkeypatch.setattr(service, "audit", fail)
+    monkeypatch.setattr(service, "record_project_audit_event", fail)
     with db_session_factory() as session:
-        actor = current_identity(session, raw_token)
+        actor = get_current_identity(session, raw_token)
         with pytest.raises(RuntimeError):
             service.create_project(
                 session,
@@ -360,12 +360,16 @@ def test_audit_failures_rollback_create_add_and_override(
             )
         assert session.scalar(select(Project).where(Project.key == "ROLLBACK")) is None
         with pytest.raises(RuntimeError):
-            service.project_detail(session, actor, "DEV")
+            service.get_project_detail(session, actor, "DEV")
     login(client, "manager")
     with db_session_factory() as session:
-        actor = current_identity(session, client.cookies.get(get_settings().session.cookie_name))
+        actor = get_current_identity(
+            session, client.cookies.get(get_settings().session.cookie_name)
+        )
         with pytest.raises(RuntimeError):
-            service.add_member(session, actor, "DEV", MemberCreate(user_id=people["member"].id))
+            service.add_project_member(
+                session, actor, "DEV", MemberCreate(user_id=people["member"].id)
+            )
         assert (
             session.scalar(
                 select(ProjectMember).where(ProjectMember.user_id == people["member"].id)
@@ -379,10 +383,10 @@ def test_concurrent_project_and_membership_creation(client, people, db_session_f
 
     def attempt(member):
         with db_session_factory() as session:
-            actor = current_identity(session, raw_token)
+            actor = get_current_identity(session, raw_token)
             try:
                 if member:
-                    service.add_member(
+                    service.add_project_member(
                         session, actor, "RACE", MemberCreate(user_id=people["member"].id)
                     )
                 else:
@@ -407,7 +411,7 @@ def test_repository_member_scope_and_cross_organization_membership(client, peopl
 
     create(client, people)
     project = db_session.scalar(select(Project))
-    assert repository.members(db_session, project.id, people["outsider"].id) == []
+    assert repository.list_project_members(db_session, project.id, people["outsider"].id) == []
     other = Organization(key="another", name="다른 조직")
     db_session.add(other)
     db_session.flush()
@@ -429,7 +433,7 @@ def test_stale_identity_does_not_allow_project_writes(client, people, db_session
     create(client, people)
     raw_token = client.cookies.get(get_settings().session.cookie_name)
     with db_session_factory() as session:
-        actor = current_identity(session, raw_token)
+        actor = get_current_identity(session, raw_token)
         with db_session_factory() as changed:
             user = changed.get(User, people["sysadmin"].id)
             user.system_role = "USER"
@@ -443,7 +447,9 @@ def test_stale_identity_does_not_allow_project_writes(client, people, db_session
         assert error.value.status_code == 403
     login(client, "manager")
     with db_session_factory() as session:
-        actor = current_identity(session, client.cookies.get(get_settings().session.cookie_name))
+        actor = get_current_identity(
+            session, client.cookies.get(get_settings().session.cookie_name)
+        )
         with db_session_factory() as changed:
             membership = changed.scalar(
                 select(ProjectMember).where(ProjectMember.user_id == people["manager"].id)
@@ -451,5 +457,7 @@ def test_stale_identity_does_not_allow_project_writes(client, people, db_session
             membership.role = "PROJECT_USER"
             changed.commit()
         with pytest.raises(AuthError) as error:
-            service.add_member(session, actor, "DEV", MemberCreate(user_id=people["member"].id))
+            service.add_project_member(
+                session, actor, "DEV", MemberCreate(user_id=people["member"].id)
+            )
         assert error.value.status_code == 403

@@ -6,9 +6,9 @@ from sqlalchemy import func, select
 from app.core.config import Settings
 from app.domain.auth import AuthError, hash_password, normalize_login_id, verify_password
 from app.models import AuditLog, Organization, User
-from app.services.auth import login
+from app.services.auth import authenticate_user
 from app.services.bootstrap import bootstrap_admin, bootstrap_from_environment
-from app.web.security import safe_return_path
+from app.web.security import normalize_return_path
 
 
 def test_argon2id_and_password_policy():
@@ -50,12 +50,12 @@ def test_login_id_normalization():
     ],
 )
 def test_redirect_rejects_external_ambiguous_and_auth_targets(path: str):
-    assert safe_return_path(path) == "/"
+    assert normalize_return_path(path) == "/"
 
 
 def test_redirect_preserves_internal_query():
     assert (
-        safe_return_path("/projects/OPS/tickets?selected=OPS-142")
+        normalize_return_path("/projects/OPS/tickets?selected=OPS-142")
         == "/projects/OPS/tickets?selected=OPS-142"
     )
 
@@ -127,7 +127,7 @@ def test_concurrent_failures_obey_the_configured_limit(db_session_factory):
     def attempt(_):
         with db_session_factory() as session:
             try:
-                login(session, settings, "admin", "wrong-password", "127.0.0.1")
+                authenticate_user(session, settings, "admin", "wrong-password", "127.0.0.1")
             except AuthError as error:
                 return error.status_code
 

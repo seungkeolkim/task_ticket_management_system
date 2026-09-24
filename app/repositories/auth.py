@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.models import AuditLog, Organization, User, UserSession
 
 
-def user_count(session: Session) -> int:
+def count_users(session: Session) -> int:
     return session.scalar(select(func.count()).select_from(User)) or 0
 
 
@@ -66,7 +66,7 @@ def revoke_user_sessions(session: Session, user_id: int) -> None:
     session.execute(delete(UserSession).where(UserSession.user_id == user_id))
 
 
-def failure_count(
+def count_authentication_failures(
     session: Session,
     since: datetime,
     *,

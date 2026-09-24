@@ -22,7 +22,7 @@ from app.repositories import auth as repository
 logger = logging.getLogger(__name__)
 
 
-def _identity(user: User, session_id: int) -> Identity:
+def _build_identity(user: User, session_id: int) -> Identity:
     return Identity(
         user.id,
         user.login_id,
@@ -34,14 +34,14 @@ def _identity(user: User, session_id: int) -> Identity:
     )
 
 
-def current_identity(session: Session, token: str | None) -> Identity | None:
+def get_current_identity(session: Session, token: str | None) -> Identity | None:
     if not token or len(token) != 43:
         return None
     stored = repository.find_active_session(session, token_digest(token), utc_now())
-    return _identity(stored.user, stored.id) if stored else None
+    return _build_identity(stored.user, stored.id) if stored else None
 
 
-def audit(
+def record_audit_event(
     session: Session,
     action: str,
     actor_id: int | None = None,
@@ -62,7 +62,7 @@ def audit(
     )
 
 
-def login(
+def authenticate_user(
     session: Session,
     settings: Settings,
     login_id: str,
@@ -78,9 +78,9 @@ def login(
         repository.lock_security_write(session)
         since = now - timedelta(seconds=settings.auth.login_window_seconds)
         limited = (
-            repository.failure_count(session, since, identity_key=identity_key)
+            repository.count_authentication_failures(session, since, identity_key=identity_key)
             >= settings.auth.login_max_failures
-            or repository.failure_count(session, since, ip_address=ip_address)
+            or repository.count_authentication_failures(session, since, ip_address=ip_address)
             >= settings.auth.login_max_ip_failures
         )
         if limited:
@@ -106,7 +106,7 @@ def login(
                 or not user.is_active
                 or not repository.lock_verified_user(session, user.id, verified_hash)
             ):
-                audit(
+                record_audit_event(
                     session,
                     "auth.login_failed",
                     ip_address=ip_address,
@@ -130,22 +130,22 @@ def login(
                 )
                 session.add(stored)
                 session.flush()
-                identity = _identity(user, stored.id)
-                audit(session, "auth.login_succeeded", user.id, ip_address=ip_address)
+                identity = _build_identity(user, stored.id)
+                record_audit_event(session, "auth.login_succeeded", user.id, ip_address=ip_address)
     if error:
         raise error
     logger.info("auth_login_completed user_id=%s", identity.id)
     return token, identity
 
 
-def logout(session: Session, identity: Identity, token: str, ip_address: str) -> None:
+def logout_user(session: Session, identity: Identity, token: str, ip_address: str) -> None:
     with request_transaction(session):
         repository.revoke_token(session, token_digest(token))
-        audit(session, "auth.logout", identity.id, ip_address=ip_address)
+        record_audit_event(session, "auth.logout", identity.id, ip_address=ip_address)
     logger.info("auth_logout_completed user_id=%s", identity.id)
 
 
-def change_password(
+def change_user_password(
     session: Session,
     settings: Settings,
     identity: Identity,
@@ -166,9 +166,9 @@ def change_password(
         since = utc_now() - timedelta(seconds=settings.auth.login_window_seconds)
         identity_key = token_digest(identity.login_id)
         if (
-            repository.failure_count(session, since, identity_key=identity_key)
+            repository.count_authentication_failures(session, since, identity_key=identity_key)
             >= settings.auth.login_max_failures
-            or repository.failure_count(session, since, ip_address=ip_address)
+            or repository.count_authentication_failures(session, since, ip_address=ip_address)
             >= settings.auth.login_max_ip_failures
         ):
             error = AuthError(
@@ -185,7 +185,7 @@ def change_password(
                 or user is None
                 or not user.is_active
             ):
-                audit(
+                record_audit_event(
                     session,
                     "auth.login_failed",
                     identity.id,
@@ -202,7 +202,7 @@ def change_password(
                 )
             else:
                 repository.revoke_user_sessions(session, user.id)
-                audit(session, "auth.password_changed", user.id, ip_address=ip_address)
+                record_audit_event(session, "auth.password_changed", user.id, ip_address=ip_address)
     if error:
         logger.info("auth_password_change_rejected user_id=%s code=%s", identity.id, error.code)
         raise error

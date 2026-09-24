@@ -16,8 +16,8 @@ Actor = Annotated[Identity, Depends(require_web_user)]
 
 
 @router.get("/", response_class=HTMLResponse)
-def dashboard(request: Request, session: Database, actor: Actor) -> HTMLResponse:
-    result = service.dashboard(session, actor)
+def dashboard_page(request: Request, session: Database, actor: Actor) -> HTMLResponse:
+    result = service.get_dashboard(session, actor)
     return render(
         request,
         "dashboard.html",

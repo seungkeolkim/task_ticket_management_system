@@ -9,7 +9,7 @@ from app.repositories.tickets import accessible_ticket_query, my_ticket_conditio
 OPEN_STATUSES = ("TODO", "IN_PROGRESS", "ON_HOLD")
 
 
-def counts(session: Session, actor_id: int, today: date, week_end: date):
+def get_dashboard_counts(session: Session, actor_id: int, today: date, week_end: date):
     project_scope = select(ProjectMember.project_id).where(ProjectMember.user_id == actor_id)
     base = (
         Ticket.project_id.in_(project_scope),
@@ -30,7 +30,7 @@ def counts(session: Session, actor_id: int, today: date, week_end: date):
     ).one()
 
 
-def recent_tickets(session: Session, actor_id: int, *, limit: int = 5):
+def list_recent_tickets(session: Session, actor_id: int, *, limit: int = 5):
     return session.execute(
         accessible_ticket_query(actor_id)
         .where(my_ticket_condition(actor_id))
@@ -39,7 +39,7 @@ def recent_tickets(session: Session, actor_id: int, *, limit: int = 5):
     ).all()
 
 
-def unread_mentions(session: Session, actor_id: int, *, limit: int = 5):
+def list_unread_mentions(session: Session, actor_id: int, *, limit: int = 5):
     mentioned_by = aliased(User)
     return (
         session.execute(

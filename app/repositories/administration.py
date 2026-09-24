@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.models import Organization, User
 
 
-def organizations(session: Session) -> list[Organization]:
+def list_organizations(session: Session) -> list[Organization]:
     return list(
         session.scalars(
             select(Organization)
@@ -22,7 +22,7 @@ def member_counts(session: Session) -> dict[int, int]:
     )
 
 
-def users(session: Session, query: str, page: int, page_size: int):
+def list_users(session: Session, query: str, page: int, page_size: int):
     filters = []
     if query:
         filters.append(

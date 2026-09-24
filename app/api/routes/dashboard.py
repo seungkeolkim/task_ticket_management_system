@@ -15,5 +15,5 @@ Actor = Annotated[Identity, Depends(require_api_user)]
 
 
 @router.get("", response_model=DashboardView)
-def dashboard(session: Database, actor: Actor):
-    return service.dashboard(session, actor)
+def get_dashboard_api(session: Database, actor: Actor):
+    return service.get_dashboard(session, actor)

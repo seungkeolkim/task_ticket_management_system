@@ -11,7 +11,7 @@ from app.main import app
 from app.models import AuditLog, Organization, User
 from app.schemas.administration import OrganizationCreate
 from app.services import administration as service
-from app.services.auth import current_identity
+from app.services.auth import get_current_identity
 
 PASSWORD = "Disposable-admin-12345!"
 ORIGIN = {"Origin": "http://testserver"}
@@ -293,9 +293,11 @@ def test_creation_audit_failure_rolls_back(client, admin, db_session_factory, mo
     def fail(*args, **kwargs):
         raise RuntimeError("simulated audit failure")
 
-    monkeypatch.setattr(service, "audit", fail)
+    monkeypatch.setattr(service, "record_audit_event", fail)
     with db_session_factory() as session:
-        identity = current_identity(session, client.cookies.get(get_settings().session.cookie_name))
+        identity = get_current_identity(
+            session, client.cookies.get(get_settings().session.cookie_name)
+        )
         with pytest.raises(RuntimeError, match="audit failure"):
             service.create_organization(
                 session, identity, OrganizationCreate(name="롤백 조직"), "127.0.0.1"
@@ -310,7 +312,7 @@ def test_concurrent_organization_creation_is_unique(client, admin, db_session_fa
         from app.domain.auth import AuthError
 
         with db_session_factory() as session:
-            identity = current_identity(session, raw_token)
+            identity = get_current_identity(session, raw_token)
             try:
                 service.create_organization(
                     session, identity, OrganizationCreate(name="동시 생성"), "127.0.0.1"
