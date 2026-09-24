@@ -10,7 +10,10 @@ from app.schemas.tickets import (
     BoardView,
     TicketCreate,
     TicketCreateOptions,
+    TicketDetailView,
     TicketPage,
+    TicketRelationCreate,
+    TicketRelationDelete,
     TicketTransition,
     TicketUpdate,
     TicketView,
@@ -112,7 +115,38 @@ def transition_ticket_api(
     return service.transition_ticket(session, actor, project_key, ticket_key, payload)
 
 
-@router.get("/{ticket_key}", response_model=TicketView)
+@router.post("/{ticket_key}/relations", response_model=TicketDetailView, status_code=201)
+def create_ticket_relation_api(
+    project_key: str,
+    ticket_key: str,
+    request: Request,
+    payload: TicketRelationCreate,
+    session: Database,
+    actor: Actor,
+):
+    """티켓 관계 API 생성을 처리한다."""
+    verify_csrf(request, request.headers.get("x-csrf-token", ""), actor, get_settings())
+    return service.create_ticket_relation(session, actor, project_key, ticket_key, payload)
+
+
+@router.delete("/{ticket_key}/relations/{relation_id}", response_model=TicketDetailView)
+def delete_ticket_relation_api(
+    project_key: str,
+    ticket_key: str,
+    relation_id: int,
+    request: Request,
+    payload: TicketRelationDelete,
+    session: Database,
+    actor: Actor,
+):
+    """티켓 관계 API 삭제를 처리한다."""
+    verify_csrf(request, request.headers.get("x-csrf-token", ""), actor, get_settings())
+    return service.delete_ticket_relation(
+        session, actor, project_key, ticket_key, relation_id, payload
+    )
+
+
+@router.get("/{ticket_key}", response_model=TicketDetailView)
 def get_ticket_detail_api(project_key: str, ticket_key: str, session: Database, actor: Actor):
     """티켓 상세 API 정보를 조회한다."""
     return service.get_ticket_detail(session, actor, project_key, ticket_key)[1]

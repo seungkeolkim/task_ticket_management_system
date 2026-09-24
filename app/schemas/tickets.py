@@ -1,8 +1,9 @@
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.domain.codes import Priority, TicketStatus, TicketType
+from app.domain.codes import Priority, RelationType, TicketStatus, TicketType
 
 
 class TicketCreate(BaseModel):
@@ -82,6 +83,29 @@ class TicketTransition(BaseModel):
     confirm_incomplete_children: bool = False
 
 
+class TicketRelationCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    relation_type: RelationType
+    target_ticket_key: str = Field(min_length=1, max_length=64)
+    expected_version: int = Field(gt=0)
+
+    @field_validator("target_ticket_key")
+    @classmethod
+    def normalize_target_ticket_key(cls, value: str) -> str:
+        """관계 대상 티켓 key를 정규화한다."""
+        normalized = value.strip().upper()
+        if not normalized:
+            raise ValueError("관계 대상 티켓을 입력하세요.")
+        return normalized
+
+
+class TicketRelationDelete(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    expected_version: int = Field(gt=0)
+
+
 class TicketUserView(BaseModel):
     id: int
     login_id: str
@@ -121,6 +145,28 @@ class TicketView(BaseModel):
     version: int
     created_at: datetime
     updated_at: datetime
+
+
+class TicketRelationTargetView(BaseModel):
+    key: str
+    title: str
+    status: TicketStatus
+    status_label: str
+    status_code: str
+
+
+class TicketRelationView(BaseModel):
+    id: int
+    relation_type: RelationType
+    relation_label: str
+    direction: Literal["RELATED", "OUTGOING", "INCOMING"]
+    direction_label: str
+    ticket: TicketRelationTargetView
+    created_at: datetime
+
+
+class TicketDetailView(TicketView):
+    relations: list[TicketRelationView] = Field(default_factory=list)
 
 
 class TicketPage(BaseModel):

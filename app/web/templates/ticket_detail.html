@@ -9,6 +9,8 @@
 {% if created %}<div class="auth-message success" role="status">티켓을 생성하고 최초 변경 이력을 기록했습니다.</div>{% endif %}
 {% if updated %}<div class="auth-message success" role="status">티켓을 수정하고 변경 이력을 기록했습니다.</div>{% endif %}
 {% if transitioned %}<div class="auth-message success" role="status">상태를 변경하고 변경 이력을 기록했습니다.</div>{% endif %}
+{% if relation_created %}<div class="auth-message success" role="status">티켓 관계를 추가하고 양쪽 티켓의 변경 이력을 기록했습니다.</div>{% endif %}
+{% if relation_deleted %}<div class="auth-message success" role="status">티켓 관계를 삭제하고 양쪽 티켓의 변경 이력을 기록했습니다.</div>{% endif %}
 {% if error %}<div class="auth-message error" role="alert">{{ error }}</div>{% endif %}
 {% if confirmation_status %}<form class="panel" action="/projects/{{ project.key }}/tickets/{{ ticket.key }}/transition" method="post">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="target_status" value="{{ confirmation_status }}"><input type="hidden" name="expected_version" value="{{ ticket.version }}"><input type="hidden" name="confirm_incomplete_children" value="true">
@@ -23,6 +25,39 @@
       <div class="ticket-state-row">{{ ui.status_badge(ticket.status_label, ticket.status_code) }}{{ ui.priority_badge(ticket.priority_label, ticket.priority_code) }}<span class="version-note">버전 {{ ticket.version }} · {{ ticket.updated_at }} 수정</span></div>
     </header>
     <section class="content-section"><div class="section-title"><h2>설명</h2></div><p class="detail-description">{{ ticket.description or '등록된 설명이 없습니다.' }}</p></section>
+    <section class="content-section">
+      <div class="section-title"><h2>티켓 관계</h2><span>{{ ticket.relations|length }}개</span></div>
+      <div class="relation-list">
+        {% for relation in ticket.relations %}
+        <div class="relation-row">
+          <span class="relation-kind">{{ relation.direction_label }}</span>
+          <a href="/projects/{{ project.key }}/tickets/{{ relation.ticket.key }}"><b>{{ relation.ticket.key }}</b></a>
+          <a href="/projects/{{ project.key }}/tickets/{{ relation.ticket.key }}">{{ relation.ticket.title }}</a>
+          {{ ui.status_badge(relation.ticket.status_label, relation.ticket.status_code) }}
+          {% if can_edit and project.is_active and ticket.status.value not in ['DONE', 'CANCELLED'] and relation.ticket.status.value not in ['DONE', 'CANCELLED'] %}
+          <form action="/projects/{{ project.key }}/tickets/{{ ticket.key }}/relations/{{ relation.id }}/delete" method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="expected_version" value="{{ ticket.version }}">
+            <button class="button quiet" type="submit">삭제</button>
+          </form>
+          {% endif %}
+        </div>
+        {% else %}<p class="detail-description">등록된 관계가 없습니다.</p>{% endfor %}
+      </div>
+      {% if can_edit and project.is_active and ticket.status.value not in ['DONE', 'CANCELLED'] %}
+      {% set relation_form = relation_values|default({}) %}
+      <form class="relation-builder" action="/projects/{{ project.key }}/tickets/{{ ticket.key }}/relations" method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="expected_version" value="{{ ticket.version }}">
+        <select name="relation_type" aria-label="관계 유형">
+          <option value="RELATED" {% if relation_form.get('relation_type', 'RELATED') == 'RELATED' %}selected{% endif %}>관계 있음</option>
+          <option value="DEPENDS_ON" {% if relation_form.get('relation_type') == 'DEPENDS_ON' %}selected{% endif %}>의존함</option>
+        </select>
+        <input name="target_ticket_key" value="{{ relation_form.get('target_ticket_key', '') }}" maxlength="64" placeholder="대상 티켓 키 (예: {{ project.key }}-2)" required>
+        <button class="button secondary" type="submit">관계 추가</button>
+      </form>
+      {% endif %}
+    </section>
     <section class="content-section"><div class="section-title"><h2>활동</h2></div><div class="auth-message">생성 이력은 저장되었습니다. 이력·댓글 화면 연결은 후속 범위입니다.</div></section>
   </article>
 
