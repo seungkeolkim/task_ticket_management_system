@@ -177,6 +177,20 @@ def ticket_row(
     ).one_or_none()
 
 
+def ticket_row_by_id(
+    session: Session,
+    project_id: int,
+    actor_id: int,
+    ticket_id: int,
+    *,
+    override: bool,
+):
+    """권한 범위에서 ID로 단일 티켓 row를 조회한다."""
+    return session.execute(
+        ticket_query(project_id, actor_id, override=override).where(Ticket.id == ticket_id)
+    ).one_or_none()
+
+
 def parent_ticket(
     session: Session,
     project_id: int,
@@ -303,6 +317,103 @@ def relation_rows(session: Session, project_id: int, ticket_id: int):
         )
         .order_by(TicketRelation.id)
     ).mappings().all()
+
+
+def relation_view_rows(
+    session: Session,
+    project_id: int,
+    ticket_id: int,
+    actor_id: int,
+    *,
+    override: bool,
+):
+    """티켓 상세 화면에 표시할 관계와 양 끝 티켓 정보를 조회한다."""
+    source = aliased(Ticket)
+    target = aliased(Ticket)
+    scope = project_scope(project_id, actor_id, override=override).subquery()
+    return session.execute(
+        select(
+            TicketRelation.id,
+            TicketRelation.relation_type,
+            TicketRelation.created_at,
+            source.id.label("source_ticket_id"),
+            source.key.label("source_ticket_key"),
+            source.title.label("source_ticket_title"),
+            source.status.label("source_ticket_status"),
+            target.id.label("target_ticket_id"),
+            target.key.label("target_ticket_key"),
+            target.title.label("target_ticket_title"),
+            target.status.label("target_ticket_status"),
+        )
+        .join(
+            source,
+            (source.project_id == TicketRelation.project_id)
+            & (source.id == TicketRelation.source_ticket_id),
+        )
+        .join(
+            target,
+            (target.project_id == TicketRelation.project_id)
+            & (target.id == TicketRelation.target_ticket_id),
+        )
+        .where(
+            TicketRelation.project_id.in_(select(scope.c.id)),
+            or_(
+                TicketRelation.source_ticket_id == ticket_id,
+                TicketRelation.target_ticket_id == ticket_id,
+            ),
+            source.deleted_at.is_(None),
+            target.deleted_at.is_(None),
+        )
+        .order_by(TicketRelation.id)
+    ).mappings().all()
+
+
+def relation_exists(
+    session: Session,
+    project_id: int,
+    actor_id: int,
+    source_ticket_id: int,
+    target_ticket_id: int,
+    relation_type: str,
+    *,
+    override: bool,
+) -> bool:
+    """동일한 티켓 관계가 이미 존재하는지 확인한다."""
+    scope = project_scope(project_id, actor_id, override=override).subquery()
+    return (
+        session.scalar(
+            select(TicketRelation.id).where(
+                TicketRelation.project_id.in_(select(scope.c.id)),
+                TicketRelation.source_ticket_id == source_ticket_id,
+                TicketRelation.target_ticket_id == target_ticket_id,
+                TicketRelation.relation_type == relation_type,
+            )
+        )
+        is not None
+    )
+
+
+def ticket_relation(
+    session: Session,
+    project_id: int,
+    actor_id: int,
+    ticket_id: int,
+    relation_id: int,
+    *,
+    override: bool,
+) -> TicketRelation | None:
+    """현재 티켓에 연결된 단일 관계를 조회한다."""
+    scope = project_scope(project_id, actor_id, override=override).subquery()
+    return session.scalar(
+        select(TicketRelation).where(
+            TicketRelation.id == relation_id,
+            TicketRelation.project_id.in_(select(scope.c.id)),
+            or_(
+                TicketRelation.source_ticket_id == ticket_id,
+                TicketRelation.target_ticket_id == ticket_id,
+            ),
+        )
+    )
 
 
 def incomplete_dependency_count(session: Session, project_id: int, ticket_id: int) -> int:

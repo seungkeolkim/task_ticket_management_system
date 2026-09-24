@@ -20,7 +20,12 @@ from app.models import (
 )
 from app.repositories import tickets as ticket_repository
 from app.schemas.contracts import TicketEvent
-from app.schemas.tickets import TicketCreate, TicketTransition, TicketUpdate
+from app.schemas.tickets import (
+    TicketCreate,
+    TicketRelationCreate,
+    TicketTransition,
+    TicketUpdate,
+)
 from app.services import dashboard as dashboard_service
 from app.services import tickets as service
 from app.services.auth import get_current_identity
@@ -42,6 +47,13 @@ def post(client, path, payload):
 def patch(client, path, payload):
     """CSRF 보호가 적용된 테스트 PATCH 요청을 보낸다."""
     return client.patch(path, json=payload, headers=ORIGIN | {"X-CSRF-Token": token(client)})
+
+
+def delete(client, path, payload):
+    """CSRF 보호가 적용된 테스트 DELETE 요청을 보낸다."""
+    return client.request(
+        "DELETE", path, json=payload, headers=ORIGIN | {"X-CSRF-Token": token(client)}
+    )
 
 
 def login(client, login_id):
@@ -124,6 +136,19 @@ def transition_ticket(client, ticket_key, target_status, expected_version, **ove
     )
 
 
+def create_relation(client, ticket_key, target_ticket_key, relation_type, expected_version):
+    """테스트용 티켓 관계를 생성한다."""
+    return post(
+        client,
+        f"/api/projects/DEV/tickets/{ticket_key}/relations",
+        {
+            "target_ticket_key": target_ticket_key,
+            "relation_type": relation_type,
+            "expected_version": expected_version,
+        },
+    )
+
+
 def test_create_list_detail_and_history(client, ticket_people, db_session):
     """이력 관련 동작을 검증한다."""
     people, project = ticket_people
@@ -139,7 +164,8 @@ def test_create_list_detail_and_history(client, ticket_people, db_session):
 
     page = client.get("/api/projects/DEV/tickets?q=실제").json()
     assert page["total"] == 1 and page["tickets"][0]["key"] == "DEV-1"
-    assert client.get("/api/projects/DEV/tickets/DEV-1").json() == ticket
+    detail = client.get("/api/projects/DEV/tickets/DEV-1").json()
+    assert detail == ticket | {"relations": []}
     assert "실제 티켓 생성" in client.get("/projects/DEV/tickets?selected=DEV-1").text
     assert "DB에 저장되는 설명" in client.get("/projects/DEV/tickets/DEV-1").text
 
@@ -164,6 +190,210 @@ def test_create_list_detail_and_history(client, ticket_people, db_session):
     assert audit.target_id == "DEV-1" and audit.details["project_id"] == project.id
     db_session.refresh(project)
     assert project.next_ticket_number == 2
+
+
+def test_relation_lifecycle_records_both_ticket_histories_and_directions(
+    client, ticket_people, db_session
+):
+    """관계 생성·조회·삭제와 양 끝 티켓 이력을 검증한다."""
+    first = create_ticket(client, title="첫 관계 티켓").json()
+    second = create_ticket(client, title="둘째 관계 티켓").json()
+
+    created = create_relation(client, first["key"], second["key"], "RELATED", 1)
+    assert created.status_code == 201
+    first_detail = created.json()
+    assert first_detail["version"] == 2
+    assert first_detail["relations"] == [
+        {
+            "id": first_detail["relations"][0]["id"],
+            "relation_type": "RELATED",
+            "relation_label": "관계 있음",
+            "direction": "RELATED",
+            "direction_label": "관계 있음",
+            "ticket": {
+                "key": second["key"],
+                "title": "둘째 관계 티켓",
+                "status": "TODO",
+                "status_label": "등록",
+                "status_code": "todo",
+            },
+            "created_at": first_detail["relations"][0]["created_at"],
+        }
+    ]
+    relation_id = first_detail["relations"][0]["id"]
+    second_detail = client.get(f"/api/projects/DEV/tickets/{second['key']}").json()
+    assert second_detail["version"] == 2
+    assert second_detail["relations"][0]["ticket"]["key"] == first["key"]
+    assert second_detail["relations"][0]["direction"] == "RELATED"
+    reversed_duplicate = create_relation(
+        client, second["key"], first["key"], "RELATED", 2
+    )
+    assert reversed_duplicate.status_code == 409
+    assert reversed_duplicate.json()["code"] == "ticket_relation_conflict"
+
+    relation = db_session.get(TicketRelation, relation_id)
+    first_row = db_session.scalar(select(Ticket).where(Ticket.key == first["key"]))
+    second_row = db_session.scalar(select(Ticket).where(Ticket.key == second["key"]))
+    assert relation.source_ticket_id == min(first_row.id, second_row.id)
+    relation_histories = db_session.scalars(
+        select(TicketHistory)
+        .where(TicketHistory.event_type == "RELATION_CHANGED")
+        .order_by(TicketHistory.id)
+    ).all()
+    assert len(relation_histories) == 2
+    assert len({history.operation_id for history in relation_histories}) == 1
+    assert {history.ticket_id for history in relation_histories} == {first_row.id, second_row.id}
+    assert all(history.changes[0]["field"] == "relations" for history in relation_histories)
+    relation_audits = db_session.scalars(
+        select(AuditLog).where(AuditLog.action == "ticket.relation_created")
+    ).all()
+    assert len(relation_audits) == 2
+    assert {audit.target_id for audit in relation_audits} == {first["key"], second["key"]}
+
+    html = client.get(f"/projects/DEV/tickets/{first['key']}").text
+    assert "티켓 관계" in html and "둘째 관계 티켓" in html and "관계 있음" in html
+    inline_html = client.get(
+        f"/projects/DEV/tickets?selected={first['key']}"
+    ).text
+    assert "둘째 관계 티켓" in inline_html
+
+    removed = delete(
+        client,
+        f"/api/projects/DEV/tickets/{first['key']}/relations/{relation_id}",
+        {"expected_version": 2},
+    )
+    assert removed.status_code == 200
+    assert removed.json()["version"] == 3 and removed.json()["relations"] == []
+    assert client.get(f"/api/projects/DEV/tickets/{second['key']}").json()["version"] == 3
+    db_session.expire_all()
+    assert db_session.get(TicketRelation, relation_id) is None
+    deletion_histories = db_session.scalars(
+        select(TicketHistory)
+        .where(TicketHistory.event_type == "RELATION_CHANGED")
+        .order_by(TicketHistory.id)
+    ).all()
+    assert len(deletion_histories) == 4
+    assert len({history.operation_id for history in deletion_histories}) == 2
+    assert all(len(history.changes) == 1 for history in deletion_histories)
+
+
+def test_dependency_relation_direction_validation_permissions_and_terminal_lock(
+    client, ticket_people, db_session
+):
+    """의존 관계 방향과 관계 쓰기 안전 규칙을 검증한다."""
+    people, project = ticket_people
+    source = create_ticket(client, title="의존하는 티켓").json()
+    target = create_ticket(client, title="의존 대상 티켓").json()
+
+    other_project = Project(
+        key="OPS", name="다른 관계 프로젝트", created_by_id=people["sysadmin"].id
+    )
+    db_session.add(other_project)
+    db_session.flush()
+    db_session.add(
+        Ticket(
+            project_id=other_project.id,
+            number=1,
+            key="OPS-1",
+            title="다른 프로젝트 티켓",
+            creator_id=people["sysadmin"].id,
+        )
+    )
+    db_session.commit()
+
+    self_relation = create_relation(client, source["key"], source["key"], "RELATED", 1)
+    assert self_relation.status_code == 400
+    assert self_relation.json()["code"] == "self_ticket_relation"
+    cross_project = create_relation(client, source["key"], "OPS-1", "RELATED", 1)
+    assert cross_project.status_code == 400
+    assert cross_project.json()["code"] == "invalid_relation_target"
+    csrf_rejected = client.post(
+        f"/api/projects/DEV/tickets/{source['key']}/relations",
+        json={
+            "target_ticket_key": target["key"],
+            "relation_type": "DEPENDS_ON",
+            "expected_version": 1,
+        },
+        headers=ORIGIN,
+    )
+    assert csrf_rejected.status_code == 403
+
+    created = create_relation(client, source["key"], target["key"], "DEPENDS_ON", 1)
+    assert created.status_code == 201
+    relation_id = created.json()["relations"][0]["id"]
+    assert created.json()["relations"][0]["direction"] == "OUTGOING"
+    target_detail = client.get(f"/api/projects/DEV/tickets/{target['key']}").json()
+    assert target_detail["relations"][0]["direction"] == "INCOMING"
+    assert target_detail["relations"][0]["direction_label"] == "이 티켓에 의존함"
+
+    duplicate = create_relation(client, source["key"], target["key"], "DEPENDS_ON", 2)
+    assert duplicate.status_code == 409
+    assert duplicate.json()["code"] == "ticket_relation_conflict"
+    stale = create_relation(client, source["key"], target["key"], "RELATED", 1)
+    assert stale.status_code == 409 and stale.json()["code"] == "ticket_version_conflict"
+    project.is_active = False
+    db_session.commit()
+    inactive = create_relation(client, source["key"], target["key"], "RELATED", 2)
+    assert inactive.status_code == 409 and inactive.json()["code"] == "project_inactive"
+    project.is_active = True
+    db_session.commit()
+
+    login(client, "guest")
+    guest_read = client.get(f"/api/projects/DEV/tickets/{source['key']}")
+    assert guest_read.status_code == 200 and guest_read.json()["relations"]
+    guest_write = create_relation(client, source["key"], target["key"], "RELATED", 2)
+    assert guest_write.status_code == 403
+
+    login(client, "member")
+    target_progress = transition_ticket(client, target["key"], "IN_PROGRESS", 2).json()
+    target_done = transition_ticket(
+        client, target["key"], "DONE", target_progress["version"]
+    ).json()
+    assert target_done["status"] == "DONE"
+    terminal_locked = delete(
+        client,
+        f"/api/projects/DEV/tickets/{source['key']}/relations/{relation_id}",
+        {"expected_version": 2},
+    )
+    assert terminal_locked.status_code == 409
+    assert terminal_locked.json()["code"] == "terminal_ticket_relation_locked"
+    assert db_session.get(TicketRelation, relation_id) is not None
+
+
+def test_relation_html_forms_create_and_delete(client, ticket_people, db_session):
+    """티켓 상세 화면의 관계 생성·삭제 form 연결을 검증한다."""
+    source = create_ticket(client, title="HTML 관계 원본").json()
+    target = create_ticket(client, title="HTML 관계 대상").json()
+    csrf_token = token(client)
+    created = client.post(
+        f"/projects/DEV/tickets/{source['key']}/relations",
+        data={
+            "csrf_token": csrf_token,
+            "relation_type": "DEPENDS_ON",
+            "target_ticket_key": target["key"].lower(),
+            "expected_version": "1",
+        },
+        headers=ORIGIN,
+        follow_redirects=False,
+    )
+    assert created.status_code == 303
+    assert created.headers["location"].endswith("?relation_created=1")
+    success_page = client.get(created.headers["location"])
+    assert "티켓 관계를 추가" in success_page.text
+    assert "이 티켓이 의존함" in success_page.text
+
+    relation = db_session.scalar(select(TicketRelation))
+    deleted = client.post(
+        f"/projects/DEV/tickets/{source['key']}/relations/{relation.id}/delete",
+        data={"csrf_token": token(client), "expected_version": "2"},
+        headers=ORIGIN,
+        follow_redirects=False,
+    )
+    assert deleted.status_code == 303
+    assert deleted.headers["location"].endswith("?relation_deleted=1")
+    deleted_page = client.get(deleted.headers["location"])
+    assert "티켓 관계를 삭제" in deleted_page.text
+    assert "등록된 관계가 없습니다." in deleted_page.text
 
 
 def test_hierarchy_rules_and_cross_project_parent_are_enforced(client, ticket_people, db_session):
@@ -762,6 +992,49 @@ def test_update_audit_failure_rolls_back_ticket_and_history(
                 .where(TicketHistory.ticket_id == saved.id)
             )
             == 1
+        )
+
+
+def test_relation_audit_failure_rolls_back_both_ticket_versions_and_history(
+    client, ticket_people, db_session_factory, monkeypatch
+):
+    """관계 감사 실패 시 양 끝 티켓 변경 전체가 rollback되는지 검증한다."""
+    source = create_ticket(client, title="관계 롤백 원본").json()
+    target = create_ticket(client, title="관계 롤백 대상").json()
+    raw_token = client.cookies.get(get_settings().session.cookie_name)
+
+    def fail(*args, **kwargs):
+        """관계 감사 기록 실패 상황을 재현한다."""
+        raise RuntimeError("audit unavailable")
+
+    monkeypatch.setattr(service, "record_ticket_audit_event", fail)
+    with db_session_factory() as session:
+        actor = get_current_identity(session, raw_token)
+        with pytest.raises(RuntimeError):
+            service.create_ticket_relation(
+                session,
+                actor,
+                "DEV",
+                source["key"],
+                TicketRelationCreate(
+                    relation_type="RELATED",
+                    target_ticket_key=target["key"],
+                    expected_version=1,
+                ),
+            )
+    with db_session_factory() as session:
+        tickets = session.scalars(
+            select(Ticket).where(Ticket.key.in_([source["key"], target["key"]]))
+        ).all()
+        assert {ticket.version for ticket in tickets} == {1}
+        assert session.scalar(select(func.count()).select_from(TicketRelation)) == 0
+        assert (
+            session.scalar(
+                select(func.count())
+                .select_from(TicketHistory)
+                .where(TicketHistory.event_type == "RELATION_CHANGED")
+            )
+            == 0
         )
 
 

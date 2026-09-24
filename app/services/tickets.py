@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime, timedelta
-from uuid import uuid4
+from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
@@ -8,8 +8,15 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.db.types import utc_now
 from app.domain.auth import AuthError, Identity
-from app.domain.codes import HistoryEventType, Priority, ProjectRole, TicketStatus, TicketType
-from app.models import AuditLog, Ticket, TicketHistory
+from app.domain.codes import (
+    HistoryEventType,
+    Priority,
+    ProjectRole,
+    RelationType,
+    TicketStatus,
+    TicketType,
+)
+from app.models import AuditLog, Ticket, TicketHistory, TicketRelation
 from app.repositories import tickets as repository
 from app.schemas.contracts import FieldChange, RelationSnapshot, TicketEvent, TicketState
 from app.schemas.tickets import (
@@ -22,9 +29,14 @@ from app.schemas.tickets import (
     BoardView,
     TicketCreate,
     TicketCreateOptions,
+    TicketDetailView,
     TicketEditOptions,
     TicketPage,
     TicketParentView,
+    TicketRelationCreate,
+    TicketRelationDelete,
+    TicketRelationTargetView,
+    TicketRelationView,
     TicketTransition,
     TicketUpdate,
     TicketUserView,
@@ -59,6 +71,10 @@ PRIORITY_LABELS = {
     Priority.MAJOR: "Major",
     Priority.CRITICAL: "Critical",
     Priority.BLOCKER: "Blocker",
+}
+RELATION_LABELS = {
+    RelationType.RELATED: "관계 있음",
+    RelationType.DEPENDS_ON: "의존함",
 }
 TERMINAL_STATUSES = {TicketStatus.DONE, TicketStatus.CANCELLED}
 FSM_TRANSITIONS = {
@@ -149,6 +165,56 @@ def build_ticket_view(ticket_row) -> TicketView:
         created_at=ticket.created_at,
         updated_at=ticket.updated_at,
     )
+
+
+def build_ticket_detail_view(
+    session: Session, ticket_row, actor_id: int, *, override: bool
+) -> TicketDetailView:
+    """티켓 기본 정보와 정·역방향 관계를 상세 view로 변환한다."""
+    ticket = ticket_row[0]
+    relations: list[TicketRelationView] = []
+    for relation_row in repository.relation_view_rows(
+        session, ticket.project_id, ticket.id, actor_id, override=override
+    ):
+        relation_type = RelationType(relation_row["relation_type"])
+        current_is_source = relation_row["source_ticket_id"] == ticket.id
+        if current_is_source:
+            related_ticket_key = relation_row["target_ticket_key"]
+            related_ticket_title = relation_row["target_ticket_title"]
+            related_ticket_status = TicketStatus(relation_row["target_ticket_status"])
+        else:
+            related_ticket_key = relation_row["source_ticket_key"]
+            related_ticket_title = relation_row["source_ticket_title"]
+            related_ticket_status = TicketStatus(relation_row["source_ticket_status"])
+
+        if relation_type == RelationType.RELATED:
+            direction = "RELATED"
+            direction_label = "관계 있음"
+        elif current_is_source:
+            direction = "OUTGOING"
+            direction_label = "이 티켓이 의존함"
+        else:
+            direction = "INCOMING"
+            direction_label = "이 티켓에 의존함"
+        related_status_label, related_status_code = STATUS_LABELS[related_ticket_status]
+        relations.append(
+            TicketRelationView(
+                id=relation_row["id"],
+                relation_type=relation_type,
+                relation_label=RELATION_LABELS[relation_type],
+                direction=direction,
+                direction_label=direction_label,
+                ticket=TicketRelationTargetView(
+                    key=related_ticket_key,
+                    title=related_ticket_title,
+                    status=related_ticket_status,
+                    status_label=related_status_label,
+                    status_code=related_status_code,
+                ),
+                created_at=relation_row["created_at"],
+            )
+        )
+    return TicketDetailView(**build_ticket_view(ticket_row).model_dump(), relations=relations)
 
 
 def _build_board_card(
@@ -257,6 +323,7 @@ def _build_ticket_change_history(
     before: TicketState,
     after: TicketState,
     fields: tuple[str, ...],
+    operation_id: UUID | None = None,
 ) -> TicketHistory:
     """변경 전후 snapshot으로 티켓 이력을 구성한다."""
     before_data = before.model_dump(mode="json")
@@ -268,7 +335,7 @@ def _build_ticket_change_history(
     ]
     event = TicketEvent(
         event_key=uuid4(),
-        operation_id=uuid4(),
+        operation_id=operation_id or uuid4(),
         ticket_key=ticket.key,
         project_id=ticket.project_id,
         ticket_version=ticket.version,
@@ -330,6 +397,16 @@ def _require_expected_version(ticket: Ticket, expected_version: int) -> None:
         raise AuthError(
             "ticket_version_conflict",
             "다른 사용자가 먼저 변경했습니다. 최신 내용을 다시 불러오세요.",
+            409,
+        )
+
+
+def _require_relation_ticket_editable(ticket: Ticket) -> None:
+    """관계 변경 대상 티켓이 종료 상태가 아닌지 검증한다."""
+    if TicketStatus(ticket.status) in TERMINAL_STATUSES:
+        raise AuthError(
+            "terminal_ticket_relation_locked",
+            "완료·취소 티켓의 관계는 재개한 후 변경할 수 있습니다.",
             409,
         )
 
@@ -567,7 +644,274 @@ def get_ticket_detail(session: Session, actor: Identity, project_key: str, ticke
     with project_service.project_operation_context(session, actor, "ticket_read"):
         project = _get_project(session, actor, project_key)
         ticket_row = _get_ticket_row(session, actor, project, ticket_key)
-        return project, build_ticket_view(ticket_row)
+        return project, build_ticket_detail_view(
+            session,
+            ticket_row,
+            actor.id,
+            override=uses_system_administrator_override(project),
+        )
+
+
+def _relation_endpoint_rows(session: Session, actor: Identity, project, relation: TicketRelation):
+    """관계의 양 끝 티켓 row를 현재 프로젝트 권한 범위에서 조회한다."""
+    override = uses_system_administrator_override(project)
+    source_row = repository.ticket_row_by_id(
+        session,
+        project.id,
+        actor.id,
+        relation.source_ticket_id,
+        override=override,
+    )
+    target_row = repository.ticket_row_by_id(
+        session,
+        project.id,
+        actor.id,
+        relation.target_ticket_id,
+        override=override,
+    )
+    if source_row is None or target_row is None:
+        raise AuthError("ticket_relation_not_found", "티켓 관계를 찾을 수 없습니다.", 404)
+    return source_row, target_row
+
+
+def _record_relation_change(
+    session: Session,
+    actor: Identity,
+    endpoint_rows,
+    before_states: dict[int, TicketState],
+    relation: TicketRelation,
+    operation_id: UUID,
+    audit_action: str,
+) -> None:
+    """관계 변경을 양 끝 티켓 이력과 감사 로그에 기록한다."""
+    source_row, target_row = endpoint_rows
+    source_ticket = source_row[0]
+    target_ticket = target_row[0]
+    for endpoint_row, counterpart_ticket in (
+        (source_row, target_ticket),
+        (target_row, source_ticket),
+    ):
+        endpoint_ticket = endpoint_row[0]
+        after_state = _build_ticket_snapshot(
+            session, endpoint_ticket, endpoint_row._mapping["parent_key"]
+        )
+        session.add(
+            _build_ticket_change_history(
+                endpoint_ticket,
+                actor.id,
+                HistoryEventType.RELATION_CHANGED,
+                before_states[endpoint_ticket.id],
+                after_state,
+                ("relations",),
+                operation_id=operation_id,
+            )
+        )
+        record_ticket_audit_event(
+            session,
+            audit_action,
+            actor.id,
+            endpoint_ticket,
+            operation_id=str(operation_id),
+            relation_id=relation.id,
+            relation_type=relation.relation_type,
+            counterpart_ticket_key=counterpart_ticket.key,
+            from_version=before_states[endpoint_ticket.id].version,
+            to_version=after_state.version,
+        )
+
+
+def create_ticket_relation(
+    session: Session,
+    actor: Identity,
+    project_key: str,
+    ticket_key: str,
+    payload: TicketRelationCreate,
+) -> TicketDetailView:
+    """현재 티켓에서 다른 티켓으로 관계를 생성한다."""
+    with project_service.project_operation_context(
+        session,
+        actor,
+        "ticket_relation_create",
+        write_operation=True,
+        conflict_code="ticket_relation_conflict",
+        conflict_message="동일한 티켓 관계가 이미 존재합니다.",
+        stale_code="ticket_version_conflict",
+    ):
+        project = _get_writable_project(session, actor, project_key)
+        _require_active_project(project)
+        current_row = _get_ticket_row(session, actor, project, ticket_key)
+        current_ticket = current_row[0]
+        _require_expected_version(current_ticket, payload.expected_version)
+        target_row = repository.ticket_row(
+            session,
+            project.id,
+            actor.id,
+            payload.target_ticket_key,
+            override=uses_system_administrator_override(project),
+        )
+        if target_row is None:
+            raise AuthError(
+                "invalid_relation_target", "같은 프로젝트의 유효한 티켓을 선택하세요."
+            )
+        target_ticket = target_row[0]
+        if target_ticket.id == current_ticket.id:
+            raise AuthError("self_ticket_relation", "티켓은 자기 자신과 관계를 맺을 수 없습니다.")
+        _require_relation_ticket_editable(current_ticket)
+        _require_relation_ticket_editable(target_ticket)
+
+        if payload.relation_type == RelationType.RELATED:
+            source_ticket, related_target_ticket = sorted(
+                (current_ticket, target_ticket), key=lambda ticket: ticket.id
+            )
+        else:
+            source_ticket = current_ticket
+            related_target_ticket = target_ticket
+        if repository.relation_exists(
+            session,
+            project.id,
+            actor.id,
+            source_ticket.id,
+            related_target_ticket.id,
+            payload.relation_type,
+            override=uses_system_administrator_override(project),
+        ):
+            raise AuthError(
+                "ticket_relation_conflict", "동일한 티켓 관계가 이미 존재합니다.", 409
+            )
+
+        endpoint_rows_by_id = {
+            current_ticket.id: current_row,
+            target_ticket.id: target_row,
+        }
+        source_row = endpoint_rows_by_id[source_ticket.id]
+        target_endpoint_row = endpoint_rows_by_id[related_target_ticket.id]
+        endpoint_rows = (source_row, target_endpoint_row)
+        before_states = {
+            endpoint_row[0].id: _build_ticket_snapshot(
+                session, endpoint_row[0], endpoint_row._mapping["parent_key"]
+            )
+            for endpoint_row in endpoint_rows
+        }
+        relation = TicketRelation(
+            project_id=project.id,
+            source_ticket_id=source_ticket.id,
+            target_ticket_id=related_target_ticket.id,
+            relation_type=payload.relation_type,
+            dependency_kind="FS"
+            if payload.relation_type == RelationType.DEPENDS_ON
+            else None,
+            lag_days=0,
+            created_by_id=actor.id,
+        )
+        session.add(relation)
+        now = utc_now()
+        source_ticket.updated_at = now
+        related_target_ticket.updated_at = now
+        session.flush()
+        operation_id = uuid4()
+        _record_relation_change(
+            session,
+            actor,
+            endpoint_rows,
+            before_states,
+            relation,
+            operation_id,
+            "ticket.relation_created",
+        )
+        session.flush()
+        result_row = _get_ticket_row(session, actor, project, current_ticket.key)
+        result = build_ticket_detail_view(
+            session,
+            result_row,
+            actor.id,
+            override=uses_system_administrator_override(project),
+        )
+    logger.info(
+        "ticket_relation_created actor_id=%s project_id=%s ticket_id=%s relation_id=%s",
+        actor.id,
+        result.project_id,
+        result.id,
+        relation.id,
+    )
+    return result
+
+
+def delete_ticket_relation(
+    session: Session,
+    actor: Identity,
+    project_key: str,
+    ticket_key: str,
+    relation_id: int,
+    payload: TicketRelationDelete,
+) -> TicketDetailView:
+    """현재 티켓에 연결된 관계를 삭제한다."""
+    with project_service.project_operation_context(
+        session,
+        actor,
+        "ticket_relation_delete",
+        write_operation=True,
+        conflict_code="ticket_relation_conflict",
+        conflict_message="티켓 관계가 변경되었습니다. 다시 확인하세요.",
+        stale_code="ticket_version_conflict",
+    ):
+        project = _get_writable_project(session, actor, project_key)
+        _require_active_project(project)
+        current_row = _get_ticket_row(session, actor, project, ticket_key)
+        current_ticket = current_row[0]
+        _require_expected_version(current_ticket, payload.expected_version)
+        relation = repository.ticket_relation(
+            session,
+            project.id,
+            actor.id,
+            current_ticket.id,
+            relation_id,
+            override=uses_system_administrator_override(project),
+        )
+        if relation is None:
+            raise AuthError("ticket_relation_not_found", "티켓 관계를 찾을 수 없습니다.", 404)
+        endpoint_rows = _relation_endpoint_rows(session, actor, project, relation)
+        for endpoint_row in endpoint_rows:
+            _require_relation_ticket_editable(endpoint_row[0])
+        before_states = {
+            endpoint_row[0].id: _build_ticket_snapshot(
+                session, endpoint_row[0], endpoint_row._mapping["parent_key"]
+            )
+            for endpoint_row in endpoint_rows
+        }
+        relation_identifier = relation.id
+        source_ticket = endpoint_rows[0][0]
+        target_ticket = endpoint_rows[1][0]
+        session.delete(relation)
+        now = utc_now()
+        source_ticket.updated_at = now
+        target_ticket.updated_at = now
+        session.flush()
+        operation_id = uuid4()
+        _record_relation_change(
+            session,
+            actor,
+            endpoint_rows,
+            before_states,
+            relation,
+            operation_id,
+            "ticket.relation_deleted",
+        )
+        session.flush()
+        result_row = _get_ticket_row(session, actor, project, current_ticket.key)
+        result = build_ticket_detail_view(
+            session,
+            result_row,
+            actor.id,
+            override=uses_system_administrator_override(project),
+        )
+    logger.info(
+        "ticket_relation_deleted actor_id=%s project_id=%s ticket_id=%s relation_id=%s",
+        actor.id,
+        result.project_id,
+        result.id,
+        relation_identifier,
+    )
+    return result
 
 
 def get_ticket_creation_options(session: Session, actor: Identity, project_key: str):

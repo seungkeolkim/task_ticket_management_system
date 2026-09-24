@@ -55,6 +55,12 @@
       <div><dt>마감일</dt><dd>{{ selected_ticket.due_date or '없음' }}</dd></div>
       <div><dt>생성자</dt><dd>{{ selected_ticket.creator.display_name }}</dd></div>
     </dl></div>
+    <div class="detail-section"><div class="section-title"><h3>티켓 관계</h3><span>{{ selected_ticket.relations|length }}개</span></div>
+      <div class="relation-list">
+        {% for relation in selected_ticket.relations %}<div class="relation-row"><span class="relation-kind">{{ relation.direction_label }}</span><a href="/projects/{{ project.key }}/tickets/{{ relation.ticket.key }}"><b>{{ relation.ticket.key }}</b></a><a href="/projects/{{ project.key }}/tickets/{{ relation.ticket.key }}">{{ relation.ticket.title }}</a>{{ ui.status_badge(relation.ticket.status_label, relation.ticket.status_code) }}</div>
+        {% else %}<p class="detail-description">등록된 관계가 없습니다.</p>{% endfor %}
+      </div>
+    </div>
     <div class="inline-detail-actions"><a class="button primary" href="/projects/{{ project.key }}/tickets/{{ selected_ticket.key }}">전체 상세 보기</a></div>
   </aside>
   {% endif %}

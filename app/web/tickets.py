@@ -9,7 +9,13 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.db.session import get_db_session
 from app.domain.auth import AuthError, Identity
-from app.schemas.tickets import TicketCreate, TicketTransition, TicketUpdate
+from app.schemas.tickets import (
+    TicketCreate,
+    TicketRelationCreate,
+    TicketRelationDelete,
+    TicketTransition,
+    TicketUpdate,
+)
 from app.services import tickets as service
 from app.web.rendering import render
 from app.web.security import require_web_user, verify_csrf
@@ -358,6 +364,90 @@ def transition_ticket_submit(
     )
 
 
+@router.post("/projects/{project_key}/tickets/{ticket_key}/relations")
+def create_ticket_relation_submit(
+    project_key: str,
+    ticket_key: str,
+    request: Request,
+    session: Database,
+    actor: Actor,
+    relation_type: Annotated[str, Form()] = "RELATED",
+    target_ticket_key: Annotated[str, Form()] = "",
+    expected_version: Annotated[str, Form()] = "",
+    csrf_token: Annotated[str, Form()] = "",
+):
+    """티켓 관계 form 생성을 처리한다."""
+    verify_csrf(request, csrf_token, actor, get_settings())
+    relation_values = {
+        "relation_type": relation_type[:24],
+        "target_ticket_key": target_ticket_key[:64],
+    }
+    try:
+        payload = TicketRelationCreate(
+            relation_type=relation_type,
+            target_ticket_key=target_ticket_key,
+            expected_version=expected_version,
+        )
+        ticket = service.create_ticket_relation(
+            session, actor, project_key, ticket_key, payload
+        )
+    except (ValidationError, AuthError) as error:
+        if isinstance(error, AuthError) and error.status_code in {401, 403, 404}:
+            raise
+        return _render_ticket_detail_page(
+            request,
+            session,
+            actor,
+            project_key,
+            ticket_key,
+            relation_values=relation_values,
+            error=error.message
+            if isinstance(error, AuthError)
+            else "관계 유형, 대상 티켓과 현재 버전을 확인하세요.",
+            status_code=error.status_code if isinstance(error, AuthError) else 422,
+        )
+    return RedirectResponse(
+        f"/projects/{project_key}/tickets/{ticket.key}?relation_created=1", status_code=303
+    )
+
+
+@router.post("/projects/{project_key}/tickets/{ticket_key}/relations/{relation_id}/delete")
+def delete_ticket_relation_submit(
+    project_key: str,
+    ticket_key: str,
+    relation_id: int,
+    request: Request,
+    session: Database,
+    actor: Actor,
+    expected_version: Annotated[str, Form()] = "",
+    csrf_token: Annotated[str, Form()] = "",
+):
+    """티켓 관계 form 삭제를 처리한다."""
+    verify_csrf(request, csrf_token, actor, get_settings())
+    try:
+        payload = TicketRelationDelete(expected_version=expected_version)
+        ticket = service.delete_ticket_relation(
+            session, actor, project_key, ticket_key, relation_id, payload
+        )
+    except (ValidationError, AuthError) as error:
+        if isinstance(error, AuthError) and error.status_code in {401, 403, 404}:
+            raise
+        return _render_ticket_detail_page(
+            request,
+            session,
+            actor,
+            project_key,
+            ticket_key,
+            error=error.message
+            if isinstance(error, AuthError)
+            else "관계 삭제 요청과 현재 버전을 확인하세요.",
+            status_code=error.status_code if isinstance(error, AuthError) else 422,
+        )
+    return RedirectResponse(
+        f"/projects/{project_key}/tickets/{ticket.key}?relation_deleted=1", status_code=303
+    )
+
+
 @router.get("/projects/{project_key}/tickets/{ticket_key}")
 def ticket_detail_page(
     project_key: str,
@@ -368,6 +458,8 @@ def ticket_detail_page(
     created: bool = False,
     updated: bool = False,
     transitioned: bool = False,
+    relation_created: bool = False,
+    relation_deleted: bool = False,
 ):
     """티켓 상세 화면을 렌더링한다."""
     return _render_ticket_detail_page(
@@ -379,4 +471,6 @@ def ticket_detail_page(
         created=created,
         updated=updated,
         transitioned=transitioned,
+        relation_created=relation_created,
+        relation_deleted=relation_deleted,
     )
