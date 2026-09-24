@@ -33,11 +33,7 @@ def lock_verified_user(session: Session, user_id: int, verified_hash: str) -> bo
     # Serialize session creation with concurrent password changes/deactivation.
     result = session.execute(
         update(User)
-        .where(
-            User.id == user_id,
-            User.password_hash == verified_hash,
-            User.is_active.is_(True),
-        )
+        .where(User.id == user_id, User.password_hash == verified_hash, User.is_active.is_(True))
         .values(updated_at=User.updated_at)
         .execution_options(synchronize_session=False)
     )
@@ -47,11 +43,7 @@ def lock_verified_user(session: Session, user_id: int, verified_hash: str) -> bo
 def replace_password(session: Session, user_id: int, verified_hash: str, new_hash: str) -> bool:
     result = session.execute(
         update(User)
-        .where(
-            User.id == user_id,
-            User.password_hash == verified_hash,
-            User.is_active.is_(True),
-        )
+        .where(User.id == user_id, User.password_hash == verified_hash, User.is_active.is_(True))
         .values(password_hash=new_hash, must_change_password=False)
         .execution_options(synchronize_session=False)
     )
@@ -76,10 +68,7 @@ def count_authentication_failures(
     query = (
         select(func.count())
         .select_from(AuditLog)
-        .where(
-            AuditLog.action == "auth.login_failed",
-            AuditLog.occurred_at >= since,
-        )
+        .where(AuditLog.action == "auth.login_failed", AuditLog.occurred_at >= since)
     )
     if identity_key is not None:
         query = query.where(

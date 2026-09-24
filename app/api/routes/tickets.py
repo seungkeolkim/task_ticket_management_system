@@ -57,12 +57,7 @@ def list_project_tickets_api(
     page_size: int | None = None,
 ):
     return service.list_project_tickets(
-        session,
-        actor,
-        project_key,
-        search_query=search_query,
-        page=page,
-        page_size=page_size,
+        session, actor, project_key, search_query=search_query, page=page, page_size=page_size
     )[1]
 
 
@@ -73,11 +68,7 @@ def get_ticket_creation_options_api(project_key: str, session: Database, actor: 
 
 @router.post("", response_model=TicketView, status_code=201)
 def create_ticket_api(
-    project_key: str,
-    request: Request,
-    payload: TicketCreate,
-    session: Database,
-    actor: Actor,
+    project_key: str, request: Request, payload: TicketCreate, session: Database, actor: Actor
 ):
     verify_csrf(request, request.headers.get("x-csrf-token", ""), actor, get_settings())
     return service.create_ticket(session, actor, project_key, payload)

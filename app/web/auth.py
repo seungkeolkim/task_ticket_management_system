@@ -92,11 +92,7 @@ def login_submit(
             response.headers["Retry-After"] = str(error.retry_after)
         return response
     response = RedirectResponse(
-        (
-            build_password_change_url(destination)
-            if user.must_change_password
-            else destination
-        ),
+        (build_password_change_url(destination) if user.must_change_password else destination),
         status_code=303,
     )
     set_session_cookie(response, token, settings)

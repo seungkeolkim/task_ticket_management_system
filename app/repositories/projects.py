@@ -46,9 +46,7 @@ def list_projects(
         )
     total = session.scalar(select(func.count()).select_from(query.subquery())) or 0
     rows = session.execute(
-        query.order_by(Project.name, Project.id)
-        .offset((page - 1) * page_size)
-        .limit(page_size)
+        query.order_by(Project.name, Project.id).offset((page - 1) * page_size).limit(page_size)
     ).all()
     return rows, total
 

@@ -63,10 +63,7 @@ def list_unread_mentions(session: Session, actor_id: int, *, limit: int = 5):
             )
             .join(
                 Ticket,
-                and_(
-                    Ticket.project_id == Mention.project_id,
-                    Ticket.id == Mention.ticket_id,
-                ),
+                and_(Ticket.project_id == Mention.project_id, Ticket.id == Mention.ticket_id),
             )
             .join(mentioned_by, mentioned_by.id == Mention.mentioned_by_id)
             .outerjoin(Comment, Comment.id == Mention.comment_id)

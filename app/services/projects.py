@@ -73,9 +73,7 @@ def require_project_member(
 ):
     """Use inside a top-level service transaction; override audit commits with that use case."""
     is_administrator = is_system_administrator(session, actor)
-    result = repository.accessible_project(
-        session, project_key, actor.id, is_administrator
-    )
+    result = repository.accessible_project(session, project_key, actor.id, is_administrator)
     if result is None:
         raise AuthError("project_not_found", "프로젝트를 찾을 수 없습니다.", 404)
     project_row, project_role = result
@@ -85,9 +83,7 @@ def require_project_member(
         ProjectRole.ADMIN,
         ProjectRole.USER,
     }:
-        raise AuthError(
-            "project_write_required", "프로젝트 사용자 이상의 권한이 필요합니다.", 403
-        )
+        raise AuthError("project_write_required", "프로젝트 사용자 이상의 권한이 필요합니다.", 403)
     if is_administrator and (
         project_role is None
         or (require_management_access and project_role != ProjectRole.ADMIN)
@@ -111,9 +107,7 @@ def require_project_member(
 
 
 def require_project_administrator(session: Session, actor: Identity, project_key: str):
-    return require_project_member(
-        session, actor, project_key, require_management_access=True
-    )
+    return require_project_member(session, actor, project_key, require_management_access=True)
 
 
 def require_project_user_access(session: Session, actor: Identity, project_key: str):
@@ -152,13 +146,7 @@ def project_operation_context(
 
 
 def list_projects(
-    session,
-    actor,
-    *,
-    include_all_projects=False,
-    search_query="",
-    page=1,
-    page_size=None,
+    session, actor, *, include_all_projects=False, search_query="", page=1, page_size=None
 ):
     size = page_size if page_size is not None else get_settings().pagination.default_size
     if (
@@ -172,12 +160,7 @@ def list_projects(
         if include_all_projects:
             require_system_administrator(session, actor)
         project_rows, total = repository.list_projects(
-            session,
-            actor.id,
-            include_all_projects,
-            search_query.strip(),
-            page,
-            size,
+            session, actor.id, include_all_projects, search_query.strip(), page, size
         )
         if include_all_projects:
             for project_row, project_role in project_rows:
@@ -267,9 +250,7 @@ def create_project(session, actor, payload: ProjectCreate):
 
 
 def add_project_member(session, actor, project_key, payload: MemberCreate):
-    with project_operation_context(
-        session, actor, "project_member_add", write_operation=True
-    ):
+    with project_operation_context(session, actor, "project_member_add", write_operation=True):
         project = require_project_administrator(session, actor, project_key)
         if not project.is_active:
             raise AuthError(

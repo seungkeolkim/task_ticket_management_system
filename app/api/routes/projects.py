@@ -56,9 +56,7 @@ def list_all_projects(
 
 @router.get("/admin/project-candidates", response_model=list[CandidateView])
 def list_project_administrator_candidates(
-    session: Database,
-    actor: Administrator,
-    search_query: Annotated[str, Query(alias="q")] = "",
+    session: Database, actor: Administrator, search_query: Annotated[str, Query(alias="q")] = ""
 ):
     return service.list_project_candidates(session, actor, search_query=search_query)
 
@@ -95,11 +93,7 @@ def list_project_candidates(
 
 @router.post("/projects/{project_key}/members", status_code=201)
 def add_project_member(
-    project_key: str,
-    request: Request,
-    payload: MemberCreate,
-    session: Database,
-    actor: Actor,
+    project_key: str, request: Request, payload: MemberCreate, session: Database, actor: Actor
 ):
     verify_csrf(request, request.headers.get("x-csrf-token", ""), actor, get_settings())
     return {"id": service.add_project_member(session, actor, project_key, payload)}

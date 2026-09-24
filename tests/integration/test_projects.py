@@ -25,14 +25,7 @@ def post(client, path, payload):
 def login(client, login_id):
     client.cookies.clear()
     assert (
-        post(
-            client,
-            "/api/auth/login",
-            {
-                "login_id": login_id,
-                "password": PASSWORD,
-            },
-        ).status_code
+        post(client, "/api/auth/login", {"login_id": login_id, "password": PASSWORD}).status_code
         == 200
     )
 
@@ -88,10 +81,7 @@ def test_create_register_and_my_projects_flow(client, people, db_session):
         post(
             client,
             "/api/projects/DEV/members",
-            {
-                "user_id": people["member"].id,
-                "role": "PROJECT_USER",
-            },
+            {"user_id": people["member"].id, "role": "PROJECT_USER"},
         ).status_code
         == 201
     )
@@ -99,10 +89,7 @@ def test_create_register_and_my_projects_flow(client, people, db_session):
         post(
             client,
             "/api/projects/DEV/members",
-            {
-                "user_id": people["outsider"].id,
-                "role": "PROJECT_GUEST",
-            },
+            {"user_id": people["outsider"].id, "role": "PROJECT_GUEST"},
         ).status_code
         == 201
     )
@@ -169,10 +156,7 @@ def test_permissions_csrf_and_inactive_accounts(client, people, db_session):
         client.post(
             path,
             json=payload,
-            headers={
-                "Origin": "https://evil.test",
-                "X-CSRF-Token": token(client),
-            },
+            headers={"Origin": "https://evil.test", "X-CSRF-Token": token(client)},
         ).status_code
         == 403
     )
@@ -230,10 +214,7 @@ def test_duplicates_inactive_users_and_projects(client, people, db_session):
         post(
             client,
             "/api/projects/DEV/members",
-            {
-                "user_id": people["outsider"].id,
-                "role": "SYSTEM_ADMIN",
-            },
+            {"user_id": people["outsider"].id, "role": "SYSTEM_ADMIN"},
         ).status_code
         == 422
     )
@@ -260,13 +241,7 @@ def test_override_audits_and_member_role_do_not_leak_privileges(client, people, 
     ).all()
     assert len(event) == before + 1 and event[-1].details["permission"] == "read"
     assert (
-        post(
-            client,
-            "/api/projects/DEV/members",
-            {
-                "user_id": people["sysadmin"].id,
-            },
-        ).status_code
+        post(client, "/api/projects/DEV/members", {"user_id": people["sysadmin"].id}).status_code
         == 201
     )
     count = len(
@@ -303,11 +278,7 @@ def test_html_forms_escape_input_and_refresh_from_database(client, people):
     login(client, "manager")
     response = client.post(
         "/projects/WEB/members",
-        data={
-            "csrf_token": token(client),
-            "user_id": people["member"].id,
-            "role": "PROJECT_ADMIN",
-        },
+        data={"csrf_token": token(client), "user_id": people["member"].id, "role": "PROJECT_ADMIN"},
         headers=ORIGIN,
         follow_redirects=False,
     )

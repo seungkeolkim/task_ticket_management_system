@@ -43,7 +43,5 @@ def create_organization(
 ):
     verify_csrf(request, request.headers.get("x-csrf-token", ""), actor, get_settings())
     return {
-        "id": service.create_organization(
-            session, actor, payload, get_client_ip_address(request)
-        )
+        "id": service.create_organization(session, actor, payload, get_client_ip_address(request))
     }

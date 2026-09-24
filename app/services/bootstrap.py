@@ -32,9 +32,7 @@ def bootstrap_admin(
             raise ValueError("Bootstrap display name must contain 1 to 200 characters")
         password_hash = hash_password(password)
         organization = repository.bootstrap_organization(
-            session,
-            settings.bootstrap.organization_key,
-            settings.bootstrap.organization_name,
+            session, settings.bootstrap.organization_key, settings.bootstrap.organization_name
         )
         user = User(
             login_id=login_id,

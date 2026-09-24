@@ -21,9 +21,7 @@ def get_dashboard(session: Session, actor: Identity) -> DashboardView:
     week_end = today + timedelta(days=6 - today.weekday())
     with project_service.project_operation_context(session, actor, "dashboard_read"):
         project_service.is_system_administrator(session, actor)
-        dashboard_count_row = repository.get_dashboard_counts(
-            session, actor.id, today, week_end
-        )
+        dashboard_count_row = repository.get_dashboard_counts(session, actor.id, today, week_end)
         return DashboardView(
             today=today,
             week_end=week_end,
@@ -33,12 +31,7 @@ def get_dashboard(session: Session, actor: Identity) -> DashboardView:
                 for ticket_row in repository.list_recent_tickets(session, actor.id)
             ],
             mentions=[
-                MentionView(
-                    **{
-                        **mention_row,
-                        "excerpt": (mention_row["excerpt"] or "")[:160],
-                    }
-                )
+                MentionView(**{**mention_row, "excerpt": (mention_row["excerpt"] or "")[:160]})
                 for mention_row in repository.list_unread_mentions(session, actor.id)
             ],
         )

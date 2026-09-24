@@ -74,16 +74,10 @@ def ticket_people(client, db_session):
     db_session.add_all(
         [
             ProjectMember(
-                project_id=project.id,
-                user_id=people["manager"].id,
-                role="PROJECT_ADMIN",
+                project_id=project.id, user_id=people["manager"].id, role="PROJECT_ADMIN"
             ),
             ProjectMember(project_id=project.id, user_id=people["member"].id),
-            ProjectMember(
-                project_id=project.id,
-                user_id=people["guest"].id,
-                role="PROJECT_GUEST",
-            ),
+            ProjectMember(project_id=project.id, user_id=people["guest"].id, role="PROJECT_GUEST"),
         ]
     )
     db_session.commit()
@@ -118,21 +112,14 @@ def transition_ticket(client, ticket_key, target_status, expected_version, **ove
     return post(
         client,
         f"/api/projects/DEV/tickets/{ticket_key}/transitions",
-        {
-            "target_status": target_status,
-            "expected_version": expected_version,
-        }
-        | overrides,
+        {"target_status": target_status, "expected_version": expected_version} | overrides,
     )
 
 
 def test_create_list_detail_and_history(client, ticket_people, db_session):
     people, project = ticket_people
     response = create_ticket(
-        client,
-        assignee_id=people["manager"].id,
-        due_date="2026-10-01",
-        priority="CRITICAL",
+        client, assignee_id=people["manager"].id, due_date="2026-10-01", priority="CRITICAL"
     )
     assert response.status_code == 201
     ticket = response.json()
@@ -170,9 +157,7 @@ def test_create_list_detail_and_history(client, ticket_people, db_session):
     assert project.next_ticket_number == 2
 
 
-def test_hierarchy_rules_and_cross_project_parent_are_enforced(
-    client, ticket_people, db_session
-):
+def test_hierarchy_rules_and_cross_project_parent_are_enforced(client, ticket_people, db_session):
     people, _ = ticket_people
     epic = create_ticket(client, type="EPIC", title="상위 Epic").json()
     task = create_ticket(client, title="Epic 아래 Task", parent_key=epic["key"]).json()
@@ -202,9 +187,7 @@ def test_hierarchy_rules_and_cross_project_parent_are_enforced(
     assert client.get("/api/projects/DEV/tickets").json()["total"] == 3
 
 
-def test_permissions_assignee_csrf_and_inactive_project(
-    client, ticket_people, db_session
-):
+def test_permissions_assignee_csrf_and_inactive_project(client, ticket_people, db_session):
     people, project = ticket_people
     path = "/api/projects/DEV/tickets"
     assert client.post(path, json={"title": "CSRF 없음"}, headers=ORIGIN).status_code == 403
@@ -300,9 +283,7 @@ def test_search_and_stable_pagination(client, ticket_people, db_session):
     assert client.get("/api/projects/DEV/tickets?page=0").status_code == 400
 
 
-def test_concurrent_number_allocation_is_monotonic(
-    client, ticket_people, db_session_factory
-):
+def test_concurrent_number_allocation_is_monotonic(client, ticket_people, db_session_factory):
     _, project = ticket_people
     raw_token = client.cookies.get(get_settings().session.cookie_name)
 
@@ -361,9 +342,7 @@ def test_update_moves_hierarchy_preserves_subtasks_and_records_one_history_per_v
         client, type="SUBTASK", title="유지할 Subtask", parent_key=task["key"]
     ).json()
     task_row = db_session.scalar(select(Ticket).where(Ticket.key == task["key"]))
-    first_epic_row = db_session.scalar(
-        select(Ticket).where(Ticket.key == first_epic["key"])
-    )
+    first_epic_row = db_session.scalar(select(Ticket).where(Ticket.key == first_epic["key"]))
     db_session.add(
         TicketRelation(
             project_id=project.id,
@@ -566,9 +545,7 @@ def test_subtask_move_parent_validation_and_cross_project_rejection(
     assert cross_project.json()["code"] == "invalid_parent"
 
 
-def test_parent_cycle_detector_rejects_a_descendant_as_parent(
-    ticket_people, db_session
-):
+def test_parent_cycle_detector_rejects_a_descendant_as_parent(ticket_people, db_session):
     people, project = ticket_people
     first = Ticket(
         project_id=project.id,
@@ -592,20 +569,14 @@ def test_parent_cycle_detector_rejects_a_descendant_as_parent(
     db_session.add(second)
     db_session.commit()
 
-    assert ticket_repository.parent_would_cycle(
-        db_session, project.id, first.id, second.id
-    )
+    assert ticket_repository.parent_would_cycle(db_session, project.id, first.id, second.id)
 
 
-def test_completion_dependency_and_epic_confirmation_guards(
-    client, ticket_people, db_session
-):
+def test_completion_dependency_and_epic_confirmation_guards(client, ticket_people, db_session):
     people, project = ticket_people
     target = create_ticket(client, title="선행 티켓").json()
     source = create_ticket(client, title="후행 티켓").json()
-    source_progress = transition_ticket(
-        client, source["key"], "IN_PROGRESS", 1
-    ).json()
+    source_progress = transition_ticket(client, source["key"], "IN_PROGRESS", 1).json()
     source_row = db_session.scalar(select(Ticket).where(Ticket.key == source["key"]))
     target_row = db_session.scalar(select(Ticket).where(Ticket.key == target["key"]))
     db_session.add(
@@ -620,9 +591,7 @@ def test_completion_dependency_and_epic_confirmation_guards(
     )
     db_session.commit()
 
-    blocked = transition_ticket(
-        client, source["key"], "DONE", source_progress["version"]
-    )
+    blocked = transition_ticket(client, source["key"], "DONE", source_progress["version"])
     assert blocked.status_code == 409 and blocked.json()["code"] == "incomplete_dependency"
     target_progress = transition_ticket(client, target["key"], "IN_PROGRESS", 1).json()
     transition_ticket(client, target["key"], "DONE", target_progress["version"])
@@ -631,17 +600,11 @@ def test_completion_dependency_and_epic_confirmation_guards(
     epic = create_ticket(client, type="EPIC", title="확인 Epic").json()
     create_ticket(client, title="미완료 하위 Task", parent_key=epic["key"])
     epic_progress = transition_ticket(client, epic["key"], "IN_PROGRESS", 1).json()
-    confirmation = transition_ticket(
-        client, epic["key"], "DONE", epic_progress["version"]
-    )
+    confirmation = transition_ticket(client, epic["key"], "DONE", epic_progress["version"])
     assert confirmation.status_code == 409
     assert confirmation.json()["code"] == "incomplete_child_confirmation_required"
     confirmed = transition_ticket(
-        client,
-        epic["key"],
-        "DONE",
-        epic_progress["version"],
-        confirm_incomplete_children=True,
+        client, epic["key"], "DONE", epic_progress["version"], confirm_incomplete_children=True
     )
     assert confirmed.status_code == 200 and confirmed.json()["status"] == "DONE"
 
@@ -650,19 +613,13 @@ def test_project_user_write_admin_override_terminal_and_inactive_project(
     client, ticket_people, db_session
 ):
     people, project = ticket_people
-    ticket = create_ticket(
-        client, title="권한 티켓", assignee_id=people["manager"].id
-    ).json()
+    ticket = create_ticket(client, title="권한 티켓", assignee_id=people["manager"].id).json()
     login(client, "manager")
     manager_update = update_ticket(client, ticket["key"], 1, title="관리자 수정")
     assert manager_update.status_code == 200
 
     db_session.add(
-        ProjectMember(
-            project_id=project.id,
-            user_id=people["outsider"].id,
-            role="PROJECT_USER",
-        )
+        ProjectMember(project_id=project.id, user_id=people["outsider"].id, role="PROJECT_USER")
     )
     db_session.commit()
     login(client, "outsider")
@@ -676,9 +633,7 @@ def test_project_user_write_admin_override_terminal_and_inactive_project(
         client, title="일반 담당자 티켓", assignee_id=people["outsider"].id
     ).json()
     login(client, "outsider")
-    assignee_update = update_ticket(
-        client, assigned["key"], 1, title="담당자 직접 수정"
-    )
+    assignee_update = update_ticket(client, assigned["key"], 1, title="담당자 직접 수정")
     assert assignee_update.status_code == 200
 
     login(client, "sysadmin")
@@ -695,9 +650,7 @@ def test_project_user_write_admin_override_terminal_and_inactive_project(
     cancelled = transition_ticket(client, ticket["key"], "CANCELLED", 4).json()
     locked = update_ticket(client, ticket["key"], cancelled["version"])
     assert locked.status_code == 409 and locked.json()["code"] == "terminal_ticket_locked"
-    reopened = transition_ticket(
-        client, ticket["key"], "TODO", cancelled["version"]
-    ).json()
+    reopened = transition_ticket(client, ticket["key"], "TODO", cancelled["version"]).json()
     project.is_active = False
     db_session.commit()
     assert client.get(f"/api/projects/DEV/tickets/{ticket['key']}").status_code == 200
@@ -705,15 +658,11 @@ def test_project_user_write_admin_override_terminal_and_inactive_project(
     assert client.get("/api/projects/DEV/tickets/board").status_code == 200
     inactive = update_ticket(client, ticket["key"], reopened["version"])
     assert inactive.status_code == 409 and inactive.json()["code"] == "project_inactive"
-    transition = transition_ticket(
-        client, ticket["key"], "IN_PROGRESS", reopened["version"]
-    )
+    transition = transition_ticket(client, ticket["key"], "IN_PROGRESS", reopened["version"])
     assert transition.status_code == 409 and transition.json()["code"] == "project_inactive"
 
 
-def test_expected_version_required_and_stale_write_rolls_back(
-    client, ticket_people, db_session
-):
+def test_expected_version_required_and_stale_write_rolls_back(client, ticket_people, db_session):
     ticket = create_ticket(client, title="충돌 티켓").json()
     first = update_ticket(client, ticket["key"], 1, title="먼저 저장").json()
     stale = update_ticket(client, ticket["key"], 1, title="늦은 저장")
@@ -763,10 +712,7 @@ def test_update_audit_failure_rolls_back_ticket_and_history(
                 "DEV",
                 ticket["key"],
                 TicketUpdate(
-                    title="반영되면 안 됨",
-                    description="",
-                    priority="MAJOR",
-                    expected_version=1,
+                    title="반영되면 안 됨", description="", priority="MAJOR", expected_version=1
                 ),
             )
         with pytest.raises(RuntimeError):
@@ -791,9 +737,7 @@ def test_update_audit_failure_rolls_back_ticket_and_history(
         )
 
 
-def test_html_edit_csrf_stale_guidance_and_transition_controls(
-    client, ticket_people
-):
+def test_html_edit_csrf_stale_guidance_and_transition_controls(client, ticket_people):
     ticket = create_ticket(client, title="HTML 편집 티켓").json()
     edit_page = client.get(f"/projects/DEV/tickets/{ticket['key']}/edit")
     assert edit_page.status_code == 200
@@ -801,11 +745,7 @@ def test_html_edit_csrf_stale_guidance_and_transition_controls(
     assert (
         client.post(
             f"/projects/DEV/tickets/{ticket['key']}",
-            data={
-                "title": "CSRF 없는 수정",
-                "priority": "MAJOR",
-                "expected_version": "1",
-            },
+            data={"title": "CSRF 없는 수정", "priority": "MAJOR", "expected_version": "1"},
             headers=ORIGIN,
         ).status_code
         == 403
@@ -1174,9 +1114,7 @@ def test_board_transition_metadata_dependency_permission_and_javascript(
                 created_by_id=people["member"].id,
             ),
             ProjectMember(
-                project_id=project.id,
-                user_id=people["outsider"].id,
-                role="PROJECT_USER",
+                project_id=project.id, user_id=people["outsider"].id, role="PROJECT_USER"
             ),
         ]
     )
@@ -1207,25 +1145,19 @@ def test_board_transition_metadata_dependency_permission_and_javascript(
     assert "data-board-status" in html
 
     login(client, "outsider")
-    outsider_card = find_card(
-        client.get("/api/projects/DEV/tickets/board").json(), source["key"]
-    )
+    outsider_card = find_card(client.get("/api/projects/DEV/tickets/board").json(), source["key"])
     assert outsider_card["can_transition"] is True
     assert outsider_card["allowed_statuses"]
 
     login(client, "guest")
-    guest_card = find_card(
-        client.get("/api/projects/DEV/tickets/board").json(), source["key"]
-    )
+    guest_card = find_card(client.get("/api/projects/DEV/tickets/board").json(), source["key"])
     assert guest_card["can_transition"] is False
     assert guest_card["allowed_statuses"] == []
 
     login(client, "member")
     project.is_active = False
     db_session.commit()
-    inactive_card = find_card(
-        client.get("/api/projects/DEV/tickets/board").json(), source["key"]
-    )
+    inactive_card = find_card(client.get("/api/projects/DEV/tickets/board").json(), source["key"])
     assert inactive_card["can_transition"] is False
 
     script = client.get("/static/board.js")

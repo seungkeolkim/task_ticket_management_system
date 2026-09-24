@@ -52,9 +52,7 @@ def render_project_list_page(
         result=result,
         q=search_query,
         candidates=(
-            service.list_project_candidates(
-                session, actor, search_query=candidate_search_query
-            )
+            service.list_project_candidates(session, actor, search_query=candidate_search_query)
             if is_administrator_page
             else []
         ),
@@ -75,12 +73,7 @@ def my_projects_page(
     page_size: int | None = None,
 ):
     return render_project_list_page(
-        request,
-        session,
-        actor,
-        search_query=search_query,
-        page=page,
-        page_size=page_size,
+        request, session, actor, search_query=search_query, page=page, page_size=page_size
     )
 
 
@@ -147,23 +140,13 @@ def create_project(
 
 
 def render_project_detail_page(
-    request,
-    session,
-    actor,
-    project_key,
-    *,
-    member_page=False,
-    candidate_search_query="",
-    **context,
+    request, session, actor, project_key, *, member_page=False, candidate_search_query="", **context
 ):
     detail = service.get_project_detail(session, actor, project_key)
     project = detail.project
     candidates = (
         service.list_project_candidates(
-            session,
-            actor,
-            project_key=project_key,
-            search_query=candidate_search_query,
+            session, actor, project_key=project_key, search_query=candidate_search_query
         )
         if (member_page and project.can_manage and project.is_active)
         else []

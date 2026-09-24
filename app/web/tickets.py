@@ -62,9 +62,7 @@ def global_ticket_list_page(
 
 
 @router.get("/projects/{project_key}/board")
-def project_ticket_board_page(
-    project_key: str, request: Request, session: Database, actor: Actor
-):
+def project_ticket_board_page(project_key: str, request: Request, session: Database, actor: Actor):
     project, board = service.build_ticket_board(session, actor, project_key)
     return render(
         request,
@@ -156,18 +154,11 @@ def project_ticket_list_page(
     created: bool = False,
 ):
     project, result = service.list_project_tickets(
-        session,
-        actor,
-        project_key,
-        search_query=search_query,
-        page=page,
-        page_size=page_size,
+        session, actor, project_key, search_query=search_query, page=page, page_size=page_size
     )
     selected_ticket = None
     if selected:
-        _, selected_ticket = service.get_ticket_detail(
-            session, actor, project_key, selected
-        )
+        _, selected_ticket = service.get_ticket_detail(session, actor, project_key, selected)
     query = {"q": search_query, "page_size": result.page_size}
     return render(
         request,
@@ -180,8 +171,7 @@ def project_ticket_list_page(
         q=search_query,
         selected_ticket=selected_ticket,
         created=created,
-        previous_url=f"/projects/{project.key}/tickets?"
-        + urlencode(query | {"page": page - 1}),
+        previous_url=f"/projects/{project.key}/tickets?" + urlencode(query | {"page": page - 1}),
         next_url=f"/projects/{project.key}/tickets?" + urlencode(query | {"page": page + 1}),
     )
 
@@ -193,11 +183,7 @@ def new_ticket_page(project_key: str, request: Request, session: Database, actor
 
 @router.get("/projects/{project_key}/tickets/{ticket_key}/edit")
 def edit_ticket_page(
-    project_key: str,
-    ticket_key: str,
-    request: Request,
-    session: Database,
-    actor: Actor,
+    project_key: str, ticket_key: str, request: Request, session: Database, actor: Actor
 ):
     return _render_ticket_edit_page(request, session, actor, project_key, ticket_key)
 
@@ -338,9 +324,7 @@ def transition_ticket_submit(
             expected_version=expected_version,
             confirm_incomplete_children=confirm_incomplete_children,
         )
-        ticket = service.transition_ticket(
-            session, actor, project_key, ticket_key, payload
-        )
+        ticket = service.transition_ticket(session, actor, project_key, ticket_key, payload)
     except (ValidationError, AuthError) as error:
         if isinstance(error, AuthError) and error.status_code in {401, 403, 404}:
             raise
@@ -354,9 +338,7 @@ def transition_ticket_submit(
             actor,
             project_key,
             ticket_key,
-            error=error.message
-            if isinstance(error, AuthError)
-            else "상태 변경 요청을 확인하세요.",
+            error=error.message if isinstance(error, AuthError) else "상태 변경 요청을 확인하세요.",
             confirmation_status=target_status if confirmation else None,
             status_code=error.status_code if isinstance(error, AuthError) else 422,
         )
