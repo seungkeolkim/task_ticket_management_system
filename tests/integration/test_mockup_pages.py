@@ -48,7 +48,7 @@ def authenticated_client(client: TestClient, db_session: Session) -> TestClient:
         ("/projects/OPS/board", "칸반 보드"),
         ("/projects/OPS/settings", "프로젝트 프로필"),
         ("/projects/OPS/members", "구성원과 역할"),
-        ("/projects/OPS/trash", "이 업무 기능은 준비 중"),
+        ("/projects/OPS/trash", "프로젝트 휴지통"),
         ("/admin/users", "사용자 관리"),
         ("/admin/organizations", "조직 구조"),
         ("/admin/projects", "전체 프로젝트 관리"),
