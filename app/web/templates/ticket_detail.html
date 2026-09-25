@@ -4,7 +4,11 @@
 {% block content %}
 <div class="detail-page-head">
   <div class="breadcrumbs"><a href="/projects">프로젝트</a><span>›</span><a href="/projects/{{ project.key }}/tickets">{{ project.key }} 티켓</a><span>›</span><strong>{{ ticket.key }}</strong></div>
-  <div class="page-actions">{% if can_edit and project.is_active and ticket.status.value not in ['DONE', 'CANCELLED'] %}<a class="button secondary" href="/projects/{{ project.key }}/tickets/{{ ticket.key }}/edit">편집</a>{% endif %}<a class="button secondary" href="/projects/{{ project.key }}/tickets?selected={{ ticket.key }}">목록에서 보기</a></div>
+  <div class="page-actions">
+    {% if can_edit and project.is_active and ticket.status.value not in ['DONE', 'CANCELLED'] %}<a class="button secondary" href="/projects/{{ project.key }}/tickets/{{ ticket.key }}/edit">편집</a>{% endif %}
+    <a class="button secondary" href="/projects/{{ project.key }}/tickets?selected={{ ticket.key }}">목록에서 보기</a>
+    {% if can_edit and project.is_active %}<form action="/projects/{{ project.key }}/tickets/{{ ticket.key }}/trash" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="expected_version" value="{{ ticket.version }}"><button class="button danger-outline" type="submit">휴지통으로 이동</button></form>{% endif %}
+  </div>
 </div>
 {% if created %}<div class="auth-message success" role="status">티켓을 생성하고 최초 변경 이력을 기록했습니다.</div>{% endif %}
 {% if updated %}<div class="auth-message success" role="status">티켓을 수정하고 변경 이력을 기록했습니다.</div>{% endif %}

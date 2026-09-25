@@ -16,7 +16,7 @@ from app.domain.codes import (
     TicketStatus,
     TicketType,
 )
-from app.models import AuditLog, Ticket, TicketHistory, TicketRelation
+from app.models import AuditLog, Ticket, TicketDeletionBatch, TicketHistory, TicketRelation
 from app.repositories import tickets as repository
 from app.schemas.contracts import FieldChange, RelationSnapshot, TicketEvent, TicketState
 from app.schemas.tickets import (
@@ -38,6 +38,10 @@ from app.schemas.tickets import (
     TicketRelationTargetView,
     TicketRelationView,
     TicketTransition,
+    TicketTrashBatchView,
+    TicketTrashMove,
+    TicketTrashPage,
+    TicketTrashRestore,
     TicketUpdate,
     TicketUserView,
     TicketView,
@@ -385,6 +389,13 @@ def can_edit_ticket(project_view, ticket: Ticket | TicketView, actor: Identity) 
     )
 
 
+def can_restore_ticket(project_view) -> bool:
+    """현재 프로젝트에서 휴지통 복구 권한이 있는지 반환한다."""
+    return project_view.is_active and (
+        project_view.role in {ProjectRole.ADMIN, ProjectRole.USER} or project_view.can_manage
+    )
+
+
 def _require_active_project(project) -> None:
     """프로젝트가 활성 상태인지 검증한다."""
     if not project.is_active:
@@ -650,6 +661,255 @@ def get_ticket_detail(session: Session, actor: Identity, project_key: str, ticke
             actor.id,
             override=uses_system_administrator_override(project),
         )
+
+
+def _build_trash_batch_view(trash_row, *, can_restore: bool) -> TicketTrashBatchView:
+    """휴지통 조회 row를 API·화면 view로 변환한다."""
+    batch = trash_row[0]
+    mapping = trash_row._mapping
+    root_ticket_type = TicketType(mapping["root_ticket_type"])
+    is_expired = batch.purge_after <= utc_now()
+    return TicketTrashBatchView(
+        id=batch.id,
+        project_id=batch.project_id,
+        root_ticket_key=batch.root_ticket_key,
+        root_ticket_title=mapping["root_ticket_title"],
+        root_ticket_type=root_ticket_type,
+        root_ticket_type_label=TYPE_LABELS[root_ticket_type],
+        root_ticket_version=mapping["root_ticket_version"],
+        deleted_by=TicketUserView(
+            id=mapping["deleted_by_id"],
+            login_id=mapping["deleted_by_login_id"],
+            display_name=mapping["deleted_by_display_name"],
+        ),
+        deleted_at=batch.deleted_at,
+        purge_after=batch.purge_after,
+        child_count=max(mapping["child_count"] or 0, 0),
+        is_expired=is_expired,
+        can_restore=can_restore and not is_expired,
+    )
+
+
+def list_ticket_trash(
+    session: Session, actor: Identity, project_key: str, *, search_query: str = ""
+):
+    """프로젝트의 복구 가능한 티켓 삭제 batch를 조회한다."""
+    if len(search_query) > 200:
+        raise AuthError("invalid_filter", "검색어는 200자 이하로 입력하세요.")
+    with project_service.project_operation_context(session, actor, "ticket_trash_list"):
+        project = _get_project(session, actor, project_key)
+        restore_allowed = can_restore_ticket(project)
+        rows = repository.trash_batch_rows(session, project.id, search_query.strip())
+        result = TicketTrashPage(
+            batches=[_build_trash_batch_view(row, can_restore=restore_allowed) for row in rows],
+            retention_days=get_settings().ticket_trash.retention_days,
+            can_restore=restore_allowed,
+        )
+        return project, result
+
+
+def move_ticket_to_trash(
+    session: Session,
+    actor: Identity,
+    project_key: str,
+    ticket_key: str,
+    payload: TicketTrashMove,
+) -> TicketTrashBatchView:
+    """티켓과 현재 활성 하위 계층을 하나의 batch로 휴지통에 이동한다."""
+    with project_service.project_operation_context(
+        session,
+        actor,
+        "ticket_trash_move",
+        write_operation=True,
+        conflict_code="ticket_trash_conflict",
+        conflict_message="티켓 삭제 상태가 변경되었습니다. 다시 확인하세요.",
+        stale_code="ticket_version_conflict",
+    ):
+        project = _get_writable_project(session, actor, project_key)
+        _require_active_project(project)
+        root_row = _get_ticket_row(session, actor, project, ticket_key)
+        root_ticket = root_row[0]
+        _require_expected_version(root_ticket, payload.expected_version)
+        hierarchy = repository.active_ticket_hierarchy(session, project.id, root_ticket)
+        hierarchy_ids = {ticket.id for ticket in hierarchy}
+        dependency_blockers = repository.active_dependency_blockers(
+            session, project.id, hierarchy_ids
+        )
+        if dependency_blockers:
+            blocker_preview = ", ".join(dependency_blockers[:3])
+            if len(dependency_blockers) > 3:
+                blocker_preview += f" 외 {len(dependency_blockers) - 3}개"
+            raise AuthError(
+                "active_dependency_blocks_trash",
+                f"활성 티켓 {blocker_preview}의 의존 대상이므로 휴지통으로 이동할 수 없습니다.",
+                409,
+            )
+
+        now = utc_now()
+        batch = TicketDeletionBatch(
+            project_id=project.id,
+            root_ticket_key=root_ticket.key,
+            deleted_by_id=actor.id,
+            deleted_at=now,
+            purge_after=now + timedelta(days=get_settings().ticket_trash.retention_days),
+        )
+        session.add(batch)
+        session.flush()
+        parent_keys = {
+            ticket.id: repository.parent_key_for_ticket(session, project.id, ticket)
+            for ticket in hierarchy
+        }
+        before_states = {
+            ticket.id: _build_ticket_snapshot(session, ticket, parent_keys[ticket.id])
+            for ticket in hierarchy
+        }
+        for ticket in hierarchy:
+            ticket.deleted_at = now
+            ticket.deletion_batch_id = batch.id
+            ticket.updated_at = now
+        session.flush()
+
+        operation_id = uuid4()
+        for ticket in hierarchy:
+            after_state = _build_ticket_snapshot(session, ticket, parent_keys[ticket.id])
+            session.add(
+                _build_ticket_change_history(
+                    ticket,
+                    actor.id,
+                    HistoryEventType.DELETED,
+                    before_states[ticket.id],
+                    after_state,
+                    ("deleted_at",),
+                    operation_id=operation_id,
+                )
+            )
+            record_ticket_audit_event(
+                session,
+                "ticket.moved_to_trash",
+                actor.id,
+                ticket,
+                deletion_batch_id=batch.id,
+                root_ticket_key=root_ticket.key,
+                operation_id=str(operation_id),
+                from_version=before_states[ticket.id].version,
+                to_version=after_state.version,
+            )
+        session.flush()
+        trash_row = next(
+            row for row in repository.trash_batch_rows(session, project.id) if row[0].id == batch.id
+        )
+        result = _build_trash_batch_view(trash_row, can_restore=True)
+    logger.info(
+        "ticket_hierarchy_moved_to_trash actor_id=%s project_id=%s "
+        "deletion_batch_id=%s ticket_count=%s",
+        actor.id,
+        result.project_id,
+        result.id,
+        result.child_count + 1,
+    )
+    return result
+
+
+def restore_ticket_trash_batch(
+    session: Session,
+    actor: Identity,
+    project_key: str,
+    batch_id: int,
+    payload: TicketTrashRestore,
+) -> TicketView:
+    """삭제 batch에 포함된 티켓 계층을 함께 복구한다."""
+    with project_service.project_operation_context(
+        session,
+        actor,
+        "ticket_trash_restore",
+        write_operation=True,
+        conflict_code="ticket_trash_conflict",
+        conflict_message="티켓 복구 상태가 변경되었습니다. 다시 확인하세요.",
+        stale_code="ticket_version_conflict",
+    ):
+        project = _get_writable_project(session, actor, project_key)
+        _require_active_project(project)
+        batch = repository.deletion_batch(session, project.id, batch_id)
+        if batch is None:
+            raise AuthError(
+                "ticket_trash_batch_not_found", "복구할 휴지통 항목을 찾을 수 없습니다.", 404
+            )
+        hierarchy = repository.tickets_in_deletion_batch(session, project.id, batch.id)
+        root_ticket = next(
+            (ticket for ticket in hierarchy if ticket.key == batch.root_ticket_key), None
+        )
+        if root_ticket is None:
+            raise AuthError(
+                "ticket_trash_batch_not_found", "복구할 휴지통 항목을 찾을 수 없습니다.", 404
+            )
+        now = utc_now()
+        if batch.purge_after <= now:
+            raise AuthError(
+                "ticket_trash_retention_expired",
+                "보존 기간이 만료되어 이 항목을 복구할 수 없습니다.",
+                409,
+            )
+        _require_expected_version(root_ticket, payload.expected_version)
+        if repository.deleted_parent_outside_batch_exists(session, project.id, batch.id):
+            raise AuthError(
+                "deleted_parent_blocks_restore",
+                "상위 티켓을 먼저 복구해야 이 항목을 복구할 수 있습니다.",
+                409,
+            )
+
+        parent_keys = {
+            ticket.id: repository.parent_key_for_ticket(session, project.id, ticket)
+            for ticket in hierarchy
+        }
+        before_states = {
+            ticket.id: _build_ticket_snapshot(session, ticket, parent_keys[ticket.id])
+            for ticket in hierarchy
+        }
+        for ticket in hierarchy:
+            ticket.deleted_at = None
+            ticket.deletion_batch_id = None
+            ticket.updated_at = now
+        batch.restored_at = now
+        batch.restored_by_id = actor.id
+        session.flush()
+
+        operation_id = uuid4()
+        for ticket in hierarchy:
+            after_state = _build_ticket_snapshot(session, ticket, parent_keys[ticket.id])
+            session.add(
+                _build_ticket_change_history(
+                    ticket,
+                    actor.id,
+                    HistoryEventType.RESTORED,
+                    before_states[ticket.id],
+                    after_state,
+                    ("deleted_at",),
+                    operation_id=operation_id,
+                )
+            )
+            record_ticket_audit_event(
+                session,
+                "ticket.restored",
+                actor.id,
+                ticket,
+                deletion_batch_id=batch.id,
+                root_ticket_key=root_ticket.key,
+                operation_id=str(operation_id),
+                from_version=before_states[ticket.id].version,
+                to_version=after_state.version,
+            )
+        session.flush()
+        restored_row = _get_ticket_row(session, actor, project, root_ticket.key)
+        result = build_ticket_view(restored_row)
+        restored_ticket_count = len(hierarchy)
+    logger.info(
+        "ticket_hierarchy_restored actor_id=%s project_id=%s deletion_batch_id=%s ticket_count=%s",
+        actor.id,
+        result.project_id,
+        batch_id,
+        restored_ticket_count,
+    )
+    return result
 
 
 def _relation_endpoint_rows(session: Session, actor: Identity, project, relation: TicketRelation):

@@ -10,7 +10,9 @@ from app.core.config import get_settings
 from app.db.session import get_db_session
 from app.domain.auth import AuthError, Identity
 from app.schemas.projects import MemberCreate, ProjectCreate
+from app.schemas.tickets import TicketTrashRestore
 from app.services import projects as service
+from app.services import tickets as ticket_service
 from app.web.rendering import render
 from app.web.security import require_web_admin, require_web_user, verify_csrf
 
@@ -236,7 +238,82 @@ def add_project_member(
     return RedirectResponse(f"/projects/{project_key}/members?added=1", status_code=303)
 
 
+def render_project_trash_page(
+    request: Request,
+    session: Session,
+    actor: Identity,
+    project_key: str,
+    *,
+    search_query: str = "",
+    **context,
+):
+    """실제 삭제 batch를 사용하는 프로젝트 휴지통 화면을 렌더링한다."""
+    project, trash = ticket_service.list_ticket_trash(
+        session, actor, project_key, search_query=search_query
+    )
+    return render(
+        request,
+        "trash.html",
+        live_page=True,
+        page_title=f"휴지통 · {project.key}",
+        active="trash",
+        project=project,
+        trash=trash,
+        q=search_query,
+        **context,
+    )
+
+
 @router.get("/projects/{project_key}/trash")
-def project_trash_page(project_key: str, request: Request, session: Database, actor: Actor):
+def project_trash_page(
+    project_key: str,
+    request: Request,
+    session: Database,
+    actor: Actor,
+    search_query: Annotated[str, Query(alias="q")] = "",
+    deleted: str | None = None,
+    restored: str | None = None,
+):
     """프로젝트 휴지통 화면을 렌더링한다."""
-    return render_project_detail_page(request, session, actor, project_key, pending=True)
+    return render_project_trash_page(
+        request,
+        session,
+        actor,
+        project_key,
+        search_query=search_query,
+        deleted=deleted,
+        restored=restored,
+    )
+
+
+@router.post("/projects/{project_key}/trash/{batch_id}/restore")
+def restore_project_trash_batch(
+    project_key: str,
+    batch_id: int,
+    request: Request,
+    session: Database,
+    actor: Actor,
+    expected_version: Annotated[str, Form()] = "",
+    csrf_token: Annotated[str, Form()] = "",
+):
+    """프로젝트 휴지통의 삭제 batch 복구를 처리한다."""
+    verify_csrf(request, csrf_token, actor, get_settings())
+    try:
+        payload = TicketTrashRestore(expected_version=expected_version)
+        ticket = ticket_service.restore_ticket_trash_batch(
+            session, actor, project_key, batch_id, payload
+        )
+    except (ValidationError, AuthError) as error:
+        if isinstance(error, AuthError) and error.status_code in {401, 403, 404}:
+            raise
+        return render_project_trash_page(
+            request,
+            session,
+            actor,
+            project_key,
+            error=error.message
+            if isinstance(error, AuthError)
+            else "복구할 티켓과 현재 버전을 확인하세요.",
+            status_code=error.status_code if isinstance(error, AuthError) else 422,
+        )
+    return RedirectResponse(f"/projects/{project_key}/trash?restored={ticket.key}", status_code=303)

@@ -14,6 +14,7 @@ from app.schemas.tickets import (
     TicketRelationCreate,
     TicketRelationDelete,
     TicketTransition,
+    TicketTrashMove,
     TicketUpdate,
 )
 from app.services import tickets as service
@@ -445,6 +446,40 @@ def delete_ticket_relation_submit(
         )
     return RedirectResponse(
         f"/projects/{project_key}/tickets/{ticket.key}?relation_deleted=1", status_code=303
+    )
+
+
+@router.post("/projects/{project_key}/tickets/{ticket_key}/trash")
+def move_ticket_to_trash_submit(
+    project_key: str,
+    ticket_key: str,
+    request: Request,
+    session: Database,
+    actor: Actor,
+    expected_version: Annotated[str, Form()] = "",
+    csrf_token: Annotated[str, Form()] = "",
+):
+    """티켓 계층의 form 휴지통 이동을 처리한다."""
+    verify_csrf(request, csrf_token, actor, get_settings())
+    try:
+        payload = TicketTrashMove(expected_version=expected_version)
+        batch = service.move_ticket_to_trash(session, actor, project_key, ticket_key, payload)
+    except (ValidationError, AuthError) as error:
+        if isinstance(error, AuthError) and error.status_code in {401, 403, 404}:
+            raise
+        return _render_ticket_detail_page(
+            request,
+            session,
+            actor,
+            project_key,
+            ticket_key,
+            error=error.message
+            if isinstance(error, AuthError)
+            else "휴지통 이동 요청과 현재 버전을 확인하세요.",
+            status_code=error.status_code if isinstance(error, AuthError) else 422,
+        )
+    return RedirectResponse(
+        f"/projects/{project_key}/trash?deleted={batch.root_ticket_key}", status_code=303
     )
 
 

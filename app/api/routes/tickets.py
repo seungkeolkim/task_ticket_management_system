@@ -15,6 +15,10 @@ from app.schemas.tickets import (
     TicketRelationCreate,
     TicketRelationDelete,
     TicketTransition,
+    TicketTrashBatchView,
+    TicketTrashMove,
+    TicketTrashPage,
+    TicketTrashRestore,
     TicketUpdate,
     TicketView,
 )
@@ -87,6 +91,31 @@ def get_ticket_board_api(project_key: str, session: Database, actor: Actor):
     return service.build_ticket_board(session, actor, project_key)[1]
 
 
+@router.get("/trash", response_model=TicketTrashPage)
+def list_ticket_trash_api(
+    project_key: str,
+    session: Database,
+    actor: Actor,
+    search_query: Annotated[str, Query(alias="q")] = "",
+):
+    """프로젝트 티켓 휴지통 API 목록을 조회한다."""
+    return service.list_ticket_trash(session, actor, project_key, search_query=search_query)[1]
+
+
+@router.post("/trash/{batch_id}/restore", response_model=TicketView)
+def restore_ticket_trash_batch_api(
+    project_key: str,
+    batch_id: int,
+    request: Request,
+    payload: TicketTrashRestore,
+    session: Database,
+    actor: Actor,
+):
+    """티켓 삭제 batch API 복구를 처리한다."""
+    verify_csrf(request, request.headers.get("x-csrf-token", ""), actor, get_settings())
+    return service.restore_ticket_trash_batch(session, actor, project_key, batch_id, payload)
+
+
 @router.patch("/{ticket_key}", response_model=TicketView)
 def update_ticket_api(
     project_key: str,
@@ -144,6 +173,20 @@ def delete_ticket_relation_api(
     return service.delete_ticket_relation(
         session, actor, project_key, ticket_key, relation_id, payload
     )
+
+
+@router.delete("/{ticket_key}", response_model=TicketTrashBatchView)
+def move_ticket_to_trash_api(
+    project_key: str,
+    ticket_key: str,
+    request: Request,
+    payload: TicketTrashMove,
+    session: Database,
+    actor: Actor,
+):
+    """티켓 계층의 API 휴지통 이동을 처리한다."""
+    verify_csrf(request, request.headers.get("x-csrf-token", ""), actor, get_settings())
+    return service.move_ticket_to_trash(session, actor, project_key, ticket_key, payload)
 
 
 @router.get("/{ticket_key}", response_model=TicketDetailView)

@@ -24,6 +24,7 @@ from app.schemas.tickets import (
     TicketCreate,
     TicketRelationCreate,
     TicketTransition,
+    TicketTrashMove,
     TicketUpdate,
 )
 from app.services import dashboard as dashboard_service
@@ -146,6 +147,24 @@ def create_relation(client, ticket_key, target_ticket_key, relation_type, expect
             "relation_type": relation_type,
             "expected_version": expected_version,
         },
+    )
+
+
+def move_to_trash(client, ticket_key, expected_version):
+    """테스트용 티켓 계층을 휴지통으로 이동한다."""
+    return delete(
+        client,
+        f"/api/projects/DEV/tickets/{ticket_key}",
+        {"expected_version": expected_version},
+    )
+
+
+def restore_trash_batch(client, batch_id, expected_version):
+    """테스트용 티켓 삭제 batch를 복구한다."""
+    return post(
+        client,
+        f"/api/projects/DEV/tickets/trash/{batch_id}/restore",
+        {"expected_version": expected_version},
     )
 
 
@@ -425,6 +444,284 @@ def test_hierarchy_rules_and_cross_project_parent_are_enforced(client, ticket_pe
     assert create_ticket(client, parent_key="OPS-1").status_code == 400
     assert client.get("/api/projects/DEV/tickets/OPS-1").status_code == 404
     assert client.get("/api/projects/DEV/tickets").json()["total"] == 3
+
+
+def test_trash_hierarchy_lifecycle_records_history_and_hides_active_queries(
+    client, ticket_people, db_session
+):
+    """계층 휴지통 이동·조회 제외·batch 복구와 변경 이력을 검증한다."""
+    _, project = ticket_people
+    epic = create_ticket(client, type="EPIC", title="삭제 Epic").json()
+    task = create_ticket(client, title="삭제 Task", parent_key=epic["key"]).json()
+    subtask = create_ticket(
+        client, type="SUBTASK", title="삭제 Subtask", parent_key=task["key"]
+    ).json()
+    assert "휴지통으로 이동" in client.get(
+        f"/projects/DEV/tickets/{epic['key']}"
+    ).text
+
+    moved = move_to_trash(client, epic["key"], epic["version"])
+    assert moved.status_code == 200
+    deletion_batch = moved.json()
+    assert deletion_batch["root_ticket_key"] == epic["key"]
+    assert deletion_batch["root_ticket_version"] == 2
+    assert deletion_batch["child_count"] == 2
+    assert deletion_batch["can_restore"] is True
+    assert deletion_batch["is_expired"] is False
+
+    active_page = client.get("/api/projects/DEV/tickets").json()
+    assert active_page["total"] == 0
+    assert client.get("/api/projects/DEV/tickets/board").json()["groups"] == [
+        {
+            "key": None,
+            "title": "Epic 없음",
+            "columns": [
+                {
+                    "status": status,
+                    "label": label,
+                    "code": code,
+                    "card_count": 0,
+                    "tasks": [],
+                    "detached_groups": [],
+                }
+                for status, label, code in [
+                    ("TODO", "등록", "todo"),
+                    ("IN_PROGRESS", "진행중", "progress"),
+                    ("ON_HOLD", "보류", "hold"),
+                    ("DONE", "완료", "done"),
+                    ("CANCELLED", "취소", "cancelled"),
+                ]
+            ],
+        }
+    ]
+    for ticket_key in (epic["key"], task["key"], subtask["key"]):
+        assert client.get(f"/api/projects/DEV/tickets/{ticket_key}").status_code == 404
+
+    trash_page = client.get("/api/projects/DEV/tickets/trash?q=삭제").json()
+    assert len(trash_page["batches"]) == 1
+    assert trash_page["batches"][0]["id"] == deletion_batch["id"]
+    trash_html = client.get("/projects/DEV/trash?q=삭제")
+    assert trash_html.status_code == 200
+    assert "삭제 Epic" in trash_html.text and "하위 티켓 2개 포함" in trash_html.text
+
+    db_session.expire_all()
+    deleted_rows = db_session.scalars(
+        select(Ticket).where(Ticket.project_id == project.id).order_by(Ticket.number)
+    ).all()
+    assert all(ticket.deleted_at is not None for ticket in deleted_rows)
+    assert {ticket.deletion_batch_id for ticket in deleted_rows} == {deletion_batch["id"]}
+    deletion_histories = db_session.scalars(
+        select(TicketHistory)
+        .where(TicketHistory.event_type == "DELETED")
+        .order_by(TicketHistory.ticket_id)
+    ).all()
+    assert len(deletion_histories) == 3
+    assert len({history.operation_id for history in deletion_histories}) == 1
+    for history in deletion_histories:
+        assert history.changes == [
+            {
+                "field": "deleted_at",
+                "before": None,
+                "after": history.after_state["deleted_at"],
+            }
+        ]
+    assert db_session.scalar(
+        select(func.count())
+        .select_from(AuditLog)
+        .where(AuditLog.action == "ticket.moved_to_trash")
+    ) == 3
+
+    restored = restore_trash_batch(
+        client, deletion_batch["id"], deletion_batch["root_ticket_version"]
+    )
+    assert restored.status_code == 200
+    assert restored.json()["key"] == epic["key"] and restored.json()["version"] == 3
+    assert client.get("/api/projects/DEV/tickets").json()["total"] == 3
+    assert client.get("/api/projects/DEV/tickets/trash").json()["batches"] == []
+
+    db_session.expire_all()
+    restored_batch = db_session.get(TicketDeletionBatch, deletion_batch["id"])
+    assert restored_batch.restored_at is not None
+    assert restored_batch.restored_by_id is not None
+    restored_rows = db_session.scalars(
+        select(Ticket).where(Ticket.project_id == project.id).order_by(Ticket.number)
+    ).all()
+    for ticket in restored_rows:
+        assert ticket.deleted_at is None
+        assert ticket.deletion_batch_id is None
+    restored_histories = db_session.scalars(
+        select(TicketHistory).where(TicketHistory.event_type == "RESTORED")
+    ).all()
+    assert len(restored_histories) == 3
+    assert len({history.operation_id for history in restored_histories}) == 1
+
+
+def test_trash_dependency_permissions_csrf_and_inactive_project(
+    client, ticket_people, db_session
+):
+    """휴지통 이동의 의존성·CSRF·역할·프로젝트 활성 규칙을 검증한다."""
+    _, project = ticket_people
+    source = create_ticket(client, title="의존하는 활성 티켓").json()
+    target = create_ticket(client, title="삭제 대상 티켓").json()
+    relation_result = create_relation(
+        client, source["key"], target["key"], "DEPENDS_ON", source["version"]
+    )
+    assert relation_result.status_code == 201
+
+    blocked = move_to_trash(client, target["key"], 2)
+    assert blocked.status_code == 409
+    assert blocked.json()["code"] == "active_dependency_blocks_trash"
+    csrf_rejected = client.request(
+        "DELETE",
+        f"/api/projects/DEV/tickets/{target['key']}",
+        json={"expected_version": 2},
+        headers=ORIGIN,
+    )
+    assert csrf_rejected.status_code == 403
+
+    target_progress = transition_ticket(client, target["key"], "IN_PROGRESS", 2).json()
+    target_done = transition_ticket(
+        client, target["key"], "DONE", target_progress["version"]
+    ).json()
+    moved = move_to_trash(client, target["key"], target_done["version"])
+    assert moved.status_code == 200
+    deletion_batch = moved.json()
+
+    login(client, "guest")
+    guest_trash = client.get("/api/projects/DEV/tickets/trash")
+    assert guest_trash.status_code == 200
+    assert guest_trash.json()["can_restore"] is False
+    assert guest_trash.json()["batches"][0]["can_restore"] is False
+    guest_restore = restore_trash_batch(
+        client, deletion_batch["id"], deletion_batch["root_ticket_version"]
+    )
+    assert guest_restore.status_code == 403
+    guest_move = move_to_trash(client, source["key"], 2)
+    assert guest_move.status_code == 403
+
+    login(client, "member")
+    project.is_active = False
+    db_session.commit()
+    inactive_trash = client.get("/api/projects/DEV/tickets/trash").json()
+    assert inactive_trash["can_restore"] is False
+    inactive_restore = restore_trash_batch(
+        client, deletion_batch["id"], deletion_batch["root_ticket_version"]
+    )
+    assert inactive_restore.status_code == 409
+    assert inactive_restore.json()["code"] == "project_inactive"
+
+
+def test_nested_trash_batches_restore_parent_order_and_retention_expiry(
+    client, ticket_people, db_session
+):
+    """서로 다른 삭제 batch의 상위 복구 순서와 보존 만료를 검증한다."""
+    epic = create_ticket(client, type="EPIC", title="복구 순서 Epic").json()
+    task = create_ticket(client, title="복구 순서 Task", parent_key=epic["key"]).json()
+    subtask = create_ticket(
+        client, type="SUBTASK", title="먼저 삭제 Subtask", parent_key=task["key"]
+    ).json()
+    subtask_batch = move_to_trash(client, subtask["key"], subtask["version"]).json()
+    epic_batch = move_to_trash(client, epic["key"], epic["version"]).json()
+    assert subtask_batch["child_count"] == 0
+    assert epic_batch["child_count"] == 1
+
+    blocked = restore_trash_batch(
+        client, subtask_batch["id"], subtask_batch["root_ticket_version"]
+    )
+    assert blocked.status_code == 409
+    assert blocked.json()["code"] == "deleted_parent_blocks_restore"
+    assert restore_trash_batch(
+        client, epic_batch["id"], epic_batch["root_ticket_version"]
+    ).status_code == 200
+    assert restore_trash_batch(
+        client, subtask_batch["id"], subtask_batch["root_ticket_version"]
+    ).status_code == 200
+
+    expiring_ticket = create_ticket(client, title="보존 만료 티켓").json()
+    expired_batch_data = move_to_trash(
+        client, expiring_ticket["key"], expiring_ticket["version"]
+    ).json()
+    db_session.expire_all()
+    expired_batch = db_session.get(TicketDeletionBatch, expired_batch_data["id"])
+    current_time = datetime.now(UTC)
+    expired_batch.deleted_at = current_time - timedelta(days=31)
+    expired_batch.purge_after = current_time - timedelta(seconds=1)
+    db_session.commit()
+
+    expired_listing = client.get("/api/projects/DEV/tickets/trash").json()
+    expired_item = next(
+        item for item in expired_listing["batches"] if item["id"] == expired_batch.id
+    )
+    assert expired_item["is_expired"] is True and expired_item["can_restore"] is False
+    expired_restore = restore_trash_batch(
+        client, expired_batch.id, expired_batch_data["root_ticket_version"]
+    )
+    assert expired_restore.status_code == 409
+    assert expired_restore.json()["code"] == "ticket_trash_retention_expired"
+
+
+def test_trash_html_forms_move_and_restore(client, ticket_people, db_session):
+    """티켓 상세와 휴지통 화면의 이동·복구 form 연결을 검증한다."""
+    ticket = create_ticket(client, title="HTML 휴지통 티켓").json()
+    moved = client.post(
+        f"/projects/DEV/tickets/{ticket['key']}/trash",
+        data={"csrf_token": token(client), "expected_version": str(ticket["version"])},
+        headers=ORIGIN,
+        follow_redirects=False,
+    )
+    assert moved.status_code == 303
+    assert moved.headers["location"].endswith(f"?deleted={ticket['key']}")
+    trash_page = client.get(moved.headers["location"])
+    assert "티켓 계층을 휴지통으로 이동" in trash_page.text
+    assert "HTML 휴지통 티켓" in trash_page.text
+
+    db_session.expire_all()
+    deletion_batch = db_session.scalar(
+        select(TicketDeletionBatch).where(
+            TicketDeletionBatch.root_ticket_key == ticket["key"]
+        )
+    )
+    restored = client.post(
+        f"/projects/DEV/trash/{deletion_batch.id}/restore",
+        data={"csrf_token": token(client), "expected_version": "2"},
+        headers=ORIGIN,
+        follow_redirects=False,
+    )
+    assert restored.status_code == 303
+    assert restored.headers["location"].endswith(f"?restored={ticket['key']}")
+    assert "티켓 계층을 복구" in client.get(restored.headers["location"]).text
+
+
+def test_trash_audit_failure_rolls_back_batch_tickets_and_history(
+    client, ticket_people, db_session_factory, monkeypatch
+):
+    """휴지통 이동 중 감사 실패가 batch·티켓·이력을 함께 rollback하는지 검증한다."""
+    ticket = create_ticket(client, title="휴지통 rollback 티켓").json()
+    raw_token = client.cookies.get(get_settings().session.cookie_name)
+
+    def fail(*args, **kwargs):
+        """감사 저장 실패를 재현한다."""
+        raise RuntimeError("audit unavailable")
+
+    monkeypatch.setattr(service, "record_ticket_audit_event", fail)
+    with db_session_factory() as session:
+        actor = get_current_identity(session, raw_token)
+        with pytest.raises(RuntimeError):
+            service.move_ticket_to_trash(
+                session,
+                actor,
+                "DEV",
+                ticket["key"],
+                TicketTrashMove(expected_version=ticket["version"]),
+            )
+
+    with db_session_factory() as session:
+        saved_ticket = session.scalar(select(Ticket).where(Ticket.key == ticket["key"]))
+        assert saved_ticket.deleted_at is None
+        assert saved_ticket.deletion_batch_id is None
+        assert saved_ticket.version == 1
+        assert session.scalar(select(func.count()).select_from(TicketDeletionBatch)) == 0
+        assert session.scalar(select(func.count()).select_from(TicketHistory)) == 1
 
 
 def test_permissions_assignee_csrf_and_inactive_project(client, ticket_people, db_session):
