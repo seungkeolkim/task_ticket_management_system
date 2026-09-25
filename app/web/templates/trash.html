@@ -6,23 +6,26 @@
   <div><div class="breadcrumbs"><a href="/projects">프로젝트</a><span>›</span><strong>{{ project.key }}</strong><span>›</span><span>휴지통</span></div><h1>프로젝트 휴지통</h1><p>삭제된 티켓 계층을 확인하고 보존 기간 안에 복구할 수 있습니다.</p></div>
 </header>
 
+{% if deleted %}<div class="auth-message success" role="status">{{ deleted }} 티켓 계층을 휴지통으로 이동했습니다.</div>{% endif %}
+{% if restored %}<div class="auth-message success" role="status">{{ restored }} 티켓 계층을 복구했습니다.</div>{% endif %}
+{% if error %}<div class="auth-message error" role="alert">{{ error }}</div>{% endif %}
+
 <nav class="tab-nav"><a href="/projects/{{ project.key }}/settings">기본 정보</a><a href="/projects/{{ project.key }}/members">구성원과 역할</a><a class="is-active" href="/projects/{{ project.key }}/trash">휴지통</a></nav>
 
-<div class="info-callout"><span class="callout-icon">i</span><div><strong>삭제된 티켓은 기본 30일 동안 보관됩니다.</strong><p>Epic 또는 Task를 복구하면 함께 삭제된 하위 티켓도 하나의 단위로 복구됩니다. 영구 삭제된 티켓 번호는 다시 사용되지 않습니다.</p></div></div>
+<div class="info-callout"><span class="callout-icon">i</span><div><strong>삭제된 티켓은 {{ trash.retention_days }}일 동안 보관되도록 설정되어 있습니다.</strong><p>Epic 또는 Task를 복구하면 함께 삭제된 하위 티켓도 하나의 단위로 복구됩니다. 영구 삭제 정리 명령은 후속 운영 범위입니다.</p></div></div>
 
 <section class="panel data-panel">
-  <div class="data-panel-toolbar"><label class="search-field grow"><span>⌕</span><input placeholder="티켓 키 또는 제목 검색"></label><span class="retention-note">다음 자동 정리 · 오늘 03:00</span></div>
+  <form class="data-panel-toolbar" action="/projects/{{ project.key }}/trash" method="get"><label class="search-field grow"><span>⌕</span><input name="q" value="{{ q }}" maxlength="200" placeholder="티켓 키 또는 제목 검색"></label><button class="button secondary small-button" type="submit">검색</button></form>
   <div class="data-table trash-table">
     <div class="data-table-head"><span>티켓</span><span>유형</span><span>삭제자</span><span>삭제일</span><span>영구 삭제 예정</span><span></span></div>
-    {% for ticket in trash_tickets %}
+    {% for batch in trash.batches %}
     <div class="data-table-row">
-      <span class="ticket-title-cell">{{ ui.ticket_type(ticket.type) }}<span><small>{{ ticket.key }}</small><strong>{{ ticket.title }}</strong>{% if ticket.children %}<em>하위 티켓 {{ ticket.children }}개 포함</em>{% endif %}</span></span>
-      <span>{{ ticket.type }}</span><span>{{ ticket.deleted_by }}</span><span>{{ ticket.deleted_at }}</span><span class="due-danger">{{ ticket.purge_at }}</span>
-      <span class="row-actions"><button class="button secondary small-button" type="button">복구</button><button class="icon-button" type="button">•••</button></span>
+      <span class="ticket-title-cell">{{ ui.ticket_type(batch.root_ticket_type_label) }}<span><small>{{ batch.root_ticket_key }}</small><strong>{{ batch.root_ticket_title }}</strong>{% if batch.child_count %}<em>하위 티켓 {{ batch.child_count }}개 포함</em>{% endif %}</span></span>
+      <span>{{ batch.root_ticket_type_label }}</span><span>{{ batch.deleted_by.display_name }}</span><span>{{ batch.deleted_at }}</span><span class="due-danger">{{ batch.purge_after }}</span>
+      <span class="row-actions">{% if batch.can_restore %}<form action="/projects/{{ project.key }}/trash/{{ batch.id }}/restore" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="expected_version" value="{{ batch.root_ticket_version }}"><button class="button secondary small-button" type="submit">복구</button></form>{% elif batch.is_expired %}<span class="danger-text">보존 만료</span>{% else %}<span>읽기 전용</span>{% endif %}</span>
     </div>
-    {% endfor %}
+    {% else %}<div class="empty-state"><strong>휴지통이 비어 있습니다.</strong><p>검색 조건에 맞는 삭제된 티켓 계층이 없습니다.</p></div>{% endfor %}
   </div>
-  <footer class="data-panel-foot"><span>삭제된 최상위 티켓 {{ trash_tickets | length }}개</span></footer>
+  <footer class="data-panel-foot"><span>삭제된 최상위 티켓 {{ trash.batches | length }}개</span>{% if not trash.can_restore %}<span>프로젝트 게스트 또는 비활성 프로젝트에서는 복구할 수 없습니다.</span>{% endif %}</footer>
 </section>
 {% endblock %}
-

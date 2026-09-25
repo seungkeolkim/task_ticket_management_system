@@ -4,7 +4,14 @@ from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.orm import Session, aliased
 
 from app.domain.codes import ProjectRole
-from app.models import Project, ProjectMember, Ticket, TicketRelation, User
+from app.models import (
+    Project,
+    ProjectMember,
+    Ticket,
+    TicketDeletionBatch,
+    TicketRelation,
+    User,
+)
 
 
 def project_scope(project_id: int, actor_id: int, *, override: bool):
@@ -189,6 +196,183 @@ def ticket_row_by_id(
     return session.execute(
         ticket_query(project_id, actor_id, override=override).where(Ticket.id == ticket_id)
     ).one_or_none()
+
+
+def active_ticket_hierarchy(session: Session, project_id: int, root_ticket: Ticket) -> list[Ticket]:
+    """휴지통으로 함께 이동할 활성 티켓 계층을 반환한다."""
+    hierarchy_condition = Ticket.id == root_ticket.id
+    if root_ticket.type == "TASK":
+        hierarchy_condition = or_(hierarchy_condition, Ticket.parent_id == root_ticket.id)
+    elif root_ticket.type == "EPIC":
+        task_ids = select(Ticket.id).where(
+            Ticket.project_id == project_id,
+            Ticket.parent_id == root_ticket.id,
+            Ticket.type == "TASK",
+            Ticket.deleted_at.is_(None),
+        )
+        hierarchy_condition = or_(
+            hierarchy_condition,
+            Ticket.parent_id == root_ticket.id,
+            Ticket.parent_id.in_(task_ids),
+        )
+    return list(
+        session.scalars(
+            select(Ticket)
+            .where(
+                Ticket.project_id == project_id,
+                Ticket.deleted_at.is_(None),
+                hierarchy_condition,
+            )
+            .order_by(Ticket.number, Ticket.id)
+        )
+    )
+
+
+def active_dependency_blockers(
+    session: Session, project_id: int, deletion_ticket_ids: set[int]
+) -> list[str]:
+    """삭제 대상에 의존하는 외부 활성 티켓 key를 반환한다."""
+    if not deletion_ticket_ids:
+        return []
+    source = aliased(Ticket)
+    target = aliased(Ticket)
+    return list(
+        session.scalars(
+            select(source.key)
+            .distinct()
+            .join(
+                TicketRelation,
+                (TicketRelation.project_id == source.project_id)
+                & (TicketRelation.source_ticket_id == source.id),
+            )
+            .join(
+                target,
+                (target.project_id == TicketRelation.project_id)
+                & (target.id == TicketRelation.target_ticket_id),
+            )
+            .where(
+                TicketRelation.project_id == project_id,
+                TicketRelation.relation_type == "DEPENDS_ON",
+                TicketRelation.target_ticket_id.in_(deletion_ticket_ids),
+                TicketRelation.source_ticket_id.notin_(deletion_ticket_ids),
+                source.deleted_at.is_(None),
+                target.deleted_at.is_(None),
+                target.status != "DONE",
+            )
+            .order_by(source.key)
+        )
+    )
+
+
+def parent_key_for_ticket(session: Session, project_id: int, ticket: Ticket) -> str | None:
+    """삭제 상태와 무관하게 티켓의 상위 key를 반환한다."""
+    if ticket.parent_id is None:
+        return None
+    return session.scalar(
+        select(Ticket.key).where(
+            Ticket.project_id == project_id,
+            Ticket.id == ticket.parent_id,
+        )
+    )
+
+
+def trash_batch_rows(session: Session, project_id: int, query_text: str = ""):
+    """프로젝트의 복구 가능한 휴지통 batch를 조회한다."""
+    deleted_by = aliased(User)
+    root_ticket = aliased(Ticket)
+    child_count = (
+        select(func.count(Ticket.id) - 1)
+        .where(
+            Ticket.project_id == TicketDeletionBatch.project_id,
+            Ticket.deletion_batch_id == TicketDeletionBatch.id,
+        )
+        .correlate(TicketDeletionBatch)
+        .scalar_subquery()
+    )
+    query = (
+        select(
+            TicketDeletionBatch,
+            root_ticket.title.label("root_ticket_title"),
+            root_ticket.type.label("root_ticket_type"),
+            root_ticket.version.label("root_ticket_version"),
+            deleted_by.id.label("deleted_by_id"),
+            deleted_by.login_id.label("deleted_by_login_id"),
+            deleted_by.display_name.label("deleted_by_display_name"),
+            child_count.label("child_count"),
+        )
+        .join(
+            root_ticket,
+            (root_ticket.project_id == TicketDeletionBatch.project_id)
+            & (root_ticket.key == TicketDeletionBatch.root_ticket_key)
+            & (root_ticket.deletion_batch_id == TicketDeletionBatch.id),
+        )
+        .join(deleted_by, deleted_by.id == TicketDeletionBatch.deleted_by_id)
+        .where(
+            TicketDeletionBatch.project_id == project_id,
+            TicketDeletionBatch.restored_at.is_(None),
+            TicketDeletionBatch.purged_at.is_(None),
+        )
+    )
+    if query_text:
+        query = query.where(
+            or_(
+                root_ticket.key.icontains(query_text, autoescape=True),
+                root_ticket.title.icontains(query_text, autoescape=True),
+            )
+        )
+    return session.execute(
+        query.order_by(TicketDeletionBatch.deleted_at.desc(), TicketDeletionBatch.id.desc())
+    ).all()
+
+
+def deletion_batch(session: Session, project_id: int, batch_id: int) -> TicketDeletionBatch | None:
+    """프로젝트의 복구 가능한 단일 삭제 batch를 조회한다."""
+    return session.scalar(
+        select(TicketDeletionBatch).where(
+            TicketDeletionBatch.id == batch_id,
+            TicketDeletionBatch.project_id == project_id,
+            TicketDeletionBatch.restored_at.is_(None),
+            TicketDeletionBatch.purged_at.is_(None),
+        )
+    )
+
+
+def tickets_in_deletion_batch(session: Session, project_id: int, batch_id: int) -> list[Ticket]:
+    """삭제 batch에 연결된 티켓을 번호 순으로 반환한다."""
+    return list(
+        session.scalars(
+            select(Ticket)
+            .where(
+                Ticket.project_id == project_id,
+                Ticket.deletion_batch_id == batch_id,
+                Ticket.deleted_at.is_not(None),
+            )
+            .order_by(Ticket.number, Ticket.id)
+        )
+    )
+
+
+def deleted_parent_outside_batch_exists(session: Session, project_id: int, batch_id: int) -> bool:
+    """복구 대상의 상위 티켓이 다른 batch에서 삭제됐는지 확인한다."""
+    child = aliased(Ticket)
+    parent = aliased(Ticket)
+    return (
+        session.scalar(
+            select(child.id)
+            .join(
+                parent,
+                (parent.project_id == child.project_id) & (parent.id == child.parent_id),
+            )
+            .where(
+                child.project_id == project_id,
+                child.deletion_batch_id == batch_id,
+                parent.deleted_at.is_not(None),
+                parent.deletion_batch_id != batch_id,
+            )
+            .limit(1)
+        )
+        is not None
+    )
 
 
 def parent_ticket(

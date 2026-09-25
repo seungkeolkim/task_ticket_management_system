@@ -106,6 +106,18 @@ class TicketRelationDelete(BaseModel):
     expected_version: int = Field(gt=0)
 
 
+class TicketTrashMove(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    expected_version: int = Field(gt=0)
+
+
+class TicketTrashRestore(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    expected_version: int = Field(gt=0)
+
+
 class TicketUserView(BaseModel):
     id: int
     login_id: str
@@ -174,6 +186,28 @@ class TicketPage(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class TicketTrashBatchView(BaseModel):
+    id: int
+    project_id: int
+    root_ticket_key: str
+    root_ticket_title: str
+    root_ticket_type: TicketType
+    root_ticket_type_label: str
+    root_ticket_version: int
+    deleted_by: TicketUserView
+    deleted_at: datetime
+    purge_after: datetime
+    child_count: int
+    is_expired: bool
+    can_restore: bool
+
+
+class TicketTrashPage(BaseModel):
+    batches: list[TicketTrashBatchView]
+    retention_days: int
+    can_restore: bool
 
 
 class TicketCreateOptions(BaseModel):
