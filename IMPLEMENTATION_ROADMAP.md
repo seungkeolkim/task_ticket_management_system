@@ -18,7 +18,7 @@
 
 - [x] 0단계 — 프로젝트 골격
 - [x] 1단계 — 공통 DB 및 개발 기반
-- [x] 데이터 선행 준비 — MVP·간트·보고서 모델, migration 및 버전별 데이터 계약
+- [ ] 데이터 선행 준비 — MVP·간트·보고서 모델, migration 및 버전별 데이터 계약
 - [ ] 2단계 — 사용자·인증·감사 로그
 - [ ] 3단계 — 시스템 관리자 및 조직 관리
 - [ ] 4단계 — 프로젝트와 접근 권한
@@ -43,10 +43,13 @@
 - [x] 필터·이벤트·보고서 in/out·스킬 DTO 및 JSON Schema·한글 예시 준비
 - [x] 기존 identity 데이터 보존 upgrade, populated downgrade/re-upgrade, 모델·제약 일치 검증
 - [x] [데이터 구조 명세](docs/mvp_data_model.md)와 [보고서 계약](docs/reporting_contracts.md) 작성
+- [ ] Markdown v1 본문 저장 구조를 Tiptap JSON body schema v2로 교체하는 모델·migration·계약 갱신
 
 완료 기준: 실제 migration으로 생성한 DB에서 데이터 구조와 계약을 검증한다. 이력 수집기, 간트·보고서 실행 기능의 완료를 의미하지 않는다.
 
 2026-09-17 검증: Windows Python 3.13 및 Docker Linux Python 3.12에서 각각 pytest 83개와 Ruff 검사를 통과했다. PostgreSQL과 macOS 실환경 검증은 후속이다.
+
+2026-09-26 구조화 본문 정책 변경: 실제 ticket·comment·ticket_history 데이터가 없는 상태에서 Markdown v1 계약을 폐기하고 Tiptap JSON body schema v2로 전환하기로 했다. Tiptap은 exact version의 self-hosted editor bundle과 문서 구조에만 사용하며 댓글·멘션·첨부파일·변경 이력은 서버에서 직접 구현한다. 기존 migration은 유지하고 새 revision이 관련 row 0건을 preflight하며, v1 dual-read와 converter는 만들지 않는다. 데이터 선행 준비 단계는 새 모델·migration·계약 검증이 끝날 때까지 다시 진행 중으로 둔다.
 
 | 순서 | 화면별 첫 연결 범위 | 상태 |
 |---|---|---|
@@ -240,14 +243,17 @@
 
 ## 7단계 — 설명·댓글·멘션
 
-구현 전에 에디터 UI와 지원할 Markdown 확장 집합을 최종 확정한다.
+에디터와 저장 계약은 CNT-008·CNT-009, 배포 방식은 ARC-013, v1 폐기 방식은 DB-018을 따른다.
 
-- [x] Markdown 원문·body schema version 저장 계약 확정
-- [ ] raw HTML 비활성화 및 Markdown renderer 구현
-- [ ] 렌더링 결과 HTML sanitizer 구현
-- [ ] 링크 URL scheme과 태그 allowlist 보안 테스트 작성
+- [ ] Tiptap core·extension exact version과 lock file 및 self-hosted 정적 bundle build 구성
+- [ ] 허용 node·mark·attribute와 `body_schema_version=2` JSON 계약 작성
+- [ ] Markdown v1 컬럼을 교체하는 zero-row preflight migration과 ORM·DTO 갱신
+- [ ] JSON 크기·깊이·node·attribute·URL·내부 참조 서버 검증 구현
+- [ ] Tiptap JSON 기반 HTML renderer·allowlist sanitizer·plain text 추출 구현
+- [ ] 제목·강조·밑줄·취소선·색상·크기·목록·들여쓰기·체크박스·인용·코드·링크·표 toolbar 구현
+- [ ] 링크 URL scheme과 렌더링 allowlist 보안 테스트 작성
 - [ ] 티켓 설명 편집·저장·조회 round-trip 구현
-- [x] `Comment` 모델 및 ORM 버전 검사 구현
+- [ ] `Comment` 모델을 Tiptap document 계약과 ORM version 검사에 맞게 갱신
 - [ ] 댓글 작성·수정 서비스 구현
 - [ ] 프로젝트 사용자 이상의 프로젝트 내 전체 댓글 수정·soft delete 구현
 - [ ] 설명과 댓글이 동일한 renderer를 사용하도록 구성
@@ -258,7 +264,7 @@
 - [ ] 개별·전체 멘션 읽음 처리 구현
 - [ ] 접근 권한 상실 시 멘션 내용 은폐
 
-완료 기준: 설명과 댓글이 안전하게 동일 형식으로 렌더링되고 권한이 있는 사용자만 멘션하여 확인할 수 있다.
+완료 기준: 애플리케이션 서버가 제공하는 고정 버전 editor에서 설명과 댓글을 같은 구조화 문서 계약으로 안전하게 편집·렌더링하고, 권한이 있는 사용자만 멘션하여 확인할 수 있다. 댓글·멘션·이력은 Tiptap 외부 서비스 없이 서버 transaction에서 관리한다.
 
 ## 8단계 — 첨부파일
 
@@ -274,6 +280,7 @@
 - [ ] 실행 파일과 스크립트 파일 차단
 - [ ] 게스트 다운로드와 프로젝트 사용자 이상 업로드·삭제 권한을 검사하는 API 구현
 - [ ] 이미지 미리보기와 일반 파일 정보 제공
+- [ ] 본문 image node와 내부 attachment ID의 업로드·삽입·권한 검증 연결
 - [ ] 삭제 즉시 접근 차단 및 기본 30일 보존 구현
 - [ ] 실제 파일 영구 삭제 명령 구현
 - [ ] 파일 시스템과 DB 실패 시 보상 처리 테스트 작성

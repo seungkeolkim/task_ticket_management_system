@@ -14,6 +14,7 @@
 | ARC-010 | 2026-09-17 | DECIDED | 최초 화면별 연결은 기존 FastAPI·Jinja2 렌더링을 유지하며 HTML form과 JSON API가 같은 인증 서비스를 사용한다. | 목업 레이아웃을 재사용하면서 로그인부터 실제 데이터 흐름을 연결한다. 인라인 상세와 칸반의 클라이언트 상호작용 방식은 해당 화면 구현 시 정한다. |
 | ARC-011 | 2026-09-19 | DECIDED | Windows용 `run_compose.ps1`을 추가하고 기존 셸 래퍼와 `scripts/read-compose-port.py`를 공유한다. start는 up --build --detach, stop은 down이며 종료 코드를 전달한다. PowerShell은 저장소 가상환경·python·python3·py -3 순으로 Python 3.11 이상을 찾고 stop에는 Python이나 유효한 설정 파일을 요구하지 않는다. | 운영 포트 규칙을 중복 구현하지 않는다. 상대 설정 경로는 호출 폴더 기준으로 절대화하며 실행 후 호출자의 위치·임시 환경 변수를 복원한다. |
 | ARC-012 | 2026-09-19 | DECIDED | Compose 개발 실행은 `app`, `migrations`, `alembic.ini`를 호스트에서 bind mount하고 Dockerfile에서는 해당 경로를 복사하지 않는다. 개발 이미지는 런타임 의존성과 기동 스크립트만 포함하며 소스를 포함하는 단독 배포 이미지는 릴리즈 구성을 도입할 때 별도로 만든다. | 개발 소스의 공급 경로를 bind mount 하나로 통일하고 반복 기동·빌드에서 소스 복사와 라이브러리 재설치를 피한다. `pyproject.toml`이 변경된 경우에만 의존성 레이어를 갱신한다. |
+| ARC-013 | 2026-09-26 | DECIDED | Tiptap core와 선택한 open-source extension은 exact package version과 lock file로 고정한다. build 단계에서 JavaScript·CSS bundle을 만들고 애플리케이션 image에 포함하여 FastAPI 정적 경로로 제공한다. 운영 runtime에는 Node.js·npm을 포함하지 않고 CDN이나 Tiptap Cloud 등 외부 서비스에 의존하지 않는다. | 동일 bundle과 문서 schema를 재현 가능하게 배포하고 폐쇄망에서도 편집·조회 기능을 유지한다. npm은 build dependency로만 사용하며 필요 시 검증된 build artifact 또는 내부 package mirror로 공급한다. |
 
 ## Open decisions
 
