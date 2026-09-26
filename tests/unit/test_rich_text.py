@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from app.domain.rich_text import (
@@ -100,6 +102,43 @@ def korean_example_document() -> dict[str, object]:
     }
 
 
+def document_with_serialized_size(serialized_size: int) -> dict[str, object]:
+    """직렬화 결과가 지정한 UTF-8 byte 크기인 document를 생성한다."""
+    text_node: dict[str, object] = {"type": "text", "text": ""}
+    document = {
+        "type": "doc",
+        "content": [
+            {
+                "type": "paragraph",
+                "content": [text_node],
+            }
+        ],
+    }
+    empty_document_size = len(
+        json.dumps(document, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    )
+    text_byte_size = serialized_size - empty_document_size
+    if text_byte_size <= 0:
+        raise ValueError("document 최소 크기보다 큰 serialized_size가 필요합니다.")
+    three_byte_character_count, one_byte_character_count = divmod(text_byte_size, 3)
+    text_node["text"] = (
+        "가" * three_byte_character_count + "a" * one_byte_character_count
+    )
+    assert (
+        len(json.dumps(document, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
+        == serialized_size
+    )
+    return document
+
+
+def nested_blockquote_document(blockquote_count: int) -> dict[str, object]:
+    """지정한 수의 blockquote로 paragraph를 감싼 document를 생성한다."""
+    nested_node: dict[str, object] = {"type": "paragraph"}
+    for _ in range(blockquote_count):
+        nested_node = {"type": "blockquote", "content": [nested_node]}
+    return {"type": "doc", "content": [nested_node]}
+
+
 def test_document_validation_canonicalization_and_digest_are_deterministic() -> None:
     """동일한 document가 정렬된 JSON과 같은 digest로 정규화되는지 검증한다."""
     document = korean_example_document()
@@ -128,6 +167,71 @@ def test_document_renderer_and_plain_text_preserve_supported_content() -> None:
     assert "배포 준비" in plain_text
     assert "[x] 검증 완료" in plain_text
     assert "항목" in plain_text and "결과" in plain_text
+
+
+@pytest.mark.parametrize(
+    "mark",
+    [
+        {"type": "bold"},
+        {"type": "italic"},
+        {"type": "underline"},
+        {"type": "strike"},
+        {"type": "code"},
+        {"type": "textStyle", "attrs": {"color": "#1d4ed8", "fontSize": "16px"}},
+        {"type": "link", "attrs": {"href": "https://example.com/docs"}},
+    ],
+)
+def test_document_validation_accepts_each_allowed_mark(mark: dict[str, object]) -> None:
+    """schema v2의 허용 mark를 각각 검증하고 보존하는지 확인한다."""
+    document = {
+        "type": "doc",
+        "content": [
+            {
+                "type": "paragraph",
+                "content": [{"type": "text", "text": "허용 서식", "marks": [mark]}],
+            }
+        ],
+    }
+
+    normalized_document = validate_body_document(document)
+
+    assert normalized_document["content"][0]["content"][0]["marks"] == [mark]
+
+
+def test_document_renderer_escapes_html_and_attribute_xss_payloads() -> None:
+    """본문 text와 image 속성의 HTML·XSS payload를 markup으로 해석하지 않는지 검증한다."""
+    document = {
+        "type": "doc",
+        "content": [
+            {
+                "type": "paragraph",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": '<script>alert(1)</script><img src=x onerror="alert(2)">',
+                    }
+                ],
+            },
+            {
+                "type": "image",
+                "attrs": {
+                    "attachmentId": 7,
+                    "alt": '"><svg onload="alert(3)">',
+                    "title": '</title><iframe src="https://evil.example">',
+                },
+            },
+        ],
+    }
+
+    rendered_html = render_body_document_html(document)
+
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in rendered_html
+    assert "&lt;img src=x onerror=" in rendered_html
+    assert "<script" not in rendered_html
+    assert "<svg" not in rendered_html
+    assert "<iframe" not in rendered_html
+    assert rendered_html.count("<img ") == 1
+    assert 'src="/attachments/7"' in rendered_html
 
 
 def test_code_block_accepts_tiptap_default_null_language_attribute() -> None:
@@ -170,6 +274,24 @@ def test_code_block_accepts_tiptap_default_null_language_attribute() -> None:
                         "content": [
                             {
                                 "type": "text",
+                                "text": "알 수 없는 mark",
+                                "marks": [{"type": "highlight"}],
+                            }
+                        ],
+                    }
+                ],
+            },
+            "허용되지 않은 mark",
+        ),
+        (
+            {
+                "type": "doc",
+                "content": [
+                    {
+                        "type": "paragraph",
+                        "content": [
+                            {
+                                "type": "text",
                                 "text": "위험",
                                 "marks": [
                                     {
@@ -195,6 +317,67 @@ def test_code_block_accepts_tiptap_default_null_language_attribute() -> None:
                 ],
             },
             "attrs를 지정할 수 없습니다",
+        ),
+        (
+            {
+                "type": "doc",
+                "content": [
+                    {
+                        "type": "paragraph",
+                        "attrs": {"data-unsafe": "payload"},
+                    }
+                ],
+            },
+            "attrs를 지정할 수 없습니다",
+        ),
+        (
+            {
+                "type": "doc",
+                "content": [
+                    {
+                        "type": "paragraph",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "임의 CSS",
+                                "marks": [
+                                    {
+                                        "type": "textStyle",
+                                        "attrs": {"style": "position:fixed"},
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            },
+            "textStyle mark에 허용되지 않은 속성",
+        ),
+        (
+            {
+                "type": "doc",
+                "content": [
+                    {
+                        "type": "paragraph",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "임의 link 속성",
+                                "marks": [
+                                    {
+                                        "type": "link",
+                                        "attrs": {
+                                            "href": "https://example.com",
+                                            "data-track": "secret",
+                                        },
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            },
+            "link mark에 허용되지 않은 속성",
         ),
         (
             {
@@ -259,48 +442,91 @@ def test_document_validation_rejects_unsafe_nodes_marks_and_attributes(
         validate_body_document(document)
 
 
-def test_document_validation_rejects_excessive_depth() -> None:
-    """최대 중첩 깊이를 넘은 document를 거부하는지 검증한다."""
-    nested_node: dict[str, object] = {"type": "paragraph"}
-    for _ in range(MAX_DOCUMENT_DEPTH + 1):
-        nested_node = {"type": "blockquote", "content": [nested_node]}
-    document = {"type": "doc", "content": [nested_node]}
-
-    with pytest.raises(ValueError, match="중첩 깊이"):
-        validate_body_document(document)
-
-
-def test_document_validation_rejects_size_node_and_text_limits() -> None:
-    """본문 전체 크기·node 수·text 길이 제한을 각각 검증한다."""
-    oversized_document = {
-        "type": "doc",
-        "content": [
-            {
-                "type": "paragraph",
-                "content": [{"type": "text", "text": "가" * MAX_DOCUMENT_BYTES}],
-            }
-        ],
-    }
-    too_many_nodes_document = {
-        "type": "doc",
-        "content": [{"type": "paragraph"} for _ in range(MAX_DOCUMENT_NODES)],
-    }
-    excessive_text_document = {
+@pytest.mark.parametrize(
+    "href",
+    [
+        "data:text/html,<script>alert(1)</script>",
+        "vbscript:msgbox(1)",
+        "//evil.example/path",
+        "/\\evil.example/path",
+        "https://user@example.com/path",
+        "https://user:password@example.com/path",
+    ],
+)
+def test_document_validation_rejects_dangerous_link_variants(href: str) -> None:
+    """scheme 우회·외부 전환·credential 포함 link를 거부하는지 검증한다."""
+    document = {
         "type": "doc",
         "content": [
             {
                 "type": "paragraph",
                 "content": [
-                    {"type": "text", "text": "a" * MAX_DOCUMENT_TEXT_LENGTH},
-                    {"type": "text", "text": "b"},
+                    {
+                        "type": "text",
+                        "text": "위험 링크",
+                        "marks": [{"type": "link", "attrs": {"href": href}}],
+                    }
                 ],
             }
         ],
     }
 
-    with pytest.raises(ValueError, match="JSON 크기"):
-        validate_body_document(oversized_document)
+    with pytest.raises(ValueError, match="허용되지 않은 link URL"):
+        validate_body_document(document)
+
+
+def test_document_validation_accepts_exact_resource_limits() -> None:
+    """크기·깊이·node 수·text 길이의 정확한 최댓값을 허용하는지 검증한다."""
+    maximum_depth_document = nested_blockquote_document(MAX_DOCUMENT_DEPTH - 2)
+    maximum_node_count_document = {
+        "type": "doc",
+        "content": [{"type": "paragraph"} for _ in range(MAX_DOCUMENT_NODES - 1)],
+    }
+    maximum_text_length_document = {
+        "type": "doc",
+        "content": [
+            {
+                "type": "paragraph",
+                "content": [{"type": "text", "text": "a" * MAX_DOCUMENT_TEXT_LENGTH}],
+            }
+        ],
+    }
+    maximum_size_document = document_with_serialized_size(MAX_DOCUMENT_BYTES)
+
+    assert validate_body_document(maximum_depth_document) == maximum_depth_document
+    assert validate_body_document(maximum_node_count_document) == maximum_node_count_document
+    assert validate_body_document(maximum_text_length_document) == maximum_text_length_document
+    assert validate_body_document(maximum_size_document) == maximum_size_document
+
+
+def test_document_validation_rejects_first_value_above_resource_limits() -> None:
+    """크기·깊이·node 수·text 길이의 최댓값을 하나라도 넘으면 거부하는지 검증한다."""
+    excessive_depth_document = nested_blockquote_document(MAX_DOCUMENT_DEPTH - 1)
+    excessive_node_count_document = {
+        "type": "doc",
+        "content": [{"type": "paragraph"} for _ in range(MAX_DOCUMENT_NODES)],
+    }
+    excessive_text_length_document = {
+        "type": "doc",
+        "content": [
+            {
+                "type": "paragraph",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "a" * (MAX_DOCUMENT_TEXT_LENGTH + 1),
+                    }
+                ],
+            }
+        ],
+    }
+    excessive_size_document = document_with_serialized_size(MAX_DOCUMENT_BYTES + 1)
+
+    with pytest.raises(ValueError, match="중첩 깊이"):
+        validate_body_document(excessive_depth_document)
     with pytest.raises(ValueError, match="node 수"):
-        validate_body_document(too_many_nodes_document)
+        validate_body_document(excessive_node_count_document)
     with pytest.raises(ValueError, match="text 길이"):
-        validate_body_document(excessive_text_document)
+        validate_body_document(excessive_text_length_document)
+    with pytest.raises(ValueError, match="JSON 크기"):
+        validate_body_document(excessive_size_document)

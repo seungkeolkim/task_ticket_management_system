@@ -426,6 +426,7 @@ def _is_allowed_link(href: str) -> bool:
     if (
         not href
         or len(href) > 2_048
+        or "\\" in href
         or any(
             character.isspace() or ord(character) < 32 or ord(character) == 127
             for character in href
