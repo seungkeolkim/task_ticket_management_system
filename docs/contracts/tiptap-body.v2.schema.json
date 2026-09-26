@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "tiptap-body.v2.schema.json",
+  "title": "Tiptap body schema v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["type", "content"],
+  "properties": {
+    "type": {"const": "doc"},
+    "content": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/node"},
+      "maxItems": 2000
+    }
+  },
+  "$defs": {
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "enum": [
+            "paragraph", "heading", "text", "hardBreak", "bulletList",
+            "orderedList", "listItem", "taskList", "taskItem", "blockquote",
+            "codeBlock", "table", "tableRow", "tableHeader", "tableCell", "image"
+          ]
+        },
+        "text": {"type": "string", "minLength": 1, "maxLength": 100000},
+        "attrs": {"$ref": "#/$defs/attributes"},
+        "marks": {"type": "array", "items": {"$ref": "#/$defs/mark"}},
+        "content": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/node"},
+          "maxItems": 2000
+        }
+      }
+    },
+    "mark": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": {"enum": ["bold", "italic", "underline", "strike", "code", "link", "textStyle"]},
+        "attrs": {"$ref": "#/$defs/attributes"}
+      }
+    },
+    "attributes": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "level": {"enum": [1, 2, 3]},
+        "start": {"type": "integer", "minimum": 1, "maximum": 1000000},
+        "type": {"enum": [null, "1"]},
+        "checked": {"type": "boolean"},
+        "href": {"type": "string", "maxLength": 2048},
+        "target": {"enum": [null, "_blank"]},
+        "rel": {"enum": [null, "noopener noreferrer nofollow"]},
+        "class": {"enum": [null, ""]},
+        "color": {"enum": ["#111827", "#374151", "#6b7280", "#b91c1c", "#c2410c", "#a16207", "#15803d", "#0369a1", "#1d4ed8", "#6d28d9"]},
+        "fontSize": {"enum": ["12px", "14px", "16px", "18px", "24px", "32px"]},
+        "colspan": {"type": "integer", "minimum": 1, "maximum": 20},
+        "rowspan": {"type": "integer", "minimum": 1, "maximum": 20},
+        "colwidth": {
+          "oneOf": [
+            {"type": "null"},
+            {"type": "array", "items": {"type": "integer", "minimum": 20, "maximum": 2000}, "maxItems": 20}
+          ]
+        },
+        "attachmentId": {"type": "integer", "minimum": 1},
+        "alt": {"type": "string", "maxLength": 500},
+        "title": {"type": "string", "maxLength": 500}
+      }
+    }
+  }
+}

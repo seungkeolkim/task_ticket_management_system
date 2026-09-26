@@ -1,5 +1,19 @@
 {% extends "base.html" %}
 
+{% macro editor_icon(icon_name) -%}
+<svg class="rich-text-toolbar-icon" aria-hidden="true">
+  <use href="{{ url_for('static', path='tiptap-editor-icons.svg') }}#{{ icon_name }}"></use>
+</svg>
+{%- endmacro %}
+
+{% macro editor_button(command_name, accessible_label, icon_name, tooltip=none, extra_class='') -%}
+<button{% if extra_class %} class="{{ extra_class }}"{% endif %} type="button" data-rich-text-command="{{ command_name }}" aria-label="{{ accessible_label }}" title="{{ tooltip or accessible_label }}">
+  {{ editor_icon(icon_name) }}
+</button>
+{%- endmacro %}
+
+{% block extra_head %}<link rel="stylesheet" href="{{ url_for('static', path='tiptap-editor.css') }}">{% endblock %}
+
 {% block content %}
 {% set form = values|default({}) %}
 <header class="page-header compact-header">
@@ -26,7 +40,69 @@
         <label class="field"><span>프로젝트</span><input value="{{ project.key }} · {{ project.name }}" disabled></label>
       </div>
       <label class="field"><span>제목 <b>*</b></span><input name="title" maxlength="200" value="{{ form.get('title', '') }}" placeholder="해야 할 일을 간결하게 입력하세요" required><small class="field-counter">최대 200자</small></label>
-      <label class="field"><span>설명</span><textarea name="description" rows="10" maxlength="100000" placeholder="배경, 목표, 완료 조건을 Markdown 원문으로 작성하세요.">{{ form.get('description', '') }}</textarea><small>현재는 원문을 안전한 일반 텍스트로 표시하며 Markdown 렌더링은 후속 범위입니다.</small></label>
+      <div class="field rich-text-field">
+        <span>설명</span>
+        <div class="rich-text-toolbar" data-rich-text-toolbar role="toolbar" aria-label="설명 서식">
+          <div class="rich-text-toolbar-group" role="group" aria-label="실행 취소와 다시 실행">
+            {{ editor_button('undo', '실행 취소', 'undo') }}
+            {{ editor_button('redo', '다시 실행', 'redo') }}
+          </div>
+          <div class="rich-text-toolbar-group" role="group" aria-label="문단 형식">
+            <select class="rich-text-block-select" data-rich-text-command="heading" aria-label="문단 형식" title="문단 형식">
+              <option value="paragraph">본문</option>
+              <option value="1">제목 1</option>
+              <option value="2">제목 2</option>
+              <option value="3">제목 3</option>
+            </select>
+          </div>
+          <div class="rich-text-toolbar-group" role="group" aria-label="기본 서식">
+            {{ editor_button('bold', '굵게', 'bold') }}
+            {{ editor_button('italic', '기울임', 'italic') }}
+            {{ editor_button('underline', '밑줄', 'underline') }}
+            {{ editor_button('strike', '취소선', 'strikethrough') }}
+          </div>
+          <div class="rich-text-toolbar-group" role="group" aria-label="글자 모양">
+            <select class="rich-text-size-select" data-rich-text-command="fontSize" aria-label="글자 크기" title="글자 크기">
+              <option value="">크기</option>
+              {% for size in ['12px', '14px', '16px', '18px', '24px', '32px'] %}<option value="{{ size }}">{{ size }}</option>{% endfor %}
+            </select>
+            <select class="rich-text-color-select" data-rich-text-command="color" aria-label="글자 색상" title="글자 색상">
+              <option value="">글자색</option>
+              {% for color, label in [('#111827','기본'),('#374151','진회색'),('#6b7280','회색'),('#b91c1c','빨강'),('#c2410c','주황'),('#a16207','노랑'),('#15803d','초록'),('#0369a1','하늘'),('#1d4ed8','파랑'),('#6d28d9','보라')] %}<option value="{{ color }}">{{ label }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="rich-text-toolbar-group" role="group" aria-label="목록">
+            {{ editor_button('bulletList', '글머리 기호 목록', 'list') }}
+            {{ editor_button('orderedList', '번호 목록', 'list-ordered') }}
+            {{ editor_button('taskList', '할 일 목록', 'list-check') }}
+            {{ editor_button('outdent', '내어쓰기', 'outdent') }}
+            {{ editor_button('indent', '들여쓰기', 'indent') }}
+          </div>
+          <div class="rich-text-toolbar-group rich-text-toolbar-group-last" role="group" aria-label="삽입과 고급 서식">
+            {{ editor_button('blockquote', '인용', 'quote') }}
+            {{ editor_button('code', '인라인 코드', 'code') }}
+            {{ editor_button('codeBlock', '코드 블록', 'code-block') }}
+            {{ editor_button('link', '링크', 'link') }}
+            {{ editor_button('insertTable', '표 삽입', 'table', '3×3 표 삽입') }}
+          </div>
+        </div>
+        <div class="rich-text-table-toolbar" data-rich-text-table-toolbar role="toolbar" aria-label="표 편집" hidden>
+          <span>표 편집</span>
+          {{ editor_button('addRowBefore', '위에 행 추가', 'row-before') }}
+          {{ editor_button('addRowAfter', '아래에 행 추가', 'row-after') }}
+          {{ editor_button('deleteRow', '현재 행 삭제', 'row-delete') }}
+          <span class="rich-text-table-divider" aria-hidden="true"></span>
+          {{ editor_button('addColumnBefore', '왼쪽에 열 추가', 'column-before') }}
+          {{ editor_button('addColumnAfter', '오른쪽에 열 추가', 'column-after') }}
+          {{ editor_button('deleteColumn', '현재 열 삭제', 'column-delete') }}
+          <span class="rich-text-table-divider" aria-hidden="true"></span>
+          {{ editor_button('deleteTable', '표 삭제', 'trash', extra_class='rich-text-danger-button') }}
+        </div>
+        <div class="rich-text-editor" data-rich-text-editor></div>
+        <textarea name="description_document" data-rich-text-payload hidden>{{ form.get('description_document_json', '{"type":"doc","content":[{"type":"paragraph"}]}') }}</textarea>
+        <small>구조화된 본문으로 저장되며 HTML은 서버에서 안전하게 생성합니다.</small>
+        <noscript><div class="auth-message error">설명 편집에는 JavaScript가 필요합니다.</div></noscript>
+      </div>
     </div>
 
     <div class="form-section">
@@ -58,3 +134,5 @@
   </aside>
 </div>
 {% endblock %}
+
+{% block extra_scripts %}<script src="{{ url_for('static', path='tiptap-editor.js') }}" defer></script>{% endblock %}

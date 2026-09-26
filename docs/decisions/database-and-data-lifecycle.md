@@ -20,6 +20,7 @@
 | DB-016 | 2026-09-19 | DECIDED | 프로젝트 생성·참여자 추가는 DB-013의 SQLite 쓰기 잠금을 재사용하고 잠금 이후 현재 사용자 역할·구성원 권한·활성 상태·중복을 재검사한다. 쓰기와 감사 기록은 한 transaction이며 override 조회도 감사 저장 실패 시 결과를 반환하지 않는다. | 기존 Project·ProjectMember 테이블로 연결하며 migration은 추가하지 않는다. 동시 생성·등록과 감사 실패 롤백을 검증한다. |
 | DB-017 | 2026-09-23 | DECIDED | `20260923_0003`에서 `project_members.role` CHECK에 `PROJECT_GUEST`를 추가한다. downgrade 시 게스트를 쓰기 가능한 사용자로 승격하지 않고 해당 게스트 membership을 제거한다. | upgrade는 기존 관리자·사용자 membership을 그대로 보존한다. 이전 schema에는 읽기 전용 역할이 없으므로 downgrade의 접근 상실을 명시적인 파괴 동작으로 취급하고 사전 백업을 요구한다. |
 | DB-018 | 2026-09-26 | DECIDED | Markdown `body_schema_version=1`은 실제 ticket·comment·ticket_history 데이터가 없는 상태에서 Tiptap JSON `body_schema_version=2`로 대체한다. 기존 revision은 수정하지 않고 새 Alembic revision에서 관련 row가 0건인지 preflight한 뒤 저장 구조를 변경하며 v1 dual-read, Markdown converter와 legacy 본문 컬럼은 구현하지 않는다. | 아직 이관할 업무 본문이 없으므로 사용하지 않을 호환 계층을 만들지 않는다. 사용자·조직·프로젝트 데이터와 기존 migration 이력은 보존하고, 예상과 달리 본문 데이터가 있으면 자동 손실 대신 migration을 명확히 중단한다. |
+| DB-019 | 2026-09-26 | DECIDED | Tiptap 구조화 본문과 초기 MVP는 현재 SQLite 단일 DB·단일 application worker 구성을 유지하고 PostgreSQL container를 기본 Compose에 추가하지 않는다. 다중 application worker·별도 write worker 또는 scheduler·지속적인 write lock 대기·원격 DB 운영·PostgreSQL 전용 검색이나 복구 기능이 필요해질 때 전환을 재검토한다. | 현재의 낮은 write concurrency와 `config`·`data` 디렉터리 단위 이관 요구에는 SQLite가 운영상 단순하다. Tiptap JSON은 DB 중립적인 SQLAlchemy JSON 계약으로 구현하고 새 SQLite 전용 domain SQL은 추가하지 않는다. 전환 시에는 PostgreSQL 행 잠금·원자 증가, repository/migration test, PGDATA directory volume과 `pg_dump`·`pg_restore` 절차를 함께 구현한다. |
 
 ## Open decisions
 

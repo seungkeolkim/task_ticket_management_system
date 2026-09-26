@@ -18,6 +18,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     false,
+    text,
     true,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -26,6 +27,11 @@ from app.db.base import Base
 from app.db.mixins import IntegerPrimaryKeyMixin, TimestampMixin
 from app.db.types import UTCDateTime, utc_now
 from app.domain.codes import HistoryEventType, Priority, ProjectRole, TicketStatus, TicketType
+from app.domain.rich_text import (
+    BODY_SCHEMA_VERSION,
+    EMPTY_BODY_DOCUMENT_JSON,
+    empty_body_document,
+)
 
 
 def allowed(column: str, values: Any, name: str) -> CheckConstraint:
@@ -107,7 +113,7 @@ class Ticket(IntegerPrimaryKeyMixin, TimestampMixin, Base):
         allowed("status", TicketStatus, "status_allowed"),
         allowed("priority", Priority, "priority_allowed"),
         CheckConstraint("number > 0 AND version > 0", name="positive_number_version"),
-        CheckConstraint("body_schema_version > 0", name="positive_body_version"),
+        CheckConstraint("body_schema_version = 2", name="supported_body_version"),
         CheckConstraint("parent_id IS NULL OR parent_id != id", name="not_own_parent"),
         CheckConstraint(
             "(type = 'EPIC' AND parent_id IS NULL) OR type = 'TASK' OR "
@@ -139,8 +145,15 @@ class Ticket(IntegerPrimaryKeyMixin, TimestampMixin, Base):
     key: Mapped[str] = mapped_column(String(64), unique=True)
     type: Mapped[str] = mapped_column(String(16), default=TicketType.TASK, server_default="TASK")
     title: Mapped[str] = mapped_column(String(200))
-    description: Mapped[str] = mapped_column(Text, default="", server_default="")
-    body_schema_version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+    description_document: Mapped[dict[str, Any]] = mapped_column(
+        JSON,
+        default=empty_body_document,
+        server_default=text(f"'{EMPTY_BODY_DOCUMENT_JSON}'"),
+        nullable=False,
+    )
+    body_schema_version: Mapped[int] = mapped_column(
+        Integer, default=BODY_SCHEMA_VERSION, server_default=str(BODY_SCHEMA_VERSION)
+    )
     status: Mapped[str] = mapped_column(
         String(24), default=TicketStatus.TODO, server_default="TODO"
     )
@@ -238,7 +251,7 @@ class TicketHistory(IntegerPrimaryKeyMixin, Base):
     event_type: Mapped[str] = mapped_column(String(32))
     actor_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
     occurred_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now)
-    schema_version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+    schema_version: Mapped[int] = mapped_column(Integer, default=2, server_default="2")
     before_state: Mapped[dict[str, Any] | None] = mapped_column(JSON(none_as_null=True))
     after_state: Mapped[dict[str, Any]] = mapped_column(JSON)
     changes: Mapped[list[dict[str, Any]]] = mapped_column(JSON)

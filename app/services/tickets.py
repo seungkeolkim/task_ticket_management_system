@@ -16,6 +16,11 @@ from app.domain.codes import (
     TicketStatus,
     TicketType,
 )
+from app.domain.rich_text import (
+    extract_body_document_text,
+    iter_attachment_ids,
+    render_body_document_html,
+)
 from app.models import AuditLog, Ticket, TicketDeletionBatch, TicketHistory, TicketRelation
 from app.repositories import tickets as repository
 from app.schemas.contracts import FieldChange, RelationSnapshot, TicketEvent, TicketState
@@ -31,6 +36,7 @@ from app.schemas.tickets import (
     TicketCreateOptions,
     TicketDetailView,
     TicketEditOptions,
+    TicketListItemView,
     TicketPage,
     TicketParentView,
     TicketRelationCreate,
@@ -122,8 +128,8 @@ def _build_ticket_user_view(user_id: int | None, login_id: str | None, display_n
     return TicketUserView(id=user_id, login_id=login_id or "", display_name=display_name or "")
 
 
-def build_ticket_view(ticket_row) -> TicketView:
-    """티켓 row를 상세 view로 변환한다."""
+def _build_ticket_common_view_values(ticket_row) -> dict[str, object]:
+    """티켓 row에서 목록과 상세 view가 공유하는 값을 구성한다."""
     ticket = ticket_row[0]
     mapping = ticket_row._mapping
     ticket_type = TicketType(ticket.type)
@@ -137,37 +143,57 @@ def build_ticket_view(ticket_row) -> TicketView:
             type=TicketType(mapping["parent_type"]),
             title=mapping["parent_title"],
         )
-    return TicketView(
-        id=ticket.id,
-        project_id=ticket.project_id,
-        project_key=mapping["project_key"],
-        project_name=mapping["project_name"],
-        number=ticket.number,
-        key=ticket.key,
-        type=ticket_type,
-        type_label=TYPE_LABELS[ticket_type],
-        title=ticket.title,
-        description=ticket.description,
-        status=status,
-        status_label=status_label,
-        status_code=status_code,
-        priority=priority,
-        priority_label=PRIORITY_LABELS[priority],
-        priority_code=priority.value.lower(),
-        parent=parent,
-        creator=_build_ticket_user_view(
+    return {
+        "id": ticket.id,
+        "project_id": ticket.project_id,
+        "project_key": mapping["project_key"],
+        "project_name": mapping["project_name"],
+        "number": ticket.number,
+        "key": ticket.key,
+        "type": ticket_type,
+        "type_label": TYPE_LABELS[ticket_type],
+        "title": ticket.title,
+        "status": status,
+        "status_label": status_label,
+        "status_code": status_code,
+        "priority": priority,
+        "priority_label": PRIORITY_LABELS[priority],
+        "priority_code": priority.value.lower(),
+        "parent": parent,
+        "creator": _build_ticket_user_view(
             mapping["creator_id"], mapping["creator_login_id"], mapping["creator_display_name"]
         ),
-        assignee=_build_ticket_user_view(
+        "assignee": _build_ticket_user_view(
             mapping["assignee_id"], mapping["assignee_login_id"], mapping["assignee_display_name"]
         ),
-        due_date=ticket.due_date,
-        actual_started_at=ticket.actual_started_at,
-        completed_at=ticket.completed_at,
-        cancelled_at=ticket.cancelled_at,
-        version=ticket.version,
-        created_at=ticket.created_at,
-        updated_at=ticket.updated_at,
+        "due_date": ticket.due_date,
+        "actual_started_at": ticket.actual_started_at,
+        "completed_at": ticket.completed_at,
+        "cancelled_at": ticket.cancelled_at,
+        "version": ticket.version,
+        "created_at": ticket.created_at,
+        "updated_at": ticket.updated_at,
+    }
+
+
+def build_ticket_list_item_view(ticket_row) -> TicketListItemView:
+    """티켓 row를 HTML 렌더링 없는 목록 view로 변환한다."""
+    ticket = ticket_row[0]
+    return TicketListItemView(
+        **_build_ticket_common_view_values(ticket_row),
+        description_plain_text=extract_body_document_text(ticket.description_document),
+    )
+
+
+def build_ticket_view(ticket_row) -> TicketView:
+    """티켓 row를 구조화 본문이 포함된 상세 view로 변환한다."""
+    ticket = ticket_row[0]
+    return TicketView(
+        **_build_ticket_common_view_values(ticket_row),
+        description_plain_text=extract_body_document_text(ticket.description_document),
+        description_document=ticket.description_document,
+        description_html=render_body_document_html(ticket.description_document),
+        body_schema_version=ticket.body_schema_version,
     )
 
 
@@ -222,25 +248,33 @@ def build_ticket_detail_view(
 
 
 def _build_board_card(
-    ticket: TicketView, *, can_transition: bool, completion_blocked: bool
+    ticket_row, *, can_transition: bool, completion_blocked: bool
 ) -> BoardCard:
-    """티켓 view와 전이 권한으로 보드 카드를 구성한다."""
+    """티켓 row와 전이 권한으로 본문 변환 없는 보드 카드를 구성한다."""
+    ticket = ticket_row[0]
+    mapping = ticket_row._mapping
+    ticket_type = TicketType(ticket.type)
+    status = TicketStatus(ticket.status)
+    priority = Priority(ticket.priority)
+    status_label, status_code = STATUS_LABELS[status]
     return BoardCard(
         key=ticket.key,
         version=ticket.version,
-        type=ticket.type,
-        type_label=ticket.type_label,
+        type=ticket_type,
+        type_label=TYPE_LABELS[ticket_type],
         title=ticket.title,
-        status=ticket.status,
-        status_label=ticket.status_label,
-        status_code=ticket.status_code,
-        priority=ticket.priority,
-        priority_label=ticket.priority_label,
-        priority_code=ticket.priority_code,
-        assignee=ticket.assignee,
+        status=status,
+        status_label=status_label,
+        status_code=status_code,
+        priority=priority,
+        priority_label=PRIORITY_LABELS[priority],
+        priority_code=priority.value.lower(),
+        assignee=_build_ticket_user_view(
+            mapping["assignee_id"], mapping["assignee_login_id"], mapping["assignee_display_name"]
+        ),
         due_date=ticket.due_date,
         can_transition=can_transition,
-        allowed_statuses=list(get_allowed_transitions(ticket.status)) if can_transition else [],
+        allowed_statuses=list(get_allowed_transitions(status)) if can_transition else [],
         completion_blocked=completion_blocked,
     )
 
@@ -255,7 +289,8 @@ def _build_ticket_state_snapshot(
         version=ticket.version,
         type=ticket.type,
         title=ticket.title,
-        description=ticket.description,
+        description_document=ticket.description_document,
+        body_schema_version=ticket.body_schema_version,
         status=ticket.status,
         priority=ticket.priority,
         parent_key=parent_key,
@@ -374,6 +409,21 @@ def _get_project(session: Session, actor: Identity, project_key: str):
 def _get_writable_project(session: Session, actor: Identity, project_key: str):
     """쓰기 가능한 프로젝트를 조회한다."""
     return project_service.require_project_user_access(session, actor, project_key)
+
+
+def _require_available_document_attachments(
+    session: Session, project_id: int, description_document: dict[str, object]
+) -> None:
+    """본문 image node가 현재 프로젝트의 활성 attachment만 참조하는지 확인한다."""
+    requested_attachment_ids = set(iter_attachment_ids(description_document))
+    available_attachment_ids = repository.available_attachment_ids(
+        session, project_id, requested_attachment_ids
+    )
+    if requested_attachment_ids != available_attachment_ids:
+        raise AuthError(
+            "invalid_description_attachment",
+            "설명에 현재 프로젝트에서 사용할 수 없는 첨부파일이 포함되어 있습니다.",
+        )
 
 
 def get_allowed_transitions(status: TicketStatus | str) -> tuple[TicketStatus, ...]:
@@ -499,7 +549,7 @@ def list_project_tickets(
             page_size=size,
         )
         return project, TicketPage(
-            tickets=[build_ticket_view(ticket_row) for ticket_row in rows],
+            tickets=[build_ticket_list_item_view(ticket_row) for ticket_row in rows],
             total=total,
             page=page,
             page_size=size,
@@ -545,7 +595,7 @@ def list_global_tickets(
             page_size=size,
         )
         return TicketPage(
-            tickets=[build_ticket_view(ticket_row) for ticket_row in rows],
+            tickets=[build_ticket_list_item_view(ticket_row) for ticket_row in rows],
             total=total,
             page=page,
             page_size=size,
@@ -559,28 +609,27 @@ def build_ticket_board(session: Session, actor: Identity, project_key: str):
         rows = repository.board_rows(
             session, project.id, actor.id, override=uses_system_administrator_override(project)
         )
-        indexed = {
-            ticket_row[0].id: (ticket_row[0], build_ticket_view(ticket_row))
-            for ticket_row in rows
-        }
         dependency_blocked_ids = repository.incomplete_dependency_source_ids(session, project.id)
-
-        def board_card(item: tuple[Ticket, TicketView]) -> BoardCard:
-            """티켓과 전이 권한으로 보드 카드를 구성한다."""
-            ticket_row, ticket_view = item
-            return _build_board_card(
-                ticket_view,
-                can_transition=project.is_active and can_edit_ticket(project, ticket_row, actor),
-                completion_blocked=ticket_row.id in dependency_blocked_ids,
+        indexed: dict[int, tuple[Ticket, BoardCard]] = {}
+        for ticket_result_row in rows:
+            ticket = ticket_result_row[0]
+            indexed[ticket.id] = (
+                ticket,
+                _build_board_card(
+                    ticket_result_row,
+                    can_transition=project.is_active
+                    and can_edit_ticket(project, ticket, actor),
+                    completion_blocked=ticket.id in dependency_blocked_ids,
+                ),
             )
 
         epics = [item for item in indexed.values() if item[0].type == TicketType.EPIC]
         tasks = [item for item in indexed.values() if item[0].type == TicketType.TASK]
-        subtasks_by_parent: dict[int, list[tuple[Ticket, TicketView]]] = {}
+        subtasks_by_parent: dict[int, list[tuple[Ticket, BoardCard]]] = {}
         for item in indexed.values():
-            row, _ = item
-            if row.type == TicketType.SUBTASK and row.parent_id in indexed:
-                subtasks_by_parent.setdefault(row.parent_id, []).append(item)
+            ticket = item[0]
+            if ticket.type == TicketType.SUBTASK and ticket.parent_id in indexed:
+                subtasks_by_parent.setdefault(ticket.parent_id, []).append(item)
 
         groups: list[BoardEpicGroup] = []
         for epic_item in [*epics, None]:
@@ -595,29 +644,30 @@ def build_ticket_board(session: Session, actor: Identity, project_key: str):
                 label, code = STATUS_LABELS[ticket_status]
                 task_cards: list[BoardTask] = []
                 detached: list[BoardDetachedGroup] = []
-                for task_row, task_view in group_tasks:
-                    children = subtasks_by_parent.get(task_row.id, [])
-                    if task_row.status == ticket_status:
+                for task_ticket, task_card in group_tasks:
+                    children = subtasks_by_parent.get(task_ticket.id, [])
+                    if task_ticket.status == ticket_status:
                         task_cards.append(
                             BoardTask(
-                                card=board_card((task_row, task_view)),
+                                card=task_card,
                                 subtasks=[
-                                    board_card((child_row, child_view))
-                                    for child_row, child_view in children
-                                    if child_row.status == ticket_status
+                                    child_card
+                                    for child_ticket, child_card in children
+                                    if child_ticket.status == ticket_status
                                 ],
                             )
                         )
                     other_status_children = [
-                        board_card((child_row, child_view))
-                        for child_row, child_view in children
-                        if child_row.status == ticket_status and task_row.status != ticket_status
+                        child_card
+                        for child_ticket, child_card in children
+                        if child_ticket.status == ticket_status
+                        and task_ticket.status != ticket_status
                     ]
                     if other_status_children:
                         detached.append(
                             BoardDetachedGroup(
-                                parent_key=task_view.key,
-                                parent_title=task_view.title,
+                                parent_key=task_card.key,
+                                parent_title=task_card.title,
                                 subtasks=other_status_children,
                             )
                         )
@@ -1261,6 +1311,9 @@ def create_ticket(
             session, project.id, payload.assignee_id
         ):
             raise AuthError("invalid_assignee", "활성 프로젝트 구성원을 담당자로 선택하세요.")
+        _require_available_document_attachments(
+            session, project.id, payload.description_document
+        )
         number = repository.allocate_number(session, project.id)
         ticket = Ticket(
             project_id=project.id,
@@ -1268,7 +1321,7 @@ def create_ticket(
             key=f"{project.key}-{number}",
             type=payload.type,
             title=payload.title,
-            description=payload.description,
+            description_document=payload.description_document,
             status=TicketStatus.TODO,
             priority=payload.priority,
             parent_id=parent.id if parent else None,
@@ -1326,11 +1379,14 @@ def update_ticket(
             and not repository.assignee_is_active_member(session, project.id, payload.assignee_id)
         ):
             raise AuthError("invalid_assignee", "활성 프로젝트 구성원을 담당자로 선택하세요.")
+        _require_available_document_attachments(
+            session, project.id, payload.description_document
+        )
 
         current_parent_key = row._mapping["parent_key"]
         desired = {
             "title": payload.title,
-            "description": payload.description,
+            "description_document": payload.description_document,
             "priority": payload.priority,
             "parent_key": parent.key if parent else None,
             "assignee_id": payload.assignee_id,
@@ -1338,7 +1394,7 @@ def update_ticket(
         }
         current = {
             "title": ticket.title,
-            "description": ticket.description,
+            "description_document": ticket.description_document,
             "priority": Priority(ticket.priority),
             "parent_key": current_parent_key,
             "assignee_id": ticket.assignee_id,
@@ -1350,7 +1406,7 @@ def update_ticket(
 
         before = _build_ticket_snapshot(session, ticket, current_parent_key)
         ticket.title = payload.title
-        ticket.description = payload.description
+        ticket.description_document = payload.description_document
         ticket.priority = payload.priority
         ticket.parent_id = parent.id if parent else None
         ticket.assignee_id = payload.assignee_id
@@ -1365,7 +1421,14 @@ def update_ticket(
                 HistoryEventType.UPDATED,
                 before,
                 after,
-                ("title", "description", "priority", "parent_key", "assignee_id", "due_date"),
+                (
+                    "title",
+                    "description_document",
+                    "priority",
+                    "parent_key",
+                    "assignee_id",
+                    "due_date",
+                ),
             )
         )
         record_ticket_audit_event(

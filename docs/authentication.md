@@ -39,4 +39,4 @@ POST는 같은 origin의 `Origin`(없으면 `Referer`)과 `X-CSRF-Token` 헤더�
 
 인증 실패 진단에는 비밀번호·cookie·token·SQL parameter를 남기지 않는다. 사용자 입력 검증 오류도 입력값을 응답에 복사하지 않는다. 인증 응답과 화면에는 `Cache-Control: no-store`를 적용한다.
 
-인증 기능은 기존 `users`, `user_sessions`, `organizations`, `audit_logs`를 사용한다. 현재 Alembic head는 프로젝트 게스트 역할을 추가한 `20260923_0003`이며 인증 테이블 구조는 `20260916_0001` 이후 변경하지 않았다. SQLite 인증 쓰기는 실패 횟수 판정과 기록을 직렬화한다. PostgreSQL 전환 시 동등한 잠금 구현과 동시성 검증이 필요하다(DB-013).
+인증 기능은 기존 `users`, `user_sessions`, `organizations`, `audit_logs`를 사용한다. 현재 Alembic head는 Tiptap 본문 v2를 추가한 `20260926_0004`이며 인증 테이블 구조는 `20260916_0001` 이후 변경하지 않았다. SQLite 인증 쓰기는 실패 횟수 판정과 기록을 직렬화한다. PostgreSQL 전환 시 동등한 잠금 구현과 동시성 검증이 필요하다(DB-013).

@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.orm.exc import StaleDataError
 
+from app.domain.rich_text import extract_body_document_text
 from app.models import (
     Attachment,
     Comment,
@@ -65,7 +66,7 @@ def work(db_session: Session) -> tuple[User, Project, Ticket, Ticket, Project, T
         {"progress_percent": -1},
         {"version": 0},
         {"number": 0},
-        {"body_schema_version": 0},
+        {"body_schema_version": 1},
         {"planned_start_date": date(2026, 9, 18), "planned_end_date": date(2026, 9, 17)},
         {"deleted_at": NOW},
     ],
@@ -189,7 +190,20 @@ def test_comment_attachment_mention_scope_and_deduplication(
 ) -> None:
     """첨부파일·멘션 관련 동작을 검증한다."""
     user, project, a, b, other, foreign = work
-    comment = Comment(project_id=project.id, ticket_id=a.id, author_id=user.id, body="**진행**")
+    comment = Comment(
+        project_id=project.id,
+        ticket_id=a.id,
+        author_id=user.id,
+        body_document={
+            "type": "doc",
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [{"type": "text", "text": "진행"}],
+                }
+            ],
+        },
+    )
     db_session.add(comment)
     db_session.flush()
     for ticket in (b, foreign):
@@ -238,7 +252,20 @@ def test_round_trip_schedule_body_filter_history_and_report(
     ticket.planned_start_date = date(2026, 9, 14)
     ticket.planned_end_date = date(2026, 9, 18)
     ticket.sort_order = Decimal("12.250001")
-    ticket.description = "# 목표\n한글 Markdown"
+    ticket.description_document = {
+        "type": "doc",
+        "content": [
+            {
+                "type": "heading",
+                "attrs": {"level": 1},
+                "content": [{"type": "text", "text": "목표"}],
+            },
+            {
+                "type": "paragraph",
+                "content": [{"type": "text", "text": "한글 구조화 본문"}],
+            },
+        ],
+    }
     ticket.actual_started_at = NOW
     db_session.flush()
     history = TicketHistory(
@@ -308,7 +335,7 @@ def test_round_trip_schedule_body_filter_history_and_report(
     db_session.expire_all()
     assert ticket.sort_order == Decimal("12.250001")
     assert ticket.actual_started_at == NOW
-    assert "한글" in ticket.description
+    assert "한글" in extract_body_document_text(ticket.description_document)
     assert history.after_state["status"] == "IN_PROGRESS"
     assert saved.definition["assignee_ids"] == [user.id]
     assert attempt.request_payload["messages"][0]["content"] == "주간보고"

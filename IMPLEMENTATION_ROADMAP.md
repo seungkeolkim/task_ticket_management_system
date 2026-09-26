@@ -245,15 +245,15 @@
 
 에디터와 저장 계약은 CNT-008·CNT-009, 배포 방식은 ARC-013, v1 폐기 방식은 DB-018을 따른다.
 
-- [ ] Tiptap core·extension exact version과 lock file 및 self-hosted 정적 bundle build 구성
-- [ ] 허용 node·mark·attribute와 `body_schema_version=2` JSON 계약 작성
-- [ ] Markdown v1 컬럼을 교체하는 zero-row preflight migration과 ORM·DTO 갱신
-- [ ] JSON 크기·깊이·node·attribute·URL·내부 참조 서버 검증 구현
-- [ ] Tiptap JSON 기반 HTML renderer·allowlist sanitizer·plain text 추출 구현
-- [ ] 제목·강조·밑줄·취소선·색상·크기·목록·들여쓰기·체크박스·인용·코드·링크·표 toolbar 구현
-- [ ] 링크 URL scheme과 렌더링 allowlist 보안 테스트 작성
-- [ ] 티켓 설명 편집·저장·조회 round-trip 구현
-- [ ] `Comment` 모델을 Tiptap document 계약과 ORM version 검사에 맞게 갱신
+- [x] Tiptap core·extension exact version과 lock file 및 self-hosted 정적 bundle build 구성
+- [x] 허용 node·mark·attribute와 `body_schema_version=2` JSON 계약 작성
+- [x] Markdown v1 컬럼을 교체하는 zero-row preflight migration과 ORM·DTO 갱신
+- [x] JSON 크기·깊이·node·attribute·URL·내부 참조 서버 검증 구현
+- [x] Tiptap JSON 기반 HTML renderer·allowlist sanitizer·plain text 추출 구현
+- [x] 제목·강조·밑줄·취소선·색상·크기·목록·들여쓰기·체크박스·인용·코드·링크·표 toolbar 구현
+- [x] 링크 URL scheme과 렌더링 allowlist 보안 테스트 작성
+- [x] 티켓 설명 편집·저장·조회 round-trip 구현
+- [x] `Comment` 모델을 Tiptap document 계약과 ORM version 검사에 맞게 갱신
 - [ ] 댓글 작성·수정 서비스 구현
 - [ ] 프로젝트 사용자 이상의 프로젝트 내 전체 댓글 수정·soft delete 구현
 - [ ] 설명과 댓글이 동일한 renderer를 사용하도록 구성
