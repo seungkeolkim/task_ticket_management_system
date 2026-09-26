@@ -12,6 +12,7 @@
 | CNT-008 | 2026-09-26 | DECIDED | 티켓 설명과 각 댓글은 동일한 `body_schema_version=2` 계약의 독립 Tiptap JSON document로 저장한다. 허용 범위는 제목, 굵게·기울임·밑줄·취소선, 제한된 글자 크기·색상, 중첩 bullet·ordered list, task list, 인용, 코드, 링크, 표와 내부 attachment image다. 글꼴과 표 셀 배경색은 초기 필수가 아니다. 임의 HTML은 원본으로 저장하지 않으며 sanitized HTML과 plain text는 파생 데이터다. | Confluence와 유사한 구조화 편집을 제공하면서 저장 포맷을 editor UI와 분리한다. 서버는 허용 node·mark·attribute, 크기·깊이, URL과 내부 참조를 검증하고 렌더링 결과에도 allowlist sanitizer를 적용한다. |
 | CNT-009 | 2026-09-26 | DECIDED | Tiptap은 에디터와 문서 구조에만 사용한다. 티켓 댓글·멘션·첨부파일·optimistic locking·변경 이력·감사 로그는 기존 애플리케이션 domain에서 직접 구현한다. inline comment와 Tiptap Cloud·협업·댓글·version history는 사용하지 않는다. image node는 base64나 임의 외부 URL 대신 권한 검사를 거치는 내부 attachment ID를 참조한다. | 프로젝트 권한과 transaction·보존 정책을 서버의 단일 기준으로 유지하고 외부 서비스 종속성을 만들지 않는다. 브라우저 undo/redo는 저장 전 편집 편의 기능일 뿐 업무 이력이 아니다. |
 | CNT-010 | 2026-09-26 | DECIDED | Tiptap JSON만 DB에 저장하고 파생 HTML과 plain text는 cache하지 않는다. 화면 DTO를 만드는 service에서 sanitized HTML을 생성하고, 목록·대시보드처럼 HTML이 필요 없는 경계에서는 plain text만 한 번 추출한다. | 원본과 cache의 transaction 일관성 및 재생성 migration 비용을 피한다. 실제 조회 부하가 확인되기 전에는 파생 저장소를 추가하지 않으며, 이후 cache가 필요하면 JSON과 같은 transaction에서만 갱신하는 별도 결정을 기록한다. |
+| CNT-011 | 2026-09-26 | DECIDED | 댓글의 Tiptap document에서 추출한 plain text가 공백이고 내부 attachment image도 없으면 빈 댓글로 보고 생성·수정을 거부한다. | 보이지 않는 공백이나 구조만 있는 댓글이 활동 영역에 쌓이는 것을 막되, 첨부 image만으로 의미가 있는 댓글은 허용한다. |
 
 ## Open decisions
 
