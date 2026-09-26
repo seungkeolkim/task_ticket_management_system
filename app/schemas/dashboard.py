@@ -2,7 +2,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, Field
 
-from app.schemas.tickets import TicketView
+from app.schemas.tickets import TicketListItemView
 
 
 class DashboardCounts(BaseModel):
@@ -26,5 +26,5 @@ class DashboardView(BaseModel):
     today: date
     week_end: date
     counts: DashboardCounts
-    recent_tickets: list[TicketView] = Field(default_factory=list)
+    recent_tickets: list[TicketListItemView] = Field(default_factory=list)
     mentions: list[MentionView] = Field(default_factory=list)

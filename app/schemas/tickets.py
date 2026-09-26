@@ -143,7 +143,7 @@ class TicketParentView(BaseModel):
     title: str
 
 
-class TicketView(BaseModel):
+class TicketListItemView(BaseModel):
     id: int
     project_id: int
     project_key: str
@@ -153,10 +153,7 @@ class TicketView(BaseModel):
     type: TicketType
     type_label: str
     title: str
-    description_document: dict[str, Any]
-    description_html: str
     description_plain_text: str
-    body_schema_version: Literal[2]
     status: TicketStatus
     status_label: str
     status_code: str
@@ -173,6 +170,12 @@ class TicketView(BaseModel):
     version: int
     created_at: datetime
     updated_at: datetime
+
+
+class TicketView(TicketListItemView):
+    description_document: dict[str, Any]
+    description_html: str
+    body_schema_version: Literal[2]
 
 
 class TicketRelationTargetView(BaseModel):
@@ -198,7 +201,7 @@ class TicketDetailView(TicketView):
 
 
 class TicketPage(BaseModel):
-    tickets: list[TicketView]
+    tickets: list[TicketListItemView]
     total: int
     page: int
     page_size: int

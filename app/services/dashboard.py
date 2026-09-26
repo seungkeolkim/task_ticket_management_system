@@ -8,7 +8,7 @@ from app.domain.rich_text import extract_body_document_text
 from app.repositories import dashboard as repository
 from app.schemas.dashboard import DashboardCounts, DashboardView, MentionView
 from app.services import projects as project_service
-from app.services.tickets import build_ticket_view
+from app.services.tickets import build_ticket_list_item_view
 
 SEOUL = ZoneInfo("Asia/Seoul")
 
@@ -30,7 +30,7 @@ def get_dashboard(session: Session, actor: Identity) -> DashboardView:
             week_end=week_end,
             counts=DashboardCounts(**dashboard_count_row._mapping),
             recent_tickets=[
-                build_ticket_view(ticket_row)
+                build_ticket_list_item_view(ticket_row)
                 for ticket_row in repository.list_recent_tickets(session, actor.id)
             ],
             mentions=[

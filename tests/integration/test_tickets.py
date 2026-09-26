@@ -278,6 +278,53 @@ def test_ticket_viewer_loads_styles_and_preserves_quote_and_code_blocks(
         assert "<pre><code># 주석\nprint(&#x27;test&#x27;)</code></pre>" in response.text
 
 
+def test_list_dashboard_and_board_skip_description_html_rendering(
+    client, ticket_people, monkeypatch
+):
+    """목록·대시보드·보드에서는 설명 HTML을 생성하지 않는지 검증한다."""
+    ticket = create_ticket(
+        client,
+        title="파생 본문 경계",
+        description_document=description_document("목록용 평문"),
+    ).json()
+    original_html_renderer = service.render_body_document_html
+    original_plain_text_extractor = service.extract_body_document_text
+    html_render_calls: list[dict[str, object]] = []
+    plain_text_extract_calls: list[dict[str, object]] = []
+
+    def capture_html_render(document: dict[str, object]) -> str:
+        """상세 HTML renderer 호출을 기록한다."""
+        html_render_calls.append(document)
+        return original_html_renderer(document)
+
+    def capture_plain_text_extract(document: dict[str, object]) -> str:
+        """목록 plain-text 추출 호출을 기록한다."""
+        plain_text_extract_calls.append(document)
+        return original_plain_text_extractor(document)
+
+    monkeypatch.setattr(service, "render_body_document_html", capture_html_render)
+    monkeypatch.setattr(service, "extract_body_document_text", capture_plain_text_extract)
+
+    project_listing = client.get("/api/projects/DEV/tickets").json()
+    project_list_item = project_listing["tickets"][0]
+    assert project_list_item["description_plain_text"] == "목록용 평문"
+    assert "description_html" not in project_list_item
+    assert "description_document" not in project_list_item
+
+    client.get("/api/tickets?scope=mine&status=all")
+    client.get("/api/dashboard")
+    plain_text_calls_before_board = len(plain_text_extract_calls)
+    client.get("/api/projects/DEV/tickets/board")
+
+    assert html_render_calls == []
+    assert len(plain_text_extract_calls) == plain_text_calls_before_board == 3
+
+    detail = client.get(f"/api/projects/DEV/tickets/{ticket['key']}").json()
+    assert detail["description_html"] == "<p>목록용 평문</p>"
+    assert len(html_render_calls) == 1
+    assert len(plain_text_extract_calls) == 4
+
+
 def test_description_image_requires_active_same_project_attachment(
     client, ticket_people, db_session
 ):
