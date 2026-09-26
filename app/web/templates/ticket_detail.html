@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% import "_macros.html" as ui %}
 
+{% block extra_head %}<link rel="stylesheet" href="{{ url_for('static', path='tiptap-editor.css') }}">{% endblock %}
+
 {% block content %}
 <div class="detail-page-head">
   <div class="breadcrumbs"><a href="/projects">프로젝트</a><span>›</span><a href="/projects/{{ project.key }}/tickets">{{ project.key }} 티켓</a><span>›</span><strong>{{ ticket.key }}</strong></div>

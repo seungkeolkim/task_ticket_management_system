@@ -239,6 +239,45 @@ def test_create_list_detail_and_history(client, ticket_people, db_session):
     assert project.next_ticket_number == 2
 
 
+def test_ticket_viewer_loads_styles_and_preserves_quote_and_code_blocks(
+    client, ticket_people
+):
+    """상세와 인라인 상세가 구조화 본문 viewer 스타일과 semantic HTML을 쓰는지 검증한다."""
+    structured_document = {
+        "type": "doc",
+        "content": [
+            {
+                "type": "blockquote",
+                "content": [
+                    {
+                        "type": "paragraph",
+                        "content": [{"type": "text", "text": "검토할 인용문"}],
+                    }
+                ],
+            },
+            {
+                "type": "codeBlock",
+                "attrs": {"language": None},
+                "content": [{"type": "text", "text": "# 주석\nprint('test')"}],
+            },
+        ],
+    }
+    ticket = create_ticket(
+        client,
+        title="구조화 본문 조회",
+        description_document=structured_document,
+    ).json()
+
+    detail = client.get(f"/projects/DEV/tickets/{ticket['key']}")
+    inline_detail = client.get(f"/projects/DEV/tickets?selected={ticket['key']}")
+
+    for response in (detail, inline_detail):
+        assert response.status_code == 200
+        assert 'href="http://testserver/static/tiptap-editor.css"' in response.text
+        assert "<blockquote><p>검토할 인용문</p></blockquote>" in response.text
+        assert "<pre><code># 주석\nprint(&#x27;test&#x27;)</code></pre>" in response.text
+
+
 def test_description_image_requires_active_same_project_attachment(
     client, ticket_people, db_session
 ):
