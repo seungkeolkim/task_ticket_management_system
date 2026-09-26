@@ -269,6 +269,8 @@ clone을 다른 커밋으로 갱신할 때는 링크의 파일·행 범위와 �
 
 ### 8.2 차용 방침
 
+현재 시스템은 CNT-008·CNT-009에 따라 아래 Markdown·HTML 선택지 대신 versioned Tiptap JSON을 원본으로 사용한다. 기존 구현에서는 사용자 입력과 렌더링 결과를 신뢰하지 않는 원칙, allowlist sanitizer와 보안 테스트만 차용한다. Tiptap은 self-hosted editor와 문서 구조에 한정하며 댓글·멘션·첨부파일·버전 이력은 서버에서 직접 구현한다.
+
 다음 개념과 테스트는 차용한다.
 
 - 사용자 입력과 최종 렌더링 결과를 신뢰하지 않는 원칙
@@ -279,7 +281,7 @@ clone을 다른 커밋으로 갱신할 때는 링크의 파일·행 범위와 �
 - 저장 → 조회 → 렌더링 round-trip 테스트
 - viewer에서 정화되지 않은 값을 `safe`로 출력하지 않는 규칙
 
-기존 `rich_text_editor.js`는 `document.execCommand`에 의존하므로 그대로 이식하지 않는 것을 권장한다. 에디터 프런트엔드는 별도로 선택하되 저장 포맷에 따라 다음 중 하나를 적용한다.
+기존 `rich_text_editor.js`는 `document.execCommand`에 의존하므로 그대로 이식하지 않는다. 아래 내용은 이전 대안 검토 기록이며 현재 구현 기준은 CNT-008·CNT-009다.
 
 #### Markdown을 저장하는 경우
 

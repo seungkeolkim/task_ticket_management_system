@@ -9,11 +9,11 @@
 |---|---|---|
 | 사용자·조직·인증·감사 | 기존 organizations, users, user_sessions, audit_logs | 초기 revision 유지. 같은 위치 조직 이름 고유 인덱스 추가 |
 | 프로젝트·참여자 | projects, project_members | 변경하지 않는 project key, (project, user) 고유 제약, next_ticket_number, 게스트·사용자·관리자 역할 |
-| 티켓·계층·일정 | tickets | project별 번호, 전역 표시 key, 유형·상태·중요도, 부모, 담당자, Markdown, 날짜, 순서, version |
+| 티켓·계층·일정 | tickets | project별 번호, 전역 표시 key, 유형·상태·중요도, 부모, 담당자, 현재 Markdown v1 Text와 Tiptap JSON v2 전환 예정, 날짜, 순서, version |
 | 관계·간트 선후행 | ticket_relations | 동일 project의 source/target, Related 정규형, Depends on 방향, dependency_kind, lag_days |
 | 휴지통·복구 | ticket_deletion_batches + tickets | root_ticket_key, 삭제자·시각·purge_after·복구자·시각, ticket의 batch FK |
 | 기간별 변경 이력 | ticket_history | ticket version, event/operation UUID, actor, UTC, before/after 상태, changes, schema version |
-| 댓글 | comments | project/ticket FK, 작성자, Markdown, version, soft delete |
+| 댓글 | comments | project/ticket FK, 작성자, 현재 Markdown v1 Text와 Tiptap JSON v2 전환 예정, version, soft delete |
 | 멘션 | mentions | project/ticket/comment FK, 대상·작성자, read_at, removed_at, 원본별 중복 방지 |
 | 첨부파일 | attachments | project/ticket/comment FK, storage backend/key, 원본명·MIME·크기·해시, 삭제·purge 시각 |
 | 개인·공유 필터 | saved_filters | project, owner, visibility, 이름, versioned JSON definition |
@@ -40,7 +40,10 @@
 
 - 타입: EPIC/TASK/SUBTASK. 상태: TODO/IN_PROGRESS/DONE/ON_HOLD/CANCELLED. 중요도: TRIVIAL/MINOR/MAJOR/CRITICAL/BLOCKER.
 - UI의 한글 상태 표시명은 DB code가 아니다. 현재 서비스 변환 계층에서 저장 code와 화면 표시명을 분리한다.
-- description/body는 Markdown 원문이고 body_schema_version=1이다. renderer·sanitizer는 후속이다.
+- 현재 revision의 description/body는 Markdown 원문과 `body_schema_version=1` 컬럼이지만 실제 ticket·comment·ticket_history row는 없다. 이 계약은 CNT-008과 DB-018로 대체되었으며 다음 revision에서 Tiptap JSON `body_schema_version=2`로 교체한다.
+- v2 원본은 허용된 Tiptap node·mark·attribute만 가진 JSON document다. sanitized HTML과 plain text는 조회·검색·보고서를 위한 파생 데이터이며 Tiptap package 버전은 본문 schema version과 별도로 고정한다.
+- 설명과 각 댓글은 독립 document다. inline comment는 지원하지 않고 티켓 댓글·멘션·첨부파일·version history는 애플리케이션 서비스가 직접 관리한다.
+- v1 dual-read, Markdown converter와 legacy 본문 보존 컬럼은 구현하지 않는다. migration은 관련 row가 0건인지 확인하여 예상하지 못한 데이터가 있으면 자동 손실 대신 실패한다.
 - sort_order는 Numeric(20,6)이다. 같은 순서 값에서는 ticket ID로 안정적으로 정렬하고 간격 소진 시 재정렬은 서비스에서 처리한다.
 - planned_start_date/planned_end_date는 달력 날짜이고 due_date와 독립이다. 둘 다 있으면 start <= end이며 미정 날짜도 허용한다.
 - actual_started_at은 최초 착수, completed_at/cancelled_at은 현재 완료·취소 진입 시각이다. 재개 시 해당 종료 시각을 비우고 이전 값은 이력에 남긴다.
@@ -74,7 +77,7 @@
 
 ## 연결 현황과 후속 순서
 
-로그인·비밀번호 변경 → 사용자·조직 기본 관리 → 프로젝트·참여자 → 티켓 생성·목록·상세 → 대시보드·칸반 조회 → 편집·상태 전이·칸반 이동 → 관계 → 계층 단위 휴지통·복구까지 연결했다. 다음 순서는 사용자·조직·프로젝트 관리 쓰기 확장과 휴지통 영구 삭제·댓글·멘션·첨부파일·저장 필터다.
+로그인·비밀번호 변경 → 사용자·조직 기본 관리 → 프로젝트·참여자 → 티켓 생성·목록·상세 → 대시보드·칸반 조회 → 편집·상태 전이·칸반 이동 → 관계 → 계층 단위 휴지통·복구까지 연결했다. 다음 순서는 Tiptap JSON v2 저장 기반과 self-hosted editor 전환 후 댓글·멘션·첨부파일을 연결하고, 사용자·조직·프로젝트 관리 쓰기 확장과 휴지통 영구 삭제·저장 필터를 이어가는 것이다.
 각 화면에서 필요한 저장·조회와 권한 검증을 함께 연결한다. 간트와 보고서는 별도 후속 화면으로 둔다.
 
 상세 보고서 계약은 [reporting_contracts.md](reporting_contracts.md), 의사결정 근거는 [planning-and-reporting.md](decisions/planning-and-reporting.md)를 참조한다.
