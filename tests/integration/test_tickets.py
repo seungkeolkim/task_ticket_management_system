@@ -1,3 +1,4 @@
+import json
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
 
@@ -7,6 +8,7 @@ from sqlalchemy import event, func, select
 from app.core.config import get_settings
 from app.domain.auth import hash_password
 from app.models import (
+    Attachment,
     AuditLog,
     Mention,
     Organization,
@@ -33,6 +35,32 @@ from app.services.auth import get_current_identity
 
 PASSWORD = "Ticket-test-password-123!"
 ORIGIN = {"Origin": "http://testserver"}
+
+
+def description_document(text: str = "") -> dict[str, object]:
+    """테스트용 단락 하나의 Tiptap document를 반환한다."""
+    paragraph: dict[str, object] = {"type": "paragraph"}
+    if text:
+        paragraph["content"] = [{"type": "text", "text": text}]
+    return {"type": "doc", "content": [paragraph]}
+
+
+def description_document_json(text: str = "") -> str:
+    """HTML form 전송용 Tiptap document JSON을 반환한다."""
+    return json.dumps(description_document(text), ensure_ascii=False)
+
+
+def image_description_document(attachment_id: int) -> dict[str, object]:
+    """내부 attachment image 하나를 포함한 Tiptap document를 반환한다."""
+    return {
+        "type": "doc",
+        "content": [
+            {
+                "type": "image",
+                "attrs": {"attachmentId": attachment_id, "alt": "내부 이미지"},
+            }
+        ],
+    }
 
 
 def token(client):
@@ -108,7 +136,7 @@ def create_ticket(client, **overrides):
     payload = {
         "type": "TASK",
         "title": "실제 티켓 생성",
-        "description": "DB에 저장되는 설명",
+        "description_document": description_document("DB에 저장되는 설명"),
         "priority": "MAJOR",
     } | overrides
     return post(client, "/api/projects/DEV/tickets", payload)
@@ -118,7 +146,7 @@ def update_ticket(client, ticket_key, expected_version, **overrides):
     """테스트용 티켓을 수정한다."""
     payload = {
         "title": "수정된 티켓",
-        "description": "수정된 설명",
+        "description_document": description_document("수정된 설명"),
         "priority": "MAJOR",
         "parent_key": None,
         "assignee_id": None,
@@ -209,6 +237,85 @@ def test_create_list_detail_and_history(client, ticket_people, db_session):
     assert audit.target_id == "DEV-1" and audit.details["project_id"] == project.id
     db_session.refresh(project)
     assert project.next_ticket_number == 2
+
+
+def test_description_image_requires_active_same_project_attachment(
+    client, ticket_people, db_session
+):
+    """설명 image가 같은 프로젝트의 활성 attachment만 참조하는지 검증한다."""
+    people, project = ticket_people
+    ticket = create_ticket(client, title="이미지 참조 티켓").json()
+    ticket_row = db_session.scalar(select(Ticket).where(Ticket.key == ticket["key"]))
+    active_attachment = Attachment(
+        project_id=project.id,
+        ticket_id=ticket_row.id,
+        original_filename="active.png",
+        media_type="image/png",
+        size_bytes=128,
+        storage_key="ticket-tests/active.png",
+        uploaded_by_id=people["member"].id,
+    )
+    deleted_attachment = Attachment(
+        project_id=project.id,
+        ticket_id=ticket_row.id,
+        original_filename="deleted.png",
+        media_type="image/png",
+        size_bytes=128,
+        storage_key="ticket-tests/deleted.png",
+        uploaded_by_id=people["member"].id,
+        deleted_at=datetime.now(UTC),
+        purge_after=datetime.now(UTC) + timedelta(days=30),
+    )
+    other_project = Project(
+        key="OTHER",
+        name="다른 프로젝트",
+        created_by_id=people["sysadmin"].id,
+    )
+    db_session.add_all([active_attachment, deleted_attachment, other_project])
+    db_session.flush()
+    other_ticket = Ticket(
+        project_id=other_project.id,
+        number=1,
+        key="OTHER-1",
+        title="다른 프로젝트 티켓",
+        creator_id=people["sysadmin"].id,
+    )
+    db_session.add(other_ticket)
+    db_session.flush()
+    other_attachment = Attachment(
+        project_id=other_project.id,
+        ticket_id=other_ticket.id,
+        original_filename="other.png",
+        media_type="image/png",
+        size_bytes=128,
+        storage_key="ticket-tests/other.png",
+        uploaded_by_id=people["sysadmin"].id,
+    )
+    db_session.add(other_attachment)
+    db_session.commit()
+
+    accepted = update_ticket(
+        client,
+        ticket["key"],
+        1,
+        title="활성 이미지 참조",
+        description_document=image_description_document(active_attachment.id),
+    )
+    assert accepted.status_code == 200
+    assert f'data-attachment-id="{active_attachment.id}"' in accepted.json()[
+        "description_html"
+    ]
+
+    for attachment_id in (deleted_attachment.id, other_attachment.id):
+        rejected = update_ticket(
+            client,
+            ticket["key"],
+            2,
+            title="허용되지 않는 이미지 참조",
+            description_document=image_description_document(attachment_id),
+        )
+        assert rejected.status_code == 400
+        assert rejected.json()["code"] == "invalid_description_attachment"
 
 
 def test_relation_lifecycle_records_both_ticket_histories_and_directions(
@@ -786,7 +893,7 @@ def test_html_create_escapes_values_and_refreshes_from_database(client, ticket_p
             "csrf_token": token(client),
             "type": "TASK",
             "title": '<script>alert("ticket")</script>',
-            "description": "실제 화면 저장",
+            "description_document": description_document_json("실제 화면 저장"),
             "priority": "MAJOR",
             "assignee_id": str(people["member"].id),
         },
@@ -907,7 +1014,7 @@ def test_update_moves_hierarchy_preserves_subtasks_and_records_one_history_per_v
         task["key"],
         1,
         title="이동 완료 Task",
-        description="변경된 원문",
+        description_document=description_document("변경된 원문"),
         priority="CRITICAL",
         parent_key=second_epic["key"],
         assignee_id=people["manager"].id,
@@ -935,7 +1042,7 @@ def test_update_moves_hierarchy_preserves_subtasks_and_records_one_history_per_v
     assert histories[-1].event_type == "UPDATED"
     assert {change["field"] for change in histories[-1].changes} == {
         "title",
-        "description",
+        "description_document",
         "priority",
         "parent_key",
         "assignee_id",
@@ -952,7 +1059,7 @@ def test_update_moves_hierarchy_preserves_subtasks_and_records_one_history_per_v
         task["key"],
         2,
         title="이동 완료 Task",
-        description="변경된 원문",
+        description_document=description_document("변경된 원문"),
         priority="CRITICAL",
         parent_key=second_epic["key"],
         assignee_id=people["manager"].id,
@@ -978,7 +1085,7 @@ def test_update_moves_hierarchy_preserves_subtasks_and_records_one_history_per_v
         task["key"],
         1,
         title="이동 완료 Task",
-        description="변경된 원문",
+        description_document=description_document("변경된 원문"),
         priority="CRITICAL",
         parent_key=second_epic["key"],
         assignee_id=people["manager"].id,
@@ -1054,7 +1161,7 @@ def test_subtask_move_parent_validation_and_cross_project_rejection(
         subtask["key"],
         1,
         title="이동 Subtask",
-        description="DB에 저장되는 설명",
+        description_document=description_document("DB에 저장되는 설명"),
         parent_key=second_task["key"],
     )
     assert moved.status_code == 200
@@ -1064,7 +1171,7 @@ def test_subtask_move_parent_validation_and_cross_project_rejection(
         subtask["key"],
         2,
         title="이동 Subtask",
-        description="DB에 저장되는 설명",
+        description_document=description_document("DB에 저장되는 설명"),
         parent_key=None,
     )
     assert detached.status_code == 400 and detached.json()["code"] == "invalid_parent"
@@ -1087,7 +1194,7 @@ def test_subtask_move_parent_validation_and_cross_project_rejection(
         first_task["key"],
         1,
         title="첫 Task",
-        description="DB에 저장되는 설명",
+        description_document=description_document("DB에 저장되는 설명"),
         parent_key="OPS-1",
     )
     assert cross_project.status_code == 400
@@ -1225,7 +1332,7 @@ def test_expected_version_required_and_stale_write_rolls_back(client, ticket_peo
         f"/api/projects/DEV/tickets/{ticket['key']}",
         {
             "title": "버전 없음",
-            "description": "",
+            "description_document": description_document(),
             "priority": "MAJOR",
             "parent_key": None,
             "assignee_id": None,
@@ -1267,7 +1374,10 @@ def test_update_audit_failure_rolls_back_ticket_and_history(
                 "DEV",
                 ticket["key"],
                 TicketUpdate(
-                    title="반영되면 안 됨", description="", priority="MAJOR", expected_version=1
+                    title="반영되면 안 됨",
+                    description_document=description_document(),
+                    priority="MAJOR",
+                    expected_version=1,
                 ),
             )
         with pytest.raises(RuntimeError):
@@ -1355,7 +1465,7 @@ def test_html_edit_csrf_stale_guidance_and_transition_controls(client, ticket_pe
         data={
             "csrf_token": token(client),
             "title": "HTML 늦은 수정",
-            "description": "",
+            "description_document": description_document_json(),
             "priority": "MAJOR",
             "parent_key": "",
             "assignee_id": "",

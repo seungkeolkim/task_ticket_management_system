@@ -52,7 +52,8 @@ def list_unread_mentions(session: Session, actor_id: int, *, limit: int = 5):
                 Project.name.label("project_name"),
                 Ticket.key.label("ticket_key"),
                 mentioned_by.display_name.label("actor_display_name"),
-                func.coalesce(Comment.body, Ticket.description).label("excerpt"),
+                Comment.body_document.label("comment_body_document"),
+                Ticket.description_document.label("ticket_description_document"),
                 Mention.created_at,
                 Mention.comment_id,
             )

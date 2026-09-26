@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.db.base import Base
 from app.db.engine import create_database_engine
-from app.models import Organization, Project, ProjectMember, Ticket, User
+from app.models import Organization, Project, ProjectMember, User
 
 DOMAIN_TABLES = {"organizations", "users", "user_sessions", "audit_logs"}
 MVP_TABLES = {
@@ -128,29 +128,7 @@ def test_populated_upgrade_downgrade_preserves_identity(
         command.check(alembic_config)
         with Session(engine) as session:
             assert session.get(User, user_id).password_hash == "unchanged"
-            project = Project(key="DEV", name="개발", created_by_id=user_id)
-            session.add(project)
-            session.flush()
-            epic = Ticket(
-                project_id=project.id,
-                number=1,
-                key="DEV-1",
-                type="EPIC",
-                title="에픽",
-                creator_id=user_id,
-            )
-            session.add(epic)
-            session.flush()
-            session.add(
-                Ticket(
-                    project_id=project.id,
-                    number=2,
-                    key="DEV-2",
-                    parent_id=epic.id,
-                    title="하위 작업",
-                    creator_id=user_id,
-                )
-            )
+            session.add(Project(key="DEV", name="개발", created_by_id=user_id))
             session.commit()
         command.downgrade(alembic_config, "20260916_0001")
         assert MVP_TABLES.isdisjoint(inspect(engine).get_table_names())
@@ -159,6 +137,92 @@ def test_populated_upgrade_downgrade_preserves_identity(
             assert session.get(Organization, 1).name == "개발"
         command.upgrade(alembic_config, "head")
         command.check(alembic_config)
+    finally:
+        engine.dispose()
+
+
+def test_tiptap_upgrade_rejects_unexpected_markdown_rows(
+    alembic_config: Config, database_url: str
+) -> None:
+    """v1 업무 row가 있으면 Tiptap migration이 데이터 손실 없이 중단되는지 검증한다."""
+    command.upgrade(alembic_config, "20260923_0003")
+    engine = create_database_engine(database_url)
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text("INSERT INTO organizations (key, name) VALUES ('org', '조직')")
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO users "
+                    "(login_id, display_name, password_hash, organization_id) "
+                    "VALUES ('owner', '담당자', 'hash', 1)"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO projects (key, name, created_by_id) "
+                    "VALUES ('DEV', '개발', 1)"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO tickets "
+                    "(project_id, number, key, title, description, creator_id) "
+                    "VALUES (1, 1, 'DEV-1', '기존 티켓', '기존 Markdown', 1)"
+                )
+            )
+
+        with pytest.raises(RuntimeError, match="tickets=1"):
+            command.upgrade(alembic_config, "head")
+
+        with engine.connect() as connection:
+            assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
+                "20260923_0003"
+            )
+            assert connection.scalar(text("SELECT description FROM tickets")) == "기존 Markdown"
+    finally:
+        engine.dispose()
+
+
+def test_tiptap_downgrade_is_explicitly_destructive_for_v2_rows(
+    alembic_config: Config, database_url: str
+) -> None:
+    """v2 row가 있는 downgrade에서 identity는 유지되고 본문은 폐기되는지 검증한다."""
+    command.upgrade(alembic_config, "head")
+    engine = create_database_engine(database_url)
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text("INSERT INTO organizations (key, name) VALUES ('org', '조직')")
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO users "
+                    "(login_id, display_name, password_hash, organization_id) "
+                    "VALUES ('owner', '담당자', 'hash', 1)"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO projects (key, name, created_by_id) "
+                    "VALUES ('DEV', '개발', 1)"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO tickets (project_id, number, key, title, creator_id) "
+                    "VALUES (1, 1, 'DEV-1', '구조화 티켓', 1)"
+                )
+            )
+
+        command.downgrade(alembic_config, "20260923_0003")
+        with engine.connect() as connection:
+            assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
+                "20260923_0003"
+            )
+            assert connection.scalar(text("SELECT count(*) FROM tickets")) == 0
+            assert connection.scalar(text("SELECT login_id FROM users")) == "owner"
     finally:
         engine.dispose()
 

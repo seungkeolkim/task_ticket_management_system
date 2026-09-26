@@ -16,6 +16,7 @@ from pydantic import (
 )
 
 from app.domain.codes import HistoryEventType, Priority, RelationType, TicketStatus, TicketType
+from app.domain.rich_text import empty_body_document, validate_body_document
 
 PositiveId = Annotated[int, Field(gt=0)]
 
@@ -83,14 +84,14 @@ class RelationSnapshot(Contract):
 
 
 class TicketState(Contract):
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     ticket_key: str
     project_id: PositiveId
     version: PositiveId
     type: TicketType
     title: str = Field(min_length=1, max_length=200)
-    description: str = ""
-    body_schema_version: Literal[1] = 1
+    description_document: dict[str, JsonValue] = Field(default_factory=empty_body_document)
+    body_schema_version: Literal[2] = 2
     status: TicketStatus
     priority: Priority
     parent_key: str | None = None
@@ -109,6 +110,14 @@ class TicketState(Contract):
     sort_order: str = "0"
     deleted_at: AwareDatetime | None = None
     relations: list[RelationSnapshot] = Field(default_factory=list)
+
+    @field_validator("description_document")
+    @classmethod
+    def valid_description_document(
+        cls, value: dict[str, JsonValue]
+    ) -> dict[str, JsonValue]:
+        """이력 snapshot의 설명 문서를 공통 본문 계약으로 검증한다."""
+        return validate_body_document(value)
 
     @model_validator(mode="after")
     def valid_state(self) -> Self:
@@ -134,7 +143,7 @@ class FieldChange(Contract):
 
 
 class TicketEvent(Contract):
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     event_key: UUID
     operation_id: UUID
     ticket_key: str

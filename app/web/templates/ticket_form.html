@@ -1,5 +1,7 @@
 {% extends "base.html" %}
 
+{% block extra_head %}<link rel="stylesheet" href="{{ url_for('static', path='tiptap-editor.css') }}">{% endblock %}
+
 {% block content %}
 {% set form = values|default({}) %}
 <header class="page-header compact-header">
@@ -26,7 +28,41 @@
         <label class="field"><span>프로젝트</span><input value="{{ project.key }} · {{ project.name }}" disabled></label>
       </div>
       <label class="field"><span>제목 <b>*</b></span><input name="title" maxlength="200" value="{{ form.get('title', '') }}" placeholder="해야 할 일을 간결하게 입력하세요" required><small class="field-counter">최대 200자</small></label>
-      <label class="field"><span>설명</span><textarea name="description" rows="10" maxlength="100000" placeholder="배경, 목표, 완료 조건을 Markdown 원문으로 작성하세요.">{{ form.get('description', '') }}</textarea><small>현재는 원문을 안전한 일반 텍스트로 표시하며 Markdown 렌더링은 후속 범위입니다.</small></label>
+      <div class="field rich-text-field">
+        <span>설명</span>
+        <div class="rich-text-toolbar" data-rich-text-toolbar role="toolbar" aria-label="설명 서식">
+          <select data-rich-text-command="heading" aria-label="제목 수준"><option value="paragraph">본문</option><option value="1">제목 1</option><option value="2">제목 2</option><option value="3">제목 3</option></select>
+          <button type="button" data-rich-text-command="bold"><strong>B</strong></button>
+          <button type="button" data-rich-text-command="italic"><em>I</em></button>
+          <button type="button" data-rich-text-command="underline"><u>U</u></button>
+          <button type="button" data-rich-text-command="strike"><s>S</s></button>
+          <select data-rich-text-command="fontSize" aria-label="글자 크기"><option value="">크기</option>{% for size in ['12px', '14px', '16px', '18px', '24px', '32px'] %}<option value="{{ size }}">{{ size }}</option>{% endfor %}</select>
+          <select data-rich-text-command="color" aria-label="글자 색상"><option value="">색상</option>{% for color, label in [('#111827','기본'),('#b91c1c','빨강'),('#c2410c','주황'),('#a16207','노랑'),('#15803d','초록'),('#0369a1','하늘'),('#1d4ed8','파랑'),('#6d28d9','보라')] %}<option value="{{ color }}">{{ label }}</option>{% endfor %}</select>
+          <button type="button" data-rich-text-command="bulletList">• 목록</button>
+          <button type="button" data-rich-text-command="orderedList">1. 목록</button>
+          <button type="button" data-rich-text-command="taskList">☑ 할 일</button>
+          <button type="button" data-rich-text-command="indent" aria-label="목록 들여쓰기">→ 들여쓰기</button>
+          <button type="button" data-rich-text-command="outdent" aria-label="목록 내어쓰기">← 내어쓰기</button>
+          <button type="button" data-rich-text-command="blockquote">인용</button>
+          <button type="button" data-rich-text-command="code">코드</button>
+          <button type="button" data-rich-text-command="codeBlock">코드 블록</button>
+          <button type="button" data-rich-text-command="link">링크</button>
+          <button type="button" data-rich-text-command="table">표</button>
+          <button type="button" data-rich-text-command="addRowBefore">위 행 추가</button>
+          <button type="button" data-rich-text-command="addRowAfter">아래 행 추가</button>
+          <button type="button" data-rich-text-command="deleteRow">행 삭제</button>
+          <button type="button" data-rich-text-command="addColumnBefore">왼쪽 열 추가</button>
+          <button type="button" data-rich-text-command="addColumnAfter">오른쪽 열 추가</button>
+          <button type="button" data-rich-text-command="deleteColumn">열 삭제</button>
+          <button type="button" data-rich-text-command="deleteTable">표 삭제</button>
+          <button type="button" data-rich-text-command="undo" aria-label="실행 취소">↶</button>
+          <button type="button" data-rich-text-command="redo" aria-label="다시 실행">↷</button>
+        </div>
+        <div class="rich-text-editor" data-rich-text-editor></div>
+        <textarea name="description_document" data-rich-text-payload hidden>{{ form.get('description_document_json', '{"type":"doc","content":[{"type":"paragraph"}]}') }}</textarea>
+        <small>구조화된 본문으로 저장되며 HTML은 서버에서 안전하게 생성합니다.</small>
+        <noscript><div class="auth-message error">설명 편집에는 JavaScript가 필요합니다.</div></noscript>
+      </div>
     </div>
 
     <div class="form-section">
@@ -58,3 +94,5 @@
   </aside>
 </div>
 {% endblock %}
+
+{% block extra_scripts %}<script src="{{ url_for('static', path='tiptap-editor.js') }}" defer></script>{% endblock %}

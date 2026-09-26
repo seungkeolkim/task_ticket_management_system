@@ -190,8 +190,8 @@
       "additionalProperties": false,
       "properties": {
         "schema_version": {
-          "const": 1,
-          "default": 1,
+          "const": 2,
+          "default": 2,
           "title": "Schema Version",
           "type": "integer"
         },
@@ -469,8 +469,8 @@
       "additionalProperties": false,
       "properties": {
         "schema_version": {
-          "const": 1,
-          "default": 1,
+          "const": 2,
+          "default": 2,
           "title": "Schema Version",
           "type": "integer"
         },
@@ -497,14 +497,16 @@
           "title": "Title",
           "type": "string"
         },
-        "description": {
-          "default": "",
-          "title": "Description",
-          "type": "string"
+        "description_document": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Description Document",
+          "type": "object"
         },
         "body_schema_version": {
-          "const": 1,
-          "default": 1,
+          "const": 2,
+          "default": 2,
           "title": "Body Schema Version",
           "type": "integer"
         },

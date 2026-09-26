@@ -4,6 +4,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy.orm import Session
 
 from app.domain.auth import Identity
+from app.domain.rich_text import extract_body_document_text
 from app.repositories import dashboard as repository
 from app.schemas.dashboard import DashboardCounts, DashboardView, MentionView
 from app.services import projects as project_service
@@ -33,7 +34,23 @@ def get_dashboard(session: Session, actor: Identity) -> DashboardView:
                 for ticket_row in repository.list_recent_tickets(session, actor.id)
             ],
             mentions=[
-                MentionView(**{**mention_row, "excerpt": (mention_row["excerpt"] or "")[:160]})
+                _build_mention_view(mention_row)
                 for mention_row in repository.list_unread_mentions(session, actor.id)
             ],
         )
+
+
+def _build_mention_view(mention_row) -> MentionView:
+    """멘션 row의 Tiptap document에서 안전한 plain-text 미리보기를 구성한다."""
+    body_document = (
+        mention_row["comment_body_document"]
+        if mention_row["comment_id"] is not None
+        else mention_row["ticket_description_document"]
+    )
+    excerpt = extract_body_document_text(body_document)[:160]
+    values = {
+        key: value
+        for key, value in mention_row.items()
+        if key not in {"comment_body_document", "ticket_description_document"}
+    }
+    return MentionView(**values, excerpt=excerpt)

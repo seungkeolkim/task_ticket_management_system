@@ -1,3 +1,4 @@
+import json
 from typing import Annotated
 from urllib.parse import urlencode
 
@@ -9,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.db.session import get_db_session
 from app.domain.auth import AuthError, Identity
+from app.domain.rich_text import MAX_DOCUMENT_BYTES, empty_body_document
 from app.schemas.tickets import (
     TicketCreate,
     TicketRelationCreate,
@@ -24,6 +26,18 @@ from app.web.security import require_web_user, verify_csrf
 router = APIRouter(include_in_schema=False)
 Database = Annotated[Session, Depends(get_db_session)]
 Actor = Annotated[Identity, Depends(require_web_user)]
+
+
+def _parse_description_document(raw_document: str) -> object:
+    """HTML form의 hidden JSON payload를 Python 객체로 변환한다."""
+    if not raw_document.strip():
+        return empty_body_document()
+    if len(raw_document.encode("utf-8")) > MAX_DOCUMENT_BYTES:
+        raise ValueError("설명 본문 크기가 허용 범위를 초과했습니다.")
+    try:
+        return json.loads(raw_document)
+    except json.JSONDecodeError as error:
+        raise ValueError("설명 본문 JSON 형식이 올바르지 않습니다.") from error
 
 
 @router.get("/tickets")
@@ -109,7 +123,9 @@ def _render_ticket_edit_page(request, session, actor, project_key, ticket_key, *
         "values",
         {
             "title": ticket.title,
-            "description": ticket.description,
+            "description_document_json": json.dumps(
+                ticket.description_document, ensure_ascii=False, separators=(",", ":")
+            ),
             "priority": ticket.priority.value,
             "parent_key": ticket.parent.key if ticket.parent else "",
             "assignee_id": str(ticket.assignee.id) if ticket.assignee else "",
@@ -211,7 +227,7 @@ def create_ticket_submit(
     actor: Actor,
     type: Annotated[str, Form()] = "TASK",
     title: Annotated[str, Form()] = "",
-    description: Annotated[str, Form()] = "",
+    description_document: Annotated[str, Form()] = "",
     priority: Annotated[str, Form()] = "MAJOR",
     parent_key: Annotated[str, Form()] = "",
     assignee_id: Annotated[str, Form()] = "",
@@ -223,7 +239,7 @@ def create_ticket_submit(
     values = {
         "type": type[:16],
         "title": title[:200],
-        "description": description[:100_000],
+        "description_document_json": description_document[:MAX_DOCUMENT_BYTES],
         "priority": priority[:16],
         "parent_key": parent_key[:64],
         "assignee_id": assignee_id[:20],
@@ -233,14 +249,14 @@ def create_ticket_submit(
         payload = TicketCreate(
             type=type,
             title=title,
-            description=description,
+            description_document=_parse_description_document(description_document),
             priority=priority,
             parent_key=parent_key,
             assignee_id=assignee_id or None,
             due_date=due_date or None,
         )
         ticket = service.create_ticket(session, actor, project_key, payload)
-    except (ValidationError, AuthError) as error:
+    except (ValidationError, AuthError, ValueError) as error:
         if isinstance(error, AuthError) and error.status_code in {401, 403, 404}:
             raise
         return _render_ticket_create_page(
@@ -249,9 +265,13 @@ def create_ticket_submit(
             actor,
             project_key,
             values=values,
-            error=error.message
-            if isinstance(error, AuthError)
-            else "티켓 유형, 제목, 상위 티켓과 담당자를 확인하세요.",
+            error=(
+                error.message
+                if isinstance(error, AuthError)
+                else str(error)
+                if isinstance(error, ValueError)
+                else "티켓 유형, 제목, 설명, 상위 티켓과 담당자를 확인하세요."
+            ),
             status_code=error.status_code if isinstance(error, AuthError) else 422,
         )
     return RedirectResponse(
@@ -267,7 +287,7 @@ def update_ticket_submit(
     session: Database,
     actor: Actor,
     title: Annotated[str, Form()] = "",
-    description: Annotated[str, Form()] = "",
+    description_document: Annotated[str, Form()] = "",
     priority: Annotated[str, Form()] = "MAJOR",
     parent_key: Annotated[str, Form()] = "",
     assignee_id: Annotated[str, Form()] = "",
@@ -279,7 +299,7 @@ def update_ticket_submit(
     verify_csrf(request, csrf_token, actor, get_settings())
     values = {
         "title": title[:200],
-        "description": description[:100_000],
+        "description_document_json": description_document[:MAX_DOCUMENT_BYTES],
         "priority": priority[:16],
         "parent_key": parent_key[:64],
         "assignee_id": assignee_id[:20],
@@ -289,7 +309,7 @@ def update_ticket_submit(
     try:
         payload = TicketUpdate(
             title=title,
-            description=description,
+            description_document=_parse_description_document(description_document),
             priority=priority,
             parent_key=parent_key,
             assignee_id=assignee_id or None,
@@ -297,7 +317,7 @@ def update_ticket_submit(
             expected_version=expected_version,
         )
         ticket = service.update_ticket(session, actor, project_key, ticket_key, payload)
-    except (ValidationError, AuthError) as error:
+    except (ValidationError, AuthError, ValueError) as error:
         if isinstance(error, AuthError) and error.status_code in {401, 403, 404}:
             raise
         conflict = (
@@ -311,9 +331,13 @@ def update_ticket_submit(
             project_key,
             ticket_key,
             values=values,
-            error=error.message
-            if isinstance(error, AuthError)
-            else "제목, 상위 티켓과 담당자를 확인하세요.",
+            error=(
+                error.message
+                if isinstance(error, AuthError)
+                else str(error)
+                if isinstance(error, ValueError)
+                else "제목, 설명, 상위 티켓과 담당자를 확인하세요."
+            ),
             conflict=conflict,
             status_code=error.status_code if isinstance(error, AuthError) else 422,
         )

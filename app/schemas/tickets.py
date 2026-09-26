@@ -1,9 +1,10 @@
 from datetime import date, datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.domain.codes import Priority, RelationType, TicketStatus, TicketType
+from app.domain.rich_text import empty_body_document, validate_body_document
 
 
 class TicketCreate(BaseModel):
@@ -11,7 +12,7 @@ class TicketCreate(BaseModel):
 
     type: TicketType = TicketType.TASK
     title: str = Field(min_length=1, max_length=200)
-    description: str = Field(default="", max_length=100_000)
+    description_document: dict[str, Any] = Field(default_factory=empty_body_document)
     priority: Priority = Priority.MAJOR
     parent_key: str | None = Field(default=None, max_length=64)
     assignee_id: int | None = Field(default=None, gt=0)
@@ -25,6 +26,12 @@ class TicketCreate(BaseModel):
         if not normalized:
             raise ValueError("제목을 입력하세요.")
         return normalized
+
+    @field_validator("description_document")
+    @classmethod
+    def validate_description_document(cls, value: object) -> dict[str, Any]:
+        """티켓 설명 document를 body schema v2 계약으로 검증한다."""
+        return validate_body_document(value)
 
     @field_validator("parent_key", mode="before")
     @classmethod
@@ -49,7 +56,7 @@ class TicketUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     title: str = Field(min_length=1, max_length=200)
-    description: str = Field(default="", max_length=100_000)
+    description_document: dict[str, Any] = Field(default_factory=empty_body_document)
     priority: Priority
     parent_key: str | None = Field(default=None, max_length=64)
     assignee_id: int | None = Field(default=None, gt=0)
@@ -64,6 +71,12 @@ class TicketUpdate(BaseModel):
         if not normalized:
             raise ValueError("제목을 입력하세요.")
         return normalized
+
+    @field_validator("description_document")
+    @classmethod
+    def validate_description_document(cls, value: object) -> dict[str, Any]:
+        """티켓 설명 document를 body schema v2 계약으로 검증한다."""
+        return validate_body_document(value)
 
     @field_validator("parent_key", mode="before")
     @classmethod
@@ -140,7 +153,10 @@ class TicketView(BaseModel):
     type: TicketType
     type_label: str
     title: str
-    description: str
+    description_document: dict[str, Any]
+    description_html: str
+    description_plain_text: str
+    body_schema_version: Literal[2]
     status: TicketStatus
     status_label: str
     status_code: str

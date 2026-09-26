@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session, aliased
 
 from app.domain.codes import ProjectRole
 from app.models import (
+    Attachment,
     Project,
     ProjectMember,
     Ticket,
@@ -12,6 +13,23 @@ from app.models import (
     TicketRelation,
     User,
 )
+
+
+def available_attachment_ids(
+    session: Session, project_id: int, attachment_ids: set[int]
+) -> set[int]:
+    """프로젝트에서 현재 참조 가능한 attachment ID 집합을 반환한다."""
+    if not attachment_ids:
+        return set()
+    return set(
+        session.scalars(
+            select(Attachment.id).where(
+                Attachment.project_id == project_id,
+                Attachment.id.in_(attachment_ids),
+                Attachment.deleted_at.is_(None),
+            )
+        )
+    )
 
 
 def project_scope(project_id: int, actor_id: int, *, override: bool):

@@ -28,7 +28,7 @@
       <h1>{{ ticket.title }}</h1>
       <div class="ticket-state-row">{{ ui.status_badge(ticket.status_label, ticket.status_code) }}{{ ui.priority_badge(ticket.priority_label, ticket.priority_code) }}<span class="version-note">버전 {{ ticket.version }} · {{ ticket.updated_at }} 수정</span></div>
     </header>
-    <section class="content-section"><div class="section-title"><h2>설명</h2></div><p class="detail-description">{{ ticket.description or '등록된 설명이 없습니다.' }}</p></section>
+    <section class="content-section"><div class="section-title"><h2>설명</h2></div>{% if ticket.description_plain_text %}<div class="detail-description rich-text-viewer">{{ ticket.description_html|safe }}</div>{% else %}<p class="detail-description">등록된 설명이 없습니다.</p>{% endif %}</section>
     <section class="content-section">
       <div class="section-title"><h2>티켓 관계</h2><span>{{ ticket.relations|length }}개</span></div>
       <div class="relation-list">

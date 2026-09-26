@@ -1,0 +1,38 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "heading",
+      "attrs": {"level": 2},
+      "content": [{"type": "text", "text": "배포 준비"}]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "검증이 필요한 변경입니다.",
+          "marks": [
+            {"type": "bold"},
+            {"type": "textStyle", "attrs": {"color": "#b91c1c", "fontSize": "18px"}}
+          ]
+        }
+      ]
+    },
+    {
+      "type": "taskList",
+      "content": [
+        {
+          "type": "taskItem",
+          "attrs": {"checked": false},
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [{"type": "text", "text": "운영 확인"}]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

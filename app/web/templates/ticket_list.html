@@ -48,7 +48,7 @@
     <div class="inline-detail-top"><div class="ticket-identity">{{ ui.ticket_type(selected_ticket.type_label) }}<a href="/projects/{{ project.key }}/tickets/{{ selected_ticket.key }}">{{ selected_ticket.key }}</a></div><div><a class="icon-button" href="/projects/{{ project.key }}/tickets/{{ selected_ticket.key }}" title="크게 보기">↗</a><a class="icon-button" href="/projects/{{ project.key }}/tickets?q={{ q|urlencode }}&page_size={{ result.page_size }}&page={{ result.page }}">×</a></div></div>
     <h2>{{ selected_ticket.title }}</h2>
     <div class="inline-badges">{{ ui.status_badge(selected_ticket.status_label, selected_ticket.status_code) }}{{ ui.priority_badge(selected_ticket.priority_label, selected_ticket.priority_code) }}</div>
-    <p class="detail-description">{{ selected_ticket.description or '등록된 설명이 없습니다.' }}</p>
+    {% if selected_ticket.description_plain_text %}<div class="detail-description rich-text-viewer">{{ selected_ticket.description_html|safe }}</div>{% else %}<p class="detail-description">등록된 설명이 없습니다.</p>{% endif %}
     <div class="detail-section"><div class="section-title"><h3>세부 정보</h3></div><dl class="property-list">
       <div><dt>담당자</dt><dd>{{ selected_ticket.assignee.display_name if selected_ticket.assignee else '미지정' }}</dd></div>
       <div><dt>상위 티켓</dt><dd>{{ selected_ticket.parent.key if selected_ticket.parent else '없음' }}</dd></div>

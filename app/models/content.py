@@ -11,7 +11,6 @@ from sqlalchemy import (
     Index,
     Integer,
     String,
-    Text,
     UniqueConstraint,
     text,
 )
@@ -20,6 +19,11 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.db.base import Base
 from app.db.mixins import IntegerPrimaryKeyMixin, TimestampMixin
 from app.db.types import UTCDateTime, utc_now
+from app.domain.rich_text import (
+    BODY_SCHEMA_VERSION,
+    EMPTY_BODY_DOCUMENT_JSON,
+    empty_body_document,
+)
 
 
 class Comment(IntegerPrimaryKeyMixin, TimestampMixin, Base):
@@ -32,15 +36,24 @@ class Comment(IntegerPrimaryKeyMixin, TimestampMixin, Base):
             name="fk_comments_ticket",
             ondelete="CASCADE",
         ),
-        CheckConstraint("version > 0 AND body_schema_version > 0", name="positive_versions"),
+        CheckConstraint(
+            "version > 0 AND body_schema_version = 2", name="supported_body_version"
+        ),
         Index("ix_comments_ticket_created", "ticket_id", "created_at", "id"),
     )
 
     project_id: Mapped[int] = mapped_column(Integer)
     ticket_id: Mapped[int] = mapped_column(Integer)
     author_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
-    body: Mapped[str] = mapped_column(Text)
-    body_schema_version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+    body_document: Mapped[dict[str, Any]] = mapped_column(
+        JSON,
+        default=empty_body_document,
+        server_default=text(f"'{EMPTY_BODY_DOCUMENT_JSON}'"),
+        nullable=False,
+    )
+    body_schema_version: Mapped[int] = mapped_column(
+        Integer, default=BODY_SCHEMA_VERSION, server_default=str(BODY_SCHEMA_VERSION)
+    )
     version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
     deleted_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     deleted_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))

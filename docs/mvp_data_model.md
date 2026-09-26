@@ -1,7 +1,7 @@
 # MVP 데이터 구조
 
 이 문서는 ORM·DB 제약·입출력 계약·migration을 중심으로 설명한다. 현재 인증, 사용자·조직 기본 관리, 프로젝트 권한, 티켓 생성·조회·편집·상태 전이, 대시보드·칸반 이동, 관계와 계층 단위 휴지통·복구는 서비스·API·화면까지 연결되어 있고 티켓 쓰기는 변경 이력을 같은 transaction에 기록한다. 휴지통 영구 삭제, 댓글·멘션 쓰기·첨부파일·저장 필터와 간트·보고서 실행은 아직 연결하지 않았다.
-원본은 `app/models/`, 데이터 계약은 `app/schemas/contracts.py`, 최신 추가 revision은 `20260923_0003`이다.
+원본은 `app/models/`, 데이터 계약은 `app/schemas/contracts.py`, 최신 추가 revision은 `20260926_0004`다.
 
 ## 요구사항과 저장 구조
 
@@ -9,11 +9,11 @@
 |---|---|---|
 | 사용자·조직·인증·감사 | 기존 organizations, users, user_sessions, audit_logs | 초기 revision 유지. 같은 위치 조직 이름 고유 인덱스 추가 |
 | 프로젝트·참여자 | projects, project_members | 변경하지 않는 project key, (project, user) 고유 제약, next_ticket_number, 게스트·사용자·관리자 역할 |
-| 티켓·계층·일정 | tickets | project별 번호, 전역 표시 key, 유형·상태·중요도, 부모, 담당자, 현재 Markdown v1 Text와 Tiptap JSON v2 전환 예정, 날짜, 순서, version |
+| 티켓·계층·일정 | tickets | project별 번호, 전역 표시 key, 유형·상태·중요도, 부모, 담당자, Tiptap JSON v2 설명, 날짜, 순서, version |
 | 관계·간트 선후행 | ticket_relations | 동일 project의 source/target, Related 정규형, Depends on 방향, dependency_kind, lag_days |
 | 휴지통·복구 | ticket_deletion_batches + tickets | root_ticket_key, 삭제자·시각·purge_after·복구자·시각, ticket의 batch FK |
 | 기간별 변경 이력 | ticket_history | ticket version, event/operation UUID, actor, UTC, before/after 상태, changes, schema version |
-| 댓글 | comments | project/ticket FK, 작성자, 현재 Markdown v1 Text와 Tiptap JSON v2 전환 예정, version, soft delete |
+| 댓글 | comments | project/ticket FK, 작성자, Tiptap JSON v2 본문, version, soft delete |
 | 멘션 | mentions | project/ticket/comment FK, 대상·작성자, read_at, removed_at, 원본별 중복 방지 |
 | 첨부파일 | attachments | project/ticket/comment FK, storage backend/key, 원본명·MIME·크기·해시, 삭제·purge 시각 |
 | 개인·공유 필터 | saved_filters | project, owner, visibility, 이름, versioned JSON definition |
@@ -40,8 +40,8 @@
 
 - 타입: EPIC/TASK/SUBTASK. 상태: TODO/IN_PROGRESS/DONE/ON_HOLD/CANCELLED. 중요도: TRIVIAL/MINOR/MAJOR/CRITICAL/BLOCKER.
 - UI의 한글 상태 표시명은 DB code가 아니다. 현재 서비스 변환 계층에서 저장 code와 화면 표시명을 분리한다.
-- 현재 revision의 description/body는 Markdown 원문과 `body_schema_version=1` 컬럼이지만 실제 ticket·comment·ticket_history row는 없다. 이 계약은 CNT-008과 DB-018로 대체되었으며 다음 revision에서 Tiptap JSON `body_schema_version=2`로 교체한다.
-- v2 원본은 허용된 Tiptap node·mark·attribute만 가진 JSON document다. sanitized HTML과 plain text는 조회·검색·보고서를 위한 파생 데이터이며 Tiptap package 버전은 본문 schema version과 별도로 고정한다.
+- `20260926_0004`부터 ticket의 `description_document`와 comment의 `body_document`는 `body_schema_version=2` Tiptap JSON을 저장한다. upgrade는 ticket·comment·ticket_history의 zero-row 상태를 확인하고 예상하지 못한 데이터가 있으면 실패한다.
+- v2 원본은 허용된 Tiptap node·mark·attribute만 가진 JSON document다. sanitized HTML과 plain text는 조회·검색·보고서 경계에서 생성하고 DB에 cache하지 않으며, Tiptap package 버전은 본문 schema version과 별도로 고정한다.
 - 설명과 각 댓글은 독립 document다. inline comment는 지원하지 않고 티켓 댓글·멘션·첨부파일·version history는 애플리케이션 서비스가 직접 관리한다.
 - v1 dual-read, Markdown converter와 legacy 본문 보존 컬럼은 구현하지 않는다. migration은 관련 row가 0건인지 확인하여 예상하지 못한 데이터가 있으면 자동 손실 대신 실패한다.
 - sort_order는 Numeric(20,6)이다. 같은 순서 값에서는 ticket ID로 안정적으로 정렬하고 간격 소진 시 재정렬은 서비스에서 처리한다.
@@ -69,7 +69,8 @@
 - 기존 `20260916_0001`을 수정하지 않는다. 신규 revision은 기존 identity row를 변환·삭제하지 않는다.
 - 같은 위치의 조직 이름 중복은 **DDL 전에** 검사하여 명확히 실패한다. 자동 이름 변경이나 데이터 삭제는 하지 않는다.
 - SQLite DDL 전체의 원자성을 가정하지 않는다. 실제 적용 전 백업하고 다른 실패 시 revision·생성된 구조를 확인해 복구한다.
-- downgrade는 신규 테이블과 데이터를 제거하고 기존 identity 및 이전 revision으로 되돌린다. populated hierarchy의 self-FK를 해제한 뒤 테이블을 제거한다.
+- `20260926_0004` downgrade는 v2 JSON을 Markdown으로 변환하지 않고 ticket·comment·history와 종속 데이터를 제거한 뒤 v1 컬럼을 복원한다. 운영 rollback 전에 DB와 첨부파일을 함께 백업한다.
+- `20260917_0002` downgrade는 신규 테이블과 데이터를 제거하고 기존 identity 및 이전 revision으로 되돌린다. populated hierarchy의 self-FK를 해제한 뒤 테이블을 제거한다.
 - `20260923_0003` downgrade는 이전 schema에 읽기 전용 역할이 없으므로 게스트 membership을 제거한다. 쓰기 가능한 사용자로 자동 승격하지 않는다.
 - downgrade는 blob 파일을 삭제하지 않는다. 파일과 DB를 동일 시점 백업으로 복구해야 하며 운영에서 downgrade를 데이터 보존 수단으로 사용하지 않는다.
 - 테스트는 임시 SQLite DB에서 빈 DB upgrade, 기존 데이터 보존, populated downgrade/re-upgrade, CHECK/metadata 일치, 잘못된 FK·중복·일정·버전과 I/O 계약을 검사한다.
@@ -77,7 +78,7 @@
 
 ## 연결 현황과 후속 순서
 
-로그인·비밀번호 변경 → 사용자·조직 기본 관리 → 프로젝트·참여자 → 티켓 생성·목록·상세 → 대시보드·칸반 조회 → 편집·상태 전이·칸반 이동 → 관계 → 계층 단위 휴지통·복구까지 연결했다. 다음 순서는 Tiptap JSON v2 저장 기반과 self-hosted editor 전환 후 댓글·멘션·첨부파일을 연결하고, 사용자·조직·프로젝트 관리 쓰기 확장과 휴지통 영구 삭제·저장 필터를 이어가는 것이다.
+로그인·비밀번호 변경 → 사용자·조직 기본 관리 → 프로젝트·참여자 → 티켓 생성·목록·상세 → 대시보드·칸반 조회 → 편집·상태 전이·칸반 이동 → 관계 → 계층 단위 휴지통·복구 → Tiptap JSON v2 티켓 설명 편집·조회까지 연결했다. 다음 순서는 같은 본문 계약으로 댓글·멘션·첨부파일을 연결하고, 사용자·조직·프로젝트 관리 쓰기 확장과 휴지통 영구 삭제·저장 필터를 이어가는 것이다.
 각 화면에서 필요한 저장·조회와 권한 검증을 함께 연결한다. 간트와 보고서는 별도 후속 화면으로 둔다.
 
 상세 보고서 계약은 [reporting_contracts.md](reporting_contracts.md), 의사결정 근거는 [planning-and-reporting.md](decisions/planning-and-reporting.md)를 참조한다.
