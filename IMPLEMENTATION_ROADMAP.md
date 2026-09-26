@@ -2,7 +2,7 @@
 
 이 문서는 태스크·티켓 관리 시스템의 권장 구현 순서와 현재 진척도를 관리한다.
 
-- 마지막 갱신일: 2026-09-25
+- 마지막 갱신일: 2026-09-26
 - 상세 요구사항: [REQUIREMENTS.md](REQUIREMENTS.md)
 - 기존 구현 차용 기준: [REFERENCE_IMPLEMENTATION.md](REFERENCE_IMPLEMENTATION.md)
 
@@ -18,7 +18,7 @@
 
 - [x] 0단계 — 프로젝트 골격
 - [x] 1단계 — 공통 DB 및 개발 기반
-- [ ] 데이터 선행 준비 — MVP·간트·보고서 모델, migration 및 버전별 데이터 계약
+- [x] 데이터 선행 준비 — MVP·간트·보고서 모델, migration 및 버전별 데이터 계약
 - [ ] 2단계 — 사용자·인증·감사 로그
 - [ ] 3단계 — 시스템 관리자 및 조직 관리
 - [ ] 4단계 — 프로젝트와 접근 권한
@@ -43,13 +43,15 @@
 - [x] 필터·이벤트·보고서 in/out·스킬 DTO 및 JSON Schema·한글 예시 준비
 - [x] 기존 identity 데이터 보존 upgrade, populated downgrade/re-upgrade, 모델·제약 일치 검증
 - [x] [데이터 구조 명세](docs/mvp_data_model.md)와 [보고서 계약](docs/reporting_contracts.md) 작성
-- [ ] Markdown v1 본문 저장 구조를 Tiptap JSON body schema v2로 교체하는 모델·migration·계약 갱신
+- [x] Markdown v1 본문 저장 구조를 Tiptap JSON body schema v2로 교체하는 모델·migration·계약 갱신
 
 완료 기준: 실제 migration으로 생성한 DB에서 데이터 구조와 계약을 검증한다. 이력 수집기, 간트·보고서 실행 기능의 완료를 의미하지 않는다.
 
 2026-09-17 검증: Windows Python 3.13 및 Docker Linux Python 3.12에서 각각 pytest 83개와 Ruff 검사를 통과했다. PostgreSQL과 macOS 실환경 검증은 후속이다.
 
 2026-09-26 구조화 본문 정책 변경: 실제 ticket·comment·ticket_history 데이터가 없는 상태에서 Markdown v1 계약을 폐기하고 Tiptap JSON body schema v2로 전환하기로 했다. Tiptap은 exact version의 self-hosted editor bundle과 문서 구조에만 사용하며 댓글·멘션·첨부파일·변경 이력은 서버에서 직접 구현한다. 기존 migration은 유지하고 새 revision이 관련 row 0건을 preflight하며, v1 dual-read와 converter는 만들지 않는다. 데이터 선행 준비 단계는 새 모델·migration·계약 검증이 끝날 때까지 다시 진행 중으로 둔다.
+
+2026-09-26 구조화 본문 전환 완료: Alembic head `20260926_0004`에서 ticket·comment·ticket_history zero-row preflight 후 Markdown v1 컬럼을 Tiptap JSON body schema v2로 교체했다. exact version의 self-hosted editor bundle, 서버 allowlist 검증, sanitized HTML·plain text 파생 경계, 티켓 생성·편집·상세·인라인 상세 round-trip과 변경 이력·감사·optimistic locking 회귀를 검증했다. 목록·대시보드는 plain text만 추출하고 칸반은 본문을 변환하지 않는다. Windows Python 환경에서 pytest 258개와 Ruff 검사를 통과했고 PR #10의 test·PowerShell runner도 통과했다. 댓글·멘션·첨부파일 서비스, 실제 브라우저 자동화, 현재 변경분의 Docker Linux 재검증과 배포용 standalone image 구성은 후속이다.
 
 | 순서 | 화면별 첫 연결 범위 | 상태 |
 |---|---|---|
