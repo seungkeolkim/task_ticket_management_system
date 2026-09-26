@@ -887,6 +887,10 @@ def test_html_create_escapes_values_and_refreshes_from_database(client, ticket_p
     people, _ = ticket_people
     page = client.get("/projects/DEV/tickets/new")
     assert page.status_code == 200 and "manager 표시명" in page.text
+    assert "tiptap-editor-icons.svg#undo" in page.text
+    assert 'data-rich-text-command="code" aria-label="인라인 코드"' in page.text
+    assert 'data-rich-text-command="codeBlock" aria-label="코드 블록"' in page.text
+    assert 'data-rich-text-table-toolbar role="toolbar" aria-label="표 편집" hidden' in page.text
     response = client.post(
         "/projects/DEV/tickets",
         data={
@@ -904,6 +908,75 @@ def test_html_create_escapes_values_and_refreshes_from_database(client, ticket_p
     detail = client.get(response.headers["location"])
     assert "실제 화면 저장" in detail.text
     assert "&lt;script&gt;" in detail.text and '<script>alert("ticket")</script>' not in detail.text
+
+
+def test_html_create_accepts_tiptap_code_block_default_attributes(
+    client, ticket_people, db_session
+):
+    """HTML form이 Tiptap codeBlock의 null language 기본값을 정상 저장하는지 검증한다."""
+    code_block_document = {
+        "type": "doc",
+        "content": [
+            {
+                "type": "paragraph",
+                "content": [{"type": "text", "text": "ep"}],
+            },
+            {
+                "type": "codeBlock",
+                "attrs": {"language": None},
+                "content": [{"type": "text", "text": "# epic\ntest"}],
+            },
+        ],
+    }
+
+    response = client.post(
+        "/projects/DEV/tickets",
+        data={
+            "csrf_token": token(client),
+            "type": "EPIC",
+            "title": "Test Epic",
+            "description_document": json.dumps(code_block_document, ensure_ascii=False),
+            "priority": "MAJOR",
+        },
+        headers=ORIGIN,
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    detail = client.get(response.headers["location"])
+    assert "# epic" in detail.text
+    saved_ticket = db_session.scalar(select(Ticket).where(Ticket.title == "Test Epic"))
+    assert saved_ticket.description_document["content"][1] == {
+        "type": "codeBlock",
+        "content": [{"type": "text", "text": "# epic\ntest"}],
+    }
+
+
+def test_html_create_hides_pydantic_diagnostics_for_invalid_description(
+    client, ticket_people
+):
+    """잘못된 설명 문서가 입력 JSON 없는 사용자용 오류로 표시되는지 검증한다."""
+    invalid_document = {
+        "type": "doc",
+        "content": [{"type": "codeBlock", "attrs": {"language": "python"}}],
+    }
+
+    response = client.post(
+        "/projects/DEV/tickets",
+        data={
+            "csrf_token": token(client),
+            "type": "EPIC",
+            "title": "잘못된 본문",
+            "description_document": json.dumps(invalid_document, ensure_ascii=False),
+            "priority": "MAJOR",
+        },
+        headers=ORIGIN,
+    )
+
+    assert response.status_code == 422
+    assert "codeBlock language는 아직 지원하지 않습니다." in response.text
+    assert "input_value" not in response.text
+    assert "errors.pydantic.dev" not in response.text
 
 
 def test_search_and_stable_pagination(client, ticket_people, db_session):

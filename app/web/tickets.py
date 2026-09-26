@@ -40,6 +40,22 @@ def _parse_description_document(raw_document: str) -> object:
         raise ValueError("설명 본문 JSON 형식이 올바르지 않습니다.") from error
 
 
+def _ticket_form_error_message(
+    error: ValidationError | AuthError | ValueError, default_message: str
+) -> str:
+    """티켓 form 검증 예외를 입력 원문이 포함되지 않은 사용자 메시지로 변환한다."""
+    if isinstance(error, AuthError):
+        return error.message
+    if isinstance(error, ValidationError):
+        for validation_error in error.errors():
+            if "description_document" not in validation_error.get("loc", ()):
+                continue
+            message = str(validation_error.get("msg", ""))
+            return message.removeprefix("Value error, ") or default_message
+        return default_message
+    return str(error)
+
+
 @router.get("/tickets")
 def global_ticket_list_page(
     request: Request,
@@ -265,12 +281,9 @@ def create_ticket_submit(
             actor,
             project_key,
             values=values,
-            error=(
-                error.message
-                if isinstance(error, AuthError)
-                else str(error)
-                if isinstance(error, ValueError)
-                else "티켓 유형, 제목, 설명, 상위 티켓과 담당자를 확인하세요."
+            error=_ticket_form_error_message(
+                error,
+                "티켓 유형, 제목, 설명, 상위 티켓과 담당자를 확인하세요.",
             ),
             status_code=error.status_code if isinstance(error, AuthError) else 422,
         )
@@ -331,12 +344,9 @@ def update_ticket_submit(
             project_key,
             ticket_key,
             values=values,
-            error=(
-                error.message
-                if isinstance(error, AuthError)
-                else str(error)
-                if isinstance(error, ValueError)
-                else "제목, 설명, 상위 티켓과 담당자를 확인하세요."
+            error=_ticket_form_error_message(
+                error,
+                "제목, 설명, 상위 티켓과 담당자를 확인하세요.",
             ),
             conflict=conflict,
             status_code=error.status_code if isinstance(error, AuthError) else 422,

@@ -59,7 +59,7 @@ function synchronizePayload(editor, payloadElement) {
 
 /** toolbar button의 활성·비활성 상태를 현재 selection에 맞춘다. */
 function updateToolbarState(editor, toolbarElement) {
-  const markCommands = ['bold', 'italic', 'underline', 'strike', 'code']
+  const markCommands = ['bold', 'italic', 'underline', 'strike', 'code', 'link']
   for (const commandName of markCommands) {
     const button = toolbarElement.querySelector(`[data-rich-text-command="${commandName}"]`)
     button?.classList.toggle('is-active', editor.isActive(commandName))
@@ -68,6 +68,30 @@ function updateToolbarState(editor, toolbarElement) {
   for (const commandName of nodeCommands) {
     const button = toolbarElement.querySelector(`[data-rich-text-command="${commandName}"]`)
     button?.classList.toggle('is-active', editor.isActive(commandName))
+  }
+
+  const headingSelect = toolbarElement.querySelector('[data-rich-text-command="heading"]')
+  const activeHeadingLevel = [1, 2, 3].find((level) => editor.isActive('heading', { level }))
+  if (headingSelect) headingSelect.value = activeHeadingLevel ? String(activeHeadingLevel) : 'paragraph'
+
+  const textStyleAttributes = editor.getAttributes('textStyle')
+  const fontSizeSelect = toolbarElement.querySelector('[data-rich-text-command="fontSize"]')
+  const colorSelect = toolbarElement.querySelector('[data-rich-text-command="color"]')
+  if (fontSizeSelect) fontSizeSelect.value = textStyleAttributes.fontSize || ''
+  if (colorSelect) colorSelect.value = textStyleAttributes.color || ''
+
+  const fieldElement = toolbarElement.closest('.rich-text-field')
+  const tableToolbarElement = fieldElement?.querySelector('[data-rich-text-table-toolbar]')
+  const tableIsActive = editor.isActive('table')
+  if (tableToolbarElement) tableToolbarElement.hidden = !tableIsActive
+  toolbarElement
+    .querySelector('[data-rich-text-command="insertTable"]')
+    ?.classList.toggle('is-active', tableIsActive)
+
+  const listIsActive = ['listItem', 'taskItem'].some((nodeType) => editor.isActive(nodeType))
+  for (const commandName of ['indent', 'outdent']) {
+    const button = toolbarElement.querySelector(`[data-rich-text-command="${commandName}"]`)
+    if (button) button.disabled = !listIsActive
   }
 }
 
@@ -125,7 +149,8 @@ function executeButtonCommand(editor, commandName) {
     blockquote: () => editor.chain().focus().toggleBlockquote().run(),
     code: () => editor.chain().focus().toggleCode().run(),
     codeBlock: () => editor.chain().focus().toggleCodeBlock().run(),
-    table: () => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(),
+    insertTable: () =>
+      editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(),
     addRowBefore: () => editor.chain().focus().addRowBefore().run(),
     addRowAfter: () => editor.chain().focus().addRowAfter().run(),
     deleteRow: () => editor.chain().focus().deleteRow().run(),
@@ -161,6 +186,8 @@ function initializeEditor(editorElement) {
   const editor = new Editor({
     element: editorElement,
     content: readInitialDocument(payloadElement),
+    enableInputRules: false,
+    enablePasteRules: false,
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
@@ -186,7 +213,10 @@ function initializeEditor(editorElement) {
         'aria-label': '티켓 설명 편집기',
       },
     },
-    onCreate: ({ editor: currentEditor }) => synchronizePayload(currentEditor, payloadElement),
+    onCreate: ({ editor: currentEditor }) => {
+      synchronizePayload(currentEditor, payloadElement)
+      updateToolbarState(currentEditor, toolbarElement)
+    },
     onSelectionUpdate: ({ editor: currentEditor }) => {
       updateToolbarState(currentEditor, toolbarElement)
     },
@@ -196,12 +226,12 @@ function initializeEditor(editorElement) {
     },
   })
 
-  toolbarElement.addEventListener('click', (event) => {
+  fieldElement.addEventListener('click', (event) => {
     const button = event.target.closest('button[data-rich-text-command]')
     if (!button) return
     executeButtonCommand(editor, button.dataset.richTextCommand)
   })
-  toolbarElement.addEventListener('change', (event) => {
+  fieldElement.addEventListener('change', (event) => {
     const select = event.target.closest('select[data-rich-text-command]')
     if (!select) return
     executeSelectCommand(editor, select.dataset.richTextCommand, select.value)

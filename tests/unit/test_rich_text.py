@@ -130,6 +130,33 @@ def test_document_renderer_and_plain_text_preserve_supported_content() -> None:
     assert "항목" in plain_text and "결과" in plain_text
 
 
+def test_code_block_accepts_tiptap_default_null_language_attribute() -> None:
+    """Tiptap codeBlock이 생성하는 null language 기본값을 canonical 문서에서 제거한다."""
+    document = {
+        "type": "doc",
+        "content": [
+            {
+                "type": "codeBlock",
+                "attrs": {"language": None},
+                "content": [{"type": "text", "text": "# epic\ntest"}],
+            }
+        ],
+    }
+
+    normalized_document = validate_body_document(document)
+
+    assert normalized_document == {
+        "type": "doc",
+        "content": [
+            {
+                "type": "codeBlock",
+                "content": [{"type": "text", "text": "# epic\ntest"}],
+            }
+        ],
+    }
+    assert "# epic" in extract_body_document_text(normalized_document)
+
+
 @pytest.mark.parametrize(
     "document, message",
     [

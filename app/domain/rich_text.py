@@ -371,6 +371,12 @@ def _normalize_node_attributes(node_type: str, attributes: object) -> dict[str, 
         if set(attributes) != {"checked"} or not isinstance(attributes["checked"], bool):
             raise ValueError("taskItem에는 checked Boolean 속성이 필요합니다.")
         return {"checked": attributes["checked"]}
+    if node_type == "codeBlock":
+        if set(attributes) - {"language"}:
+            raise ValueError("codeBlock에 허용되지 않은 속성이 있습니다.")
+        if attributes.get("language") is not None:
+            raise ValueError("codeBlock language는 아직 지원하지 않습니다.")
+        return {}
     if node_type in {"tableHeader", "tableCell"}:
         if set(attributes) - {"colspan", "rowspan", "colwidth"}:
             raise ValueError(f"{node_type}에 허용되지 않은 속성이 있습니다.")

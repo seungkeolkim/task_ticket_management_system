@@ -5,30 +5,132 @@
 .rich-text-toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  padding: 8px;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 8px;
   border: 1px solid var(--border);
   border-bottom: 0;
   border-radius: 8px 8px 0 0;
   background: var(--surface-soft);
 }
 
+.rich-text-toolbar-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding-right: 6px;
+  border-right: 1px solid var(--border);
+}
+
+.rich-text-toolbar-group-last {
+  padding-right: 0;
+  border-right: 0;
+}
+
 .rich-text-toolbar button,
+.rich-text-table-toolbar button {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  min-height: 0;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-soft);
+  cursor: pointer;
+}
+
 .rich-text-toolbar select {
+  width: auto;
+  min-width: 0;
   min-height: 30px;
-  padding: 4px 8px;
+  height: 30px;
+  padding: 3px 24px 3px 7px;
   border: 1px solid var(--border);
   border-radius: 5px;
   background: var(--surface);
   color: var(--text-soft);
-  font: inherit;
+  font-size: 11px;
   cursor: pointer;
+}
+
+.rich-text-block-select {
+  width: 86px !important;
+}
+
+.rich-text-size-select {
+  width: 68px !important;
+}
+
+.rich-text-color-select {
+  width: 74px !important;
+}
+
+.rich-text-toolbar button:hover,
+.rich-text-table-toolbar button:hover {
+  border-color: var(--border-strong);
+  background: var(--surface);
+  color: var(--primary);
+}
+
+.rich-text-toolbar button:disabled,
+.rich-text-toolbar button:disabled:hover {
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .rich-text-toolbar button.is-active {
   border-color: var(--primary);
   background: color-mix(in srgb, var(--primary) 12%, white);
   color: var(--primary);
+}
+
+.rich-text-toolbar-icon {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.rich-text-table-toolbar {
+  display: flex;
+  min-height: 37px;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-bottom: 0;
+  background: var(--surface);
+}
+
+.rich-text-table-toolbar[hidden] {
+  display: none;
+}
+
+.rich-text-table-toolbar > span:first-child {
+  margin-right: 5px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.rich-text-table-divider {
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: var(--border);
+}
+
+.rich-text-table-toolbar .rich-text-danger-button:hover {
+  color: var(--red);
 }
 
 .rich-text-editor {
