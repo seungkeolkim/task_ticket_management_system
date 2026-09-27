@@ -36,14 +36,31 @@ class Comment(IntegerPrimaryKeyMixin, TimestampMixin, Base):
             name="fk_comments_ticket",
             ondelete="CASCADE",
         ),
+        ForeignKeyConstraint(
+            ["project_id", "ticket_id", "parent_comment_id"],
+            ["comments.project_id", "comments.ticket_id", "comments.id"],
+            name="fk_comments_parent",
+            ondelete="RESTRICT",
+        ),
         CheckConstraint(
             "version > 0 AND body_schema_version = 2", name="supported_body_version"
         ),
+        CheckConstraint(
+            "parent_comment_id IS NULL OR parent_comment_id != id",
+            name="not_own_parent",
+        ),
         Index("ix_comments_ticket_created", "ticket_id", "created_at", "id"),
+        Index(
+            "ix_comments_parent_created",
+            "parent_comment_id",
+            "created_at",
+            "id",
+        ),
     )
 
     project_id: Mapped[int] = mapped_column(Integer)
     ticket_id: Mapped[int] = mapped_column(Integer)
+    parent_comment_id: Mapped[int | None] = mapped_column(Integer)
     author_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
     body_document: Mapped[dict[str, Any]] = mapped_column(
         JSON,

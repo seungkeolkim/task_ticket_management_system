@@ -49,6 +49,7 @@
 | UI-013 | 2026-09-22 | DECIDED | 내 티켓은 `assignee = 현재 사용자` 또는 `assignee IS NULL AND creator = 현재 사용자`로 정의한다. 대시보드는 이 범위의 미완료·기한 초과·이번 주 마감·최근 수정 티켓을 명시적 프로젝트 membership 안에서만 집계하고, 생성자 단독 조건은 전역 티켓 목록 필터로 제공한다. 칸반 첫 연결은 실제 DB의 상태 열과 Epic·Task·Subtask 그룹을 읽기 전용으로 표시한다. | 담당자가 지정된 뒤에도 생성자라는 이유만으로 개인 작업에 남는 혼동을 막는다. 시스템 관리자 대시보드는 내 프로젝트 의미를 유지해 override하지 않고, 특정 비참여 프로젝트 칸반 직접 접근만 감사되는 override를 사용한다. 멘션 읽음 처리와 칸반 상태 변경은 후속 쓰기 범위다. |
 | UI-014 | 2026-09-23 | DECIDED | 칸반 상태 이동은 외부 drag library 없이 브라우저 기본 drag-and-drop과 키보드로 사용할 수 있는 상태 선택 control을 함께 제공한다. FSM·권한·의존성·버전 정보로 허용 대상을 표시하되 서버 전이 API를 최종 기준으로 삼고, 성공 또는 stale 충돌 뒤에는 보드를 다시 읽어 계층 표시를 동기화한다. 같은 상태 안의 순서 변경과 `sort_order` 편집은 별도 범위로 둔다. | 별도 frontend build 의존성을 추가하지 않고 접근 가능한 대체 조작을 제공하며, Task·Subtask 상태에 따라 중첩 위치가 달라지는 화면을 클라이언트에서 중복 계산하지 않는다. |
 | UI-015 | 2026-09-26 | DECIDED | 티켓 설명과 댓글은 self-hosted Tiptap editor를 사용한다. 초기 toolbar는 제목, 굵게·기울임·밑줄·취소선, 제한된 글자 크기·색상, 중첩 bullet·ordered list, task list, 인용, 코드, 링크와 표를 제공하고 내부 첨부파일 기능이 연결되면 image node를 추가한다. 글꼴, 표 셀 배경색과 inline comment는 초기 필수 범위에서 제외한다. | Confluence와 유사한 데스크톱 편집 경험을 제공하되 CNT-008의 제한된 문서 schema와 ARC-013의 자체 호스팅 배포를 따른다. headless editor의 toolbar·상태 표시·키보드 조작은 현재 Jinja2·Vanilla JavaScript 화면에 직접 구성한다. |
+| UI-016 | 2026-09-27 | DECIDED | 댓글·대댓글 등록, 댓글 수정과 삭제 HTML form은 실제 제출 전에 browser 확인 창을 한 번 표시한다. form의 `data-confirm-message`를 공용 JavaScript가 처리하며 취소 시 요청을 전송하지 않는다. | 되돌리기 어려운 삭제뿐 아니라 댓글 작성·수정에서도 사용자의 최종 의사를 확인한다. inline script 없이 기존 CSP와 공용 editor bundle을 유지하고 JSON API 호출자는 별도 확인 UX를 선택할 수 있다. |
 
 ## Open decisions
 

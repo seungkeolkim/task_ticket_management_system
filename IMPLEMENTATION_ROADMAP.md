@@ -2,7 +2,7 @@
 
 이 문서는 태스크·티켓 관리 시스템의 권장 구현 순서와 현재 진척도를 관리한다.
 
-- 마지막 갱신일: 2026-09-26
+- 마지막 갱신일: 2026-09-27
 - 상세 요구사항: [REQUIREMENTS.md](REQUIREMENTS.md)
 - 기존 구현 차용 기준: [REFERENCE_IMPLEMENTATION.md](REFERENCE_IMPLEMENTATION.md)
 
@@ -52,6 +52,8 @@
 2026-09-26 구조화 본문 정책 변경: 실제 ticket·comment·ticket_history 데이터가 없는 상태에서 Markdown v1 계약을 폐기하고 Tiptap JSON body schema v2로 전환하기로 했다. Tiptap은 exact version의 self-hosted editor bundle과 문서 구조에만 사용하며 댓글·멘션·첨부파일·변경 이력은 서버에서 직접 구현한다. 기존 migration은 유지하고 새 revision이 관련 row 0건을 preflight하며, v1 dual-read와 converter는 만들지 않는다. 데이터 선행 준비 단계는 새 모델·migration·계약 검증이 끝날 때까지 다시 진행 중으로 둔다.
 
 2026-09-26 구조화 본문 전환 완료: Alembic head `20260926_0004`에서 ticket·comment·ticket_history zero-row preflight 후 Markdown v1 컬럼을 Tiptap JSON body schema v2로 교체했다. exact version의 self-hosted editor bundle, 서버 allowlist 검증, sanitized HTML·plain text 파생 경계, 티켓 생성·편집·상세·인라인 상세 round-trip과 변경 이력·감사·optimistic locking 회귀를 검증했다. 목록·대시보드는 plain text만 추출하고 칸반은 본문을 변환하지 않는다. Windows Python 환경에서 pytest 258개와 Ruff 검사를 통과했고 PR #10의 test·PowerShell runner도 통과했다. 댓글·멘션·첨부파일 서비스, 실제 브라우저 자동화, 현재 변경분의 Docker Linux 재검증과 배포용 standalone image 구성은 후속이다.
+
+2026-09-27 댓글 관리 연결: 티켓 하위 댓글 조회·작성·수정·soft delete를 JSON API와 상세 화면에 연결하고, 게스트 읽기 전용·프로젝트 사용자 이상 전체 관리·시스템 관리자 override 감사·비활성 프로젝트와 휴지통 티켓 차단·종료 티켓 사후 기록을 적용했다. 빈 댓글 거부, 같은 티켓의 attachment image 참조 검사, optimistic locking, no-op 수정, 감사 실패 rollback과 작성자 join 기반 고정 query 수를 검증했다. 설명과 댓글은 공용 editor macro와 동일 renderer·sanitizer를 사용하며 editor별 label·placeholder와 form payload를 분리한다. Windows Python 3.13에서 pytest 270개와 Ruff 검사를 통과했고, Docker Linux Python 3.12에서는 플랫폼 전용 12개를 제외한 전체 테스트와 Ruff 검사 및 frontend bundle build를 통과했다. 멘션과 실제 첨부파일 service·UI는 후속이다.
 
 | 순서 | 화면별 첫 연결 범위 | 상태 |
 |---|---|---|
@@ -256,9 +258,11 @@
 - [x] 링크 URL scheme과 렌더링 allowlist 보안 테스트 작성
 - [x] 티켓 설명 편집·저장·조회 round-trip 구현
 - [x] `Comment` 모델을 Tiptap document 계약과 ORM version 검사에 맞게 갱신
-- [ ] 댓글 작성·수정 서비스 구현
-- [ ] 프로젝트 사용자 이상의 프로젝트 내 전체 댓글 수정·soft delete 구현
-- [ ] 설명과 댓글이 동일한 renderer를 사용하도록 구성
+- [x] 댓글 작성·수정 서비스 구현
+- [x] 프로젝트 사용자 이상의 프로젝트 내 전체 댓글 수정·soft delete 구현
+- [x] 한 단계 대댓글과 삭제 댓글 자리표시자 조회 구현
+- [x] 댓글 등록·수정·삭제 전 사용자 확인 적용
+- [x] 설명과 댓글이 동일한 renderer를 사용하도록 구성
 - [ ] 현재 프로젝트 구성원 대상 멘션 후보 조회
 - [ ] 서버에서 멘션 대상의 프로젝트 접근 권한 재검증
 - [x] `Mention` 모델과 원본·대상 DB 중복 방지 구현
@@ -267,6 +271,10 @@
 - [ ] 접근 권한 상실 시 멘션 내용 은폐
 
 완료 기준: 애플리케이션 서버가 제공하는 고정 버전 editor에서 설명과 댓글을 같은 구조화 문서 계약으로 안전하게 편집·렌더링하고, 권한이 있는 사용자만 멘션하여 확인할 수 있다. 댓글·멘션·이력은 Tiptap 외부 서비스 없이 서버 transaction에서 관리한다.
+
+2026-09-27 댓글 thread 확장: 같은 프로젝트·티켓의 삭제되지 않은 원댓글에 한 단계 대댓글을 등록하도록 comment self-reference와 API·상세 화면을 연결했다. 삭제된 댓글은 저장 원문을 유지하되 일반 응답에서는 빈 document로 은폐하고 `삭제된 댓글입니다.` 자리표시자로 남겨 기존 대댓글의 맥락을 보존한다. 대댓글 재중첩과 삭제 댓글에 대한 새 답글은 거부한다. SQLite migration은 기존 멘션·첨부의 댓글 참조를 보존하는 upgrade·downgrade를 검증했으며 Windows Python 3.13에서 pytest 273개와 Ruff 검사를 통과했다.
+
+2026-09-27 댓글 제출 확인: 댓글·대댓글 등록, 댓글 수정과 삭제 HTML form에 공용 `data-confirm-message` 확인 처리를 적용했다. 사용자가 확인을 취소하면 browser가 form 요청을 전송하지 않으며 JSON API 계약은 변경하지 않는다. frontend bundle build, Windows Python 3.13 전체 pytest 274개와 Ruff 검사를 통과했다.
 
 ## 8단계 — 첨부파일
 

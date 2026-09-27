@@ -141,11 +141,91 @@
 }
 
 .tiptap-body {
+  position: relative;
   min-height: 240px;
   padding: 14px;
   color: var(--text);
   line-height: 1.65;
   outline: none;
+}
+
+.tiptap-body[data-placeholder] > p:first-child:last-child:has(> br.ProseMirror-trailingBreak)::before {
+  position: absolute;
+  color: var(--muted);
+  content: attr(data-placeholder);
+  pointer-events: none;
+}
+
+.comment-editor-field .rich-text-editor {
+  min-height: 150px;
+}
+
+.comment-editor-field .tiptap-body {
+  min-height: 130px;
+}
+
+.comment-list {
+  display: grid;
+  gap: 14px;
+  margin: 18px 0 0;
+}
+
+.comment-card {
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+}
+
+.comment-reply-card {
+  margin-left: 32px;
+  border-left: 3px solid var(--border-strong);
+}
+
+.comment-deleted-card {
+  background: var(--surface-soft);
+}
+
+.comment-deleted-message {
+  margin: 0;
+  color: var(--muted);
+  font-style: italic;
+}
+
+.comment-card-header,
+.comment-card-actions,
+.comment-form-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.comment-card-header {
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.comment-card-meta {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.comment-form-actions {
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
+.comment-edit-form,
+.comment-reply-form {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 640px) {
+  .comment-reply-card {
+    margin-left: 16px;
+  }
 }
 
 .tiptap-body > :first-child,

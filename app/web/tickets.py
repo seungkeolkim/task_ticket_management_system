@@ -11,6 +11,7 @@ from app.core.config import get_settings
 from app.db.session import get_db_session
 from app.domain.auth import AuthError, Identity
 from app.domain.rich_text import MAX_DOCUMENT_BYTES, empty_body_document
+from app.schemas.comments import CommentCreate, CommentDelete, CommentUpdate
 from app.schemas.tickets import (
     TicketCreate,
     TicketRelationCreate,
@@ -19,6 +20,7 @@ from app.schemas.tickets import (
     TicketTrashMove,
     TicketUpdate,
 )
+from app.services import comments as comment_service
 from app.services import tickets as service
 from app.web.rendering import render
 from app.web.security import require_web_user, verify_csrf
@@ -40,6 +42,18 @@ def _parse_description_document(raw_document: str) -> object:
         raise ValueError("설명 본문 JSON 형식이 올바르지 않습니다.") from error
 
 
+def _parse_comment_document(raw_document: str) -> object:
+    """댓글 form의 hidden JSON payload를 Python 객체로 변환한다."""
+    if not raw_document.strip():
+        return empty_body_document()
+    if len(raw_document.encode("utf-8")) > MAX_DOCUMENT_BYTES:
+        raise ValueError("댓글 본문 크기가 허용 범위를 초과했습니다.")
+    try:
+        return json.loads(raw_document)
+    except json.JSONDecodeError as error:
+        raise ValueError("댓글 본문 JSON 형식이 올바르지 않습니다.") from error
+
+
 def _ticket_form_error_message(
     error: ValidationError | AuthError | ValueError, default_message: str
 ) -> str:
@@ -49,6 +63,23 @@ def _ticket_form_error_message(
     if isinstance(error, ValidationError):
         for validation_error in error.errors():
             if "description_document" not in validation_error.get("loc", ()):
+                continue
+            message = str(validation_error.get("msg", ""))
+            return message.removeprefix("Value error, ") or default_message
+        return default_message
+    return str(error)
+
+
+def _comment_form_error_message(
+    error: ValidationError | AuthError | ValueError,
+    default_message: str,
+) -> str:
+    """댓글 form 예외를 본문 원문이 없는 사용자 메시지로 변환한다."""
+    if isinstance(error, AuthError):
+        return error.message
+    if isinstance(error, ValidationError):
+        for validation_error in error.errors():
+            if "body_document" not in validation_error.get("loc", ()):
                 continue
             message = str(validation_error.get("msg", ""))
             return message.removeprefix("Value error, ") or default_message
@@ -167,6 +198,44 @@ def _render_ticket_edit_page(request, session, actor, project_key, ticket_key, *
 def _render_ticket_detail_page(request, session, actor, project_key, ticket_key, **context):
     """티켓 상세 화면 렌더링한다."""
     project, ticket = service.get_ticket_detail(session, actor, project_key, ticket_key)
+    _, _, comments = comment_service.list_ticket_comments(
+        session,
+        actor,
+        project_key,
+        ticket_key,
+    )
+    edit_comment_id = context.pop("edit_comment_id", None)
+    reply_comment_id = context.pop("reply_comment_id", None)
+    selected_comment = None
+    if edit_comment_id is not None:
+        selected_comment = next(
+            (comment for comment in comments if comment.id == edit_comment_id),
+            None,
+        )
+        if selected_comment is None or selected_comment.is_deleted:
+            raise AuthError("comment_not_found", "댓글을 찾을 수 없습니다.", 404)
+    reply_parent_comment = None
+    if reply_comment_id is not None:
+        reply_parent_comment = next(
+            (comment for comment in comments if comment.id == reply_comment_id),
+            None,
+        )
+        if (
+            reply_parent_comment is None
+            or reply_parent_comment.is_deleted
+            or reply_parent_comment.depth != 0
+        ):
+            raise AuthError("parent_comment_not_found", "답글 대상 댓글을 찾을 수 없습니다.", 404)
+    comment_form_values = context.pop("comment_form_values", None)
+    if selected_comment is not None and comment_form_values is None:
+        comment_form_values = {
+            "body_document_json": json.dumps(
+                selected_comment.body_document,
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ),
+            "expected_version": str(selected_comment.version),
+        }
     transitions = [
         (status, service.STATUS_LABELS[status][0])
         for status in service.get_allowed_transitions(ticket.status)
@@ -180,6 +249,11 @@ def _render_ticket_detail_page(request, session, actor, project_key, ticket_key,
         project=project,
         ticket=ticket,
         can_edit=service.can_edit_ticket(project, ticket, actor),
+        can_manage_comments=comment_service.can_manage_comments(project),
+        comments=comments,
+        selected_comment=selected_comment,
+        reply_parent_comment=reply_parent_comment,
+        comment_form_values=comment_form_values,
         transitions=transitions,
         **context,
     )
@@ -517,6 +591,158 @@ def move_ticket_to_trash_submit(
     )
 
 
+@router.post("/projects/{project_key}/tickets/{ticket_key}/comments")
+def create_comment_submit(
+    project_key: str,
+    ticket_key: str,
+    request: Request,
+    session: Database,
+    actor: Actor,
+    body_document: Annotated[str, Form()] = "",
+    parent_comment_id: Annotated[str, Form()] = "",
+    csrf_token: Annotated[str, Form()] = "",
+):
+    """티켓 댓글 form 생성을 처리한다."""
+    verify_csrf(request, csrf_token, actor, get_settings())
+    comment_form_values = {
+        "body_document_json": body_document[:MAX_DOCUMENT_BYTES],
+        "parent_comment_id": parent_comment_id[:20],
+    }
+    try:
+        payload = CommentCreate(
+            body_document=_parse_comment_document(body_document),
+            parent_comment_id=parent_comment_id or None,
+        )
+        created_comment = comment_service.create_comment(
+            session,
+            actor,
+            project_key,
+            ticket_key,
+            payload,
+        )
+    except (ValidationError, AuthError, ValueError) as error:
+        if isinstance(error, AuthError) and error.status_code in {401, 403, 404}:
+            raise
+        return _render_ticket_detail_page(
+            request,
+            session,
+            actor,
+            project_key,
+            ticket_key,
+            reply_comment_id=int(parent_comment_id) if parent_comment_id.isdecimal() else None,
+            comment_form_values=comment_form_values,
+            comment_error=_comment_form_error_message(
+                error,
+                "댓글 내용을 확인하세요.",
+            ),
+            status_code=error.status_code if isinstance(error, AuthError) else 422,
+        )
+    return RedirectResponse(
+        f"/projects/{project_key}/tickets/{ticket_key}"
+        f"?comment_created=1#comment-{created_comment.id}",
+        status_code=303,
+    )
+
+
+@router.post("/projects/{project_key}/tickets/{ticket_key}/comments/{comment_id}")
+def update_comment_submit(
+    project_key: str,
+    ticket_key: str,
+    comment_id: int,
+    request: Request,
+    session: Database,
+    actor: Actor,
+    body_document: Annotated[str, Form()] = "",
+    expected_version: Annotated[str, Form()] = "",
+    csrf_token: Annotated[str, Form()] = "",
+):
+    """티켓 댓글 form 수정을 처리한다."""
+    verify_csrf(request, csrf_token, actor, get_settings())
+    comment_form_values = {
+        "body_document_json": body_document[:MAX_DOCUMENT_BYTES],
+        "expected_version": expected_version[:20],
+    }
+    try:
+        payload = CommentUpdate(
+            body_document=_parse_comment_document(body_document),
+            expected_version=expected_version,
+        )
+        comment_service.update_comment(
+            session,
+            actor,
+            project_key,
+            ticket_key,
+            comment_id,
+            payload,
+        )
+    except (ValidationError, AuthError, ValueError) as error:
+        if isinstance(error, AuthError) and error.status_code in {401, 403, 404}:
+            raise
+        return _render_ticket_detail_page(
+            request,
+            session,
+            actor,
+            project_key,
+            ticket_key,
+            edit_comment_id=comment_id,
+            comment_form_values=comment_form_values,
+            comment_error=_comment_form_error_message(
+                error,
+                "댓글 내용과 현재 버전을 확인하세요.",
+            ),
+            comment_conflict=isinstance(error, AuthError)
+            and error.code == "comment_version_conflict",
+            status_code=error.status_code if isinstance(error, AuthError) else 422,
+        )
+    return RedirectResponse(
+        f"/projects/{project_key}/tickets/{ticket_key}?comment_updated=1#comment-{comment_id}",
+        status_code=303,
+    )
+
+
+@router.post("/projects/{project_key}/tickets/{ticket_key}/comments/{comment_id}/delete")
+def delete_comment_submit(
+    project_key: str,
+    ticket_key: str,
+    comment_id: int,
+    request: Request,
+    session: Database,
+    actor: Actor,
+    expected_version: Annotated[str, Form()] = "",
+    csrf_token: Annotated[str, Form()] = "",
+):
+    """티켓 댓글 form soft delete를 처리한다."""
+    verify_csrf(request, csrf_token, actor, get_settings())
+    try:
+        payload = CommentDelete(expected_version=expected_version)
+        comment_service.delete_comment(
+            session,
+            actor,
+            project_key,
+            ticket_key,
+            comment_id,
+            payload,
+        )
+    except (ValidationError, AuthError) as error:
+        if isinstance(error, AuthError) and error.status_code in {401, 403, 404}:
+            raise
+        return _render_ticket_detail_page(
+            request,
+            session,
+            actor,
+            project_key,
+            ticket_key,
+            comment_error=error.message
+            if isinstance(error, AuthError)
+            else "댓글 삭제 요청과 현재 버전을 확인하세요.",
+            status_code=error.status_code if isinstance(error, AuthError) else 422,
+        )
+    return RedirectResponse(
+        f"/projects/{project_key}/tickets/{ticket_key}?comment_deleted=1#comments",
+        status_code=303,
+    )
+
+
 @router.get("/projects/{project_key}/tickets/{ticket_key}")
 def ticket_detail_page(
     project_key: str,
@@ -529,6 +755,11 @@ def ticket_detail_page(
     transitioned: bool = False,
     relation_created: bool = False,
     relation_deleted: bool = False,
+    comment_created: bool = False,
+    comment_updated: bool = False,
+    comment_deleted: bool = False,
+    edit_comment: int | None = None,
+    reply_to: int | None = None,
 ):
     """티켓 상세 화면을 렌더링한다."""
     return _render_ticket_detail_page(
@@ -542,4 +773,9 @@ def ticket_detail_page(
         transitioned=transitioned,
         relation_created=relation_created,
         relation_deleted=relation_deleted,
+        comment_created=comment_created,
+        comment_updated=comment_updated,
+        comment_deleted=comment_deleted,
+        edit_comment_id=edit_comment,
+        reply_comment_id=reply_to,
     )
