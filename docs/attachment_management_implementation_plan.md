@@ -4,7 +4,7 @@
 
 이 문서는 다음 개발 세션에서 첨부파일 작업을 바로 이어가기 위한 구현 계획과 현재 상태를 기록한다. 제품 요구사항과 완료 여부의 공식 기준은 각각 `REQUIREMENTS.md`와 `IMPLEMENTATION_ROADMAP.md`이며, 이 문서는 구현 세부사항·파일 위치·남은 작업 순서와 주의점을 보충한다.
 
-현재 작업 브랜치는 `feature/attachment-foundation`이다. `main`의 `d921e70`에서 분기했으며 이 문서 작성 시점의 첨부파일 변경은 아직 commit하지 않았다. 이전에 만든 `feature/mention-management` 브랜치는 변경 없는 상태로 별도 보존되어 있다.
+현재 작업 브랜치는 `feature/attachment-foundation`이다. `main`의 `d921e70`에서 분기했으며 일반 첨부파일 기반과 본문 이미지 기능은 `710cd98`(`첨부파일과 본문 이미지 기능 구현`)에 commit되어 있다. 이전에 만든 `feature/mention-management` 브랜치는 변경 없는 상태로 별도 보존되어 있다.
 
 ## 2. 목표 범위
 
@@ -14,7 +14,7 @@
 2. 댓글에 종속된 일반 첨부파일
 3. 같은 attachment metadata와 blob을 참조하는 Tiptap 본문 image node와 이미지 미리보기
 
-현재 완료 범위는 1번의 업로드·목록·다운로드 기반과 3번의 기존 티켓 본문 이미지 업로드·표시다. 삭제 수명 주기와 댓글에 직접 종속된 일반 첨부파일은 후속 작업이다.
+현재 완료 범위는 1번의 업로드·목록·다운로드 기반과 3번의 기존 티켓 본문 이미지 업로드·표시다. 삭제 수명 주기와 댓글에 직접 종속된 일반 첨부파일은 미구현 상태다. 이 중 삭제는 의도적으로 후순위로 미뤘으며, 다음 작업으로 간주하지 않는다.
 
 ## 3. 확정된 정책
 
@@ -170,6 +170,8 @@ Windows Python 3.13 가상환경에서 실행했다. frontend bundle build도 �
 
 ## 6. 작업 순서와 다음 작업
 
+본문 이미지까지 구현을 완료했다. 첨부파일 삭제·접근 차단·30일 후 영구 정리는 의도적으로 뒤로 미뤘으며, 별도 우선순위 결정 전에는 착수하지 않는다. 댓글에 직접 종속된 일반 첨부파일과 운영 정책도 후속 후보로만 유지하며, 이 문서에서 다음 즉시 구현 대상을 확정하지 않는다.
+
 ### 6.1 완료: 이미지 미리보기와 Tiptap 본문 image
 
 - [x] PNG·JPEG·GIF·WebP inline 표시 endpoint 구현
@@ -184,7 +186,9 @@ Windows Python 3.13 가상환경에서 실행했다. frontend bundle build도 �
 
 현재 body schema v2의 `image` node와 `attachmentId` 계약을 그대로 사용하므로 schema version은 변경하지 않는다. 이미지 upload는 일반 첨부파일과 같은 저장·검증·이력·감사 경로를 사용한다.
 
-### 6.2 다음 작업: 삭제·접근 차단 정책 연결
+### 6.2 보류: 삭제·접근 차단 정책 연결
+
+삭제 구현은 본문 이미지 기능 완료 후 진행할 예정이었으나 현재 우선순위에서 뒤로 미뤘다. 아래 항목은 삭제 작업을 재개할 때 사용할 TODO이며, 현재 진행 중인 작업이나 바로 이어서 수행할 작업이 아니다.
 
 - [ ] 프로젝트 사용자·관리자와 시스템 관리자 override의 첨부파일 삭제 API 구현
 - [ ] 삭제 즉시 일반 목록·다운로드·본문 참조에서 접근 차단
@@ -203,7 +207,7 @@ Windows Python 3.13 가상환경에서 실행했다. frontend bundle build도 �
 - 일반 첨부파일과 본문 image가 같은 row를 사용하므로 참조 여부를 조회하는 방법과 삭제 UX를 결정한다.
 - 댓글 soft delete 시 댓글 attachment를 바로 삭제 상태로 전환할지, 댓글 원문 보존 기간과 함께 유지할지 결정한다.
 
-### 6.3 후속: 댓글에 직접 종속된 일반 첨부파일
+### 6.3 후속 후보: 댓글에 직접 종속된 일반 첨부파일
 
 - [ ] 업로드 시 선택적 `comment_id` 연결 계약 확정
 - [ ] 댓글 생성 전에 먼저 업로드하는 임시 attachment의 소유·만료 정책 결정
@@ -214,7 +218,7 @@ Windows Python 3.13 가상환경에서 실행했다. frontend bundle build도 �
 
 ### 6.4 명시적 TODO: 30일 후 영구 정리와 운영 수명 주기
 
-이미지 참조와 삭제 방식이 확정된 뒤 구현한다. 현재 단계에서는 완료 처리하지 않는다.
+삭제 작업을 재개하여 이미지 참조와 삭제 방식이 확정된 뒤 구현한다. 현재 단계에서는 착수하지 않으며 완료 처리하지 않는다.
 
 - [ ] `purge_after <= now`인 attachment 조회 repository 구현
 - [ ] blob 삭제 성공 후 metadata 물리 삭제 순서 적용
@@ -237,7 +241,9 @@ Windows Python 3.13 가상환경에서 실행했다. frontend bundle build도 �
 - [ ] Docker Linux volume 권한·원자 이동 검증
 - [ ] macOS Docker Desktop volume mount와 한글 파일명 다운로드 검증
 
-## 7. 삭제 구현 시 권장 transaction 순서
+## 7. 삭제 작업 재개 시 권장 transaction 순서
+
+이 절은 보류된 삭제 작업을 나중에 재개할 때 따를 구현 지침이다.
 
 1. write transaction과 SQLite lock을 시작한다.
 2. 프로젝트 write 권한·활성 상태·티켓·attachment scope를 다시 검증한다.
@@ -259,7 +265,7 @@ Windows Python 3.13 가상환경에서 실행했다. frontend bundle build도 �
 3. 현재 branch가 `feature/attachment-foundation`인지 확인한다.
 4. `git status`에서 이 문서에 기록된 미커밋 변경 외에 사용자 변경이 있는지 확인한다.
 5. `docs/attachments.md`와 이 문서를 읽고 CNT-013 저장 key를 유지한다.
-6. 삭제를 구현하기 전에 본문 참조 중인 attachment 삭제 정책을 결정하고 decision log에 CNT-015로 기록한다.
+6. 삭제 작업의 우선순위가 다시 정해지면, 구현 전에 본문 참조 중인 attachment 삭제 정책을 결정하고 decision log에 CNT-015로 기록한다.
 7. 완료된 체크리스트만 `IMPLEMENTATION_ROADMAP.md`에 반영한다.
 
 ## 9. 테스트 파일과 재검증 명령
@@ -279,7 +285,7 @@ Windows Python 3.13 가상환경에서 실행했다. frontend bundle build도 �
 git diff --check
 ```
 
-삭제·purge 구현 시 최소한 다음 실패 경로를 추가한다.
+보류된 삭제·purge 구현을 재개할 때 최소한 다음 실패 경로를 추가한다.
 
 - 게스트·외부 사용자·비활성 프로젝트 삭제 거부
 - 다른 프로젝트·티켓 attachment ID 존재 은폐
@@ -302,7 +308,7 @@ git diff --check
 - Tiptap 설명·댓글의 image upload·내부 ID 삽입과 보호된 inline 표시
 - 전체 pytest와 Ruff 통과
 
-로드맵의 첨부파일 단계 전체를 완료하려면 다음 조건이 추가로 필요하다.
+로드맵의 첨부파일 단계 전체를 완료하려면 다음 조건이 추가로 필요하다. 모두 후속 범위이며, 특히 삭제와 30일 영구 정리는 현재 우선순위에서 뒤로 미뤘다.
 
 - 삭제 즉시 접근 차단과 30일 보존
 - blob·metadata 영구 삭제 명령
