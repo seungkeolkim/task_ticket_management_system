@@ -175,13 +175,24 @@ function executeButtonCommand(editor, commandName) {
   commands[commandName]?.()
 }
 
-/** 단일 ticket form에 Tiptap editor와 toolbar를 연결한다. */
+/** 단일 form 안의 Tiptap editor와 가장 가까운 payload·toolbar를 연결한다. */
 function initializeEditor(editorElement) {
   const formElement = editorElement.closest('form')
   const fieldElement = editorElement.closest('.rich-text-field')
   const payloadElement = fieldElement?.querySelector('[data-rich-text-payload]')
   const toolbarElement = fieldElement?.querySelector('[data-rich-text-toolbar]')
   if (!formElement || !payloadElement || !toolbarElement) return
+
+  const accessibleLabel = editorElement.dataset.richTextLabel || '구조화 본문 편집기'
+  const placeholder = editorElement.dataset.richTextPlaceholder || ''
+  const editorAttributes = {
+    class: 'tiptap-body',
+    'aria-label': accessibleLabel,
+  }
+  if (placeholder) {
+    editorAttributes['aria-placeholder'] = placeholder
+    editorAttributes['data-placeholder'] = placeholder
+  }
 
   const editor = new Editor({
     element: editorElement,
@@ -208,10 +219,7 @@ function initializeEditor(editorElement) {
       AttachmentImage,
     ],
     editorProps: {
-      attributes: {
-        class: 'tiptap-body',
-        'aria-label': '티켓 설명 편집기',
-      },
+      attributes: editorAttributes,
     },
     onCreate: ({ editor: currentEditor }) => {
       synchronizePayload(currentEditor, payloadElement)

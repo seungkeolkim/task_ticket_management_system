@@ -19,3 +19,81 @@
 {% macro project_mark(project, size='md') -%}
 <span class="project-mark project-mark-{{ size }} mark-{{ project.color|default('violet') }}">{{ project.key[:2] }}</span>
 {%- endmacro %}
+
+{% macro rich_text_editor_icon(icon_name) -%}
+<svg class="rich-text-toolbar-icon" aria-hidden="true">
+  <use href="/static/tiptap-editor-icons.svg#{{ icon_name }}"></use>
+</svg>
+{%- endmacro %}
+
+{% macro rich_text_editor_button(command_name, accessible_label, icon_name, tooltip=none, extra_class='') -%}
+<button{% if extra_class %} class="{{ extra_class }}"{% endif %} type="button" data-rich-text-command="{{ command_name }}" aria-label="{{ accessible_label }}" title="{{ tooltip or accessible_label }}">
+  {{ rich_text_editor_icon(icon_name) }}
+</button>
+{%- endmacro %}
+
+{% macro rich_text_editor(field_label, payload_name, document_json, editor_label, placeholder='', help_text='') -%}
+<div class="field rich-text-field">
+  <span>{{ field_label }}</span>
+  <div class="rich-text-toolbar" data-rich-text-toolbar role="toolbar" aria-label="{{ field_label }} 서식">
+    <div class="rich-text-toolbar-group" role="group" aria-label="실행 취소와 다시 실행">
+      {{ rich_text_editor_button('undo', '실행 취소', 'undo') }}
+      {{ rich_text_editor_button('redo', '다시 실행', 'redo') }}
+    </div>
+    <div class="rich-text-toolbar-group" role="group" aria-label="문단 형식">
+      <select class="rich-text-block-select" data-rich-text-command="heading" aria-label="문단 형식" title="문단 형식">
+        <option value="paragraph">본문</option>
+        <option value="1">제목 1</option>
+        <option value="2">제목 2</option>
+        <option value="3">제목 3</option>
+      </select>
+    </div>
+    <div class="rich-text-toolbar-group" role="group" aria-label="기본 서식">
+      {{ rich_text_editor_button('bold', '굵게', 'bold') }}
+      {{ rich_text_editor_button('italic', '기울임', 'italic') }}
+      {{ rich_text_editor_button('underline', '밑줄', 'underline') }}
+      {{ rich_text_editor_button('strike', '취소선', 'strikethrough') }}
+    </div>
+    <div class="rich-text-toolbar-group" role="group" aria-label="글자 모양">
+      <select class="rich-text-size-select" data-rich-text-command="fontSize" aria-label="글자 크기" title="글자 크기">
+        <option value="">크기</option>
+        {% for size in ['12px', '14px', '16px', '18px', '24px', '32px'] %}<option value="{{ size }}">{{ size }}</option>{% endfor %}
+      </select>
+      <select class="rich-text-color-select" data-rich-text-command="color" aria-label="글자 색상" title="글자 색상">
+        <option value="">글자색</option>
+        {% for color, label in [('#111827','기본'),('#374151','진회색'),('#6b7280','회색'),('#b91c1c','빨강'),('#c2410c','주황'),('#a16207','노랑'),('#15803d','초록'),('#0369a1','하늘'),('#1d4ed8','파랑'),('#6d28d9','보라')] %}<option value="{{ color }}">{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="rich-text-toolbar-group" role="group" aria-label="목록">
+      {{ rich_text_editor_button('bulletList', '글머리 기호 목록', 'list') }}
+      {{ rich_text_editor_button('orderedList', '번호 목록', 'list-ordered') }}
+      {{ rich_text_editor_button('taskList', '할 일 목록', 'list-check') }}
+      {{ rich_text_editor_button('outdent', '내어쓰기', 'outdent') }}
+      {{ rich_text_editor_button('indent', '들여쓰기', 'indent') }}
+    </div>
+    <div class="rich-text-toolbar-group rich-text-toolbar-group-last" role="group" aria-label="삽입과 고급 서식">
+      {{ rich_text_editor_button('blockquote', '인용', 'quote') }}
+      {{ rich_text_editor_button('code', '인라인 코드', 'code') }}
+      {{ rich_text_editor_button('codeBlock', '코드 블록', 'code-block') }}
+      {{ rich_text_editor_button('link', '링크', 'link') }}
+      {{ rich_text_editor_button('insertTable', '표 삽입', 'table', '3×3 표 삽입') }}
+    </div>
+  </div>
+  <div class="rich-text-table-toolbar" data-rich-text-table-toolbar role="toolbar" aria-label="표 편집" hidden>
+    <span>표 편집</span>
+    {{ rich_text_editor_button('addRowBefore', '위에 행 추가', 'row-before') }}
+    {{ rich_text_editor_button('addRowAfter', '아래에 행 추가', 'row-after') }}
+    {{ rich_text_editor_button('deleteRow', '현재 행 삭제', 'row-delete') }}
+    <span class="rich-text-table-divider" aria-hidden="true"></span>
+    {{ rich_text_editor_button('addColumnBefore', '왼쪽에 열 추가', 'column-before') }}
+    {{ rich_text_editor_button('addColumnAfter', '오른쪽에 열 추가', 'column-after') }}
+    {{ rich_text_editor_button('deleteColumn', '현재 열 삭제', 'column-delete') }}
+    <span class="rich-text-table-divider" aria-hidden="true"></span>
+    {{ rich_text_editor_button('deleteTable', '표 삭제', 'trash', extra_class='rich-text-danger-button') }}
+  </div>
+  <div class="rich-text-editor" data-rich-text-editor data-rich-text-label="{{ editor_label }}"{% if placeholder %} data-rich-text-placeholder="{{ placeholder }}"{% endif %}></div>
+  <textarea name="{{ payload_name }}" data-rich-text-payload hidden>{{ document_json }}</textarea>
+  {% if help_text %}<small>{{ help_text }}</small>{% endif %}
+  <noscript><div class="auth-message error">구조화 본문 편집에는 JavaScript가 필요합니다.</div></noscript>
+</div>
+{%- endmacro %}

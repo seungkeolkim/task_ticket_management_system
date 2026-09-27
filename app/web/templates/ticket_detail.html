@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% import "_macros.html" as ui %}
+{% import "_macros.html" as ui with context %}
 
 {% block extra_head %}<link rel="stylesheet" href="{{ url_for('static', path='tiptap-editor.css') }}">{% endblock %}
 
@@ -17,6 +17,9 @@
 {% if transitioned %}<div class="auth-message success" role="status">상태를 변경하고 변경 이력을 기록했습니다.</div>{% endif %}
 {% if relation_created %}<div class="auth-message success" role="status">티켓 관계를 추가하고 양쪽 티켓의 변경 이력을 기록했습니다.</div>{% endif %}
 {% if relation_deleted %}<div class="auth-message success" role="status">티켓 관계를 삭제하고 양쪽 티켓의 변경 이력을 기록했습니다.</div>{% endif %}
+{% if comment_created %}<div class="auth-message success" role="status">댓글을 등록했습니다.</div>{% endif %}
+{% if comment_updated %}<div class="auth-message success" role="status">댓글을 수정했습니다.</div>{% endif %}
+{% if comment_deleted %}<div class="auth-message success" role="status">댓글을 삭제했습니다.</div>{% endif %}
 {% if error %}<div class="auth-message error" role="alert">{{ error }}</div>{% endif %}
 {% if confirmation_status %}<form class="panel" action="/projects/{{ project.key }}/tickets/{{ ticket.key }}/transition" method="post">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="target_status" value="{{ confirmation_status }}"><input type="hidden" name="expected_version" value="{{ ticket.version }}"><input type="hidden" name="confirm_incomplete_children" value="true">
@@ -64,7 +67,54 @@
       </form>
       {% endif %}
     </section>
-    <section class="content-section"><div class="section-title"><h2>활동</h2></div><div class="auth-message">생성 이력은 저장되었습니다. 이력·댓글 화면 연결은 후속 범위입니다.</div></section>
+    <section class="content-section" id="comments">
+      <div class="section-title"><h2>댓글</h2><span>{{ comments|length }}개</span></div>
+      {% if comment_error %}<div class="auth-message error" role="alert">{{ comment_error }}{% if comment_conflict %} <a href="/projects/{{ project.key }}/tickets/{{ ticket.key }}?edit_comment={{ selected_comment.id }}#comment-{{ selected_comment.id }}">최신 댓글 다시 불러오기</a>{% endif %}</div>{% endif %}
+      {% if can_manage_comments %}
+      {% set new_comment_form = (comment_form_values or {}) if not selected_comment else {} %}
+      <form class="comment-create-form" action="/projects/{{ project.key }}/tickets/{{ ticket.key }}/comments" method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        {{ ui.rich_text_editor(
+          '새 댓글',
+          'body_document',
+          new_comment_form.get('body_document_json', '{"type":"doc","content":[{"type":"paragraph"}]}'),
+          '댓글 작성 편집기',
+          '업무 진행 상황이나 참고 내용을 입력하세요.',
+          '공백만 있는 댓글은 저장할 수 없습니다.'
+        ) }}
+        <div class="comment-form-actions"><button class="button primary" type="submit">댓글 등록</button></div>
+      </form>
+      {% elif not project.is_active %}
+      <p class="detail-description">비활성 프로젝트의 댓글은 읽기만 할 수 있습니다.</p>
+      {% endif %}
+
+      <div class="comment-list">
+        {% for comment in comments %}
+        <article class="comment-card" id="comment-{{ comment.id }}">
+          <header class="comment-card-header">
+            <div><strong>{{ comment.author.display_name }}</strong><span class="comment-card-meta"> · {{ comment.author.login_id }} · {{ comment.created_at }}</span>{% if comment.version > 1 %}<span class="comment-card-meta"> · 수정 {{ comment.updated_at }}</span>{% endif %}</div>
+            {% if can_manage_comments %}<div class="comment-card-actions"><a class="button quiet" href="/projects/{{ project.key }}/tickets/{{ ticket.key }}?edit_comment={{ comment.id }}#comment-{{ comment.id }}">수정</a><form action="/projects/{{ project.key }}/tickets/{{ ticket.key }}/comments/{{ comment.id }}/delete" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="expected_version" value="{{ comment.version }}"><button class="button quiet" type="submit">삭제</button></form></div>{% endif %}
+          </header>
+          <div class="rich-text-viewer">{{ comment.body_html|safe }}</div>
+          {% if selected_comment and selected_comment.id == comment.id %}
+          <form class="comment-edit-form" action="/projects/{{ project.key }}/tickets/{{ ticket.key }}/comments/{{ comment.id }}" method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="expected_version" value="{{ comment_form_values.get('expected_version', comment.version) }}">
+            {{ ui.rich_text_editor(
+              '댓글 수정',
+              'body_document',
+              comment_form_values.get('body_document_json'),
+              '댓글 수정 편집기',
+              '수정할 댓글 내용을 입력하세요.',
+              '저장 전 다른 사용자의 변경 여부를 version으로 확인합니다.'
+            ) }}
+            <div class="comment-form-actions"><a class="button secondary" href="/projects/{{ project.key }}/tickets/{{ ticket.key }}#comment-{{ comment.id }}">취소</a><button class="button primary" type="submit" {% if comment_conflict %}disabled{% endif %}>댓글 저장</button></div>
+          </form>
+          {% endif %}
+        </article>
+        {% else %}<p class="detail-description">등록된 댓글이 없습니다.</p>{% endfor %}
+      </div>
+    </section>
   </article>
 
   <aside class="ticket-properties">
@@ -86,3 +136,5 @@
   </aside>
 </div>
 {% endblock %}
+
+{% block extra_scripts %}<script src="{{ url_for('static', path='tiptap-editor.js') }}" defer></script>{% endblock %}
