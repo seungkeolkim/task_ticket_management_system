@@ -8,6 +8,7 @@ from app.db.types import utc_now
 from app.domain.auth import AuthError, Identity
 from app.domain.codes import ProjectRole
 from app.domain.rich_text import (
+    empty_body_document,
     extract_body_document_text,
     iter_attachment_ids,
     render_body_document_html,
@@ -47,6 +48,7 @@ def record_comment_audit_event(
                 "project_id": comment.project_id,
                 "ticket_id": comment.ticket_id,
                 "comment_id": comment.id,
+                "parent_comment_id": comment.parent_comment_id,
                 "before_version": before_version,
                 "after_version": after_version,
             },
@@ -66,27 +68,53 @@ def can_manage_comments(project) -> bool:
     )
 
 
-def build_comment_view(comment_row) -> CommentView:
+def build_comment_view(comment_row, *, depth: int) -> CommentView:
     """댓글과 작성자 row를 공통 renderer 기반 view로 변환한다."""
     comment = comment_row[0]
     mapping = comment_row._mapping
+    is_deleted = comment.deleted_at is not None
+    body_document = empty_body_document() if is_deleted else comment.body_document
     return CommentView(
         id=comment.id,
         project_id=comment.project_id,
         ticket_id=comment.ticket_id,
+        parent_comment_id=comment.parent_comment_id,
+        depth=depth,
         author=CommentAuthorView(
             id=mapping["author_id"],
             login_id=mapping["author_login_id"],
             display_name=mapping["author_display_name"],
         ),
-        body_document=comment.body_document,
-        body_html=render_body_document_html(comment.body_document),
-        body_plain_text=extract_body_document_text(comment.body_document),
+        body_document=body_document,
+        body_html="" if is_deleted else render_body_document_html(comment.body_document),
+        body_plain_text="" if is_deleted else extract_body_document_text(comment.body_document),
         body_schema_version=comment.body_schema_version,
         version=comment.version,
+        is_deleted=is_deleted,
+        deleted_at=comment.deleted_at,
         created_at=comment.created_at,
         updated_at=comment.updated_at,
     )
+
+
+def build_threaded_comment_views(comment_rows) -> list[CommentView]:
+    """원댓글 다음에 대댓글이 오도록 한 단계 thread view를 구성한다."""
+    root_rows = []
+    reply_rows_by_parent_id: dict[int, list] = {}
+    for comment_row in comment_rows:
+        comment = comment_row[0]
+        if comment.parent_comment_id is None:
+            root_rows.append(comment_row)
+            continue
+        reply_rows_by_parent_id.setdefault(comment.parent_comment_id, []).append(comment_row)
+
+    threaded_comments = []
+    for root_row in root_rows:
+        root_comment = root_row[0]
+        threaded_comments.append(build_comment_view(root_row, depth=0))
+        for reply_row in reply_rows_by_parent_id.get(root_comment.id, []):
+            threaded_comments.append(build_comment_view(reply_row, depth=1))
+    return threaded_comments
 
 
 def _require_active_project(project) -> None:
@@ -139,6 +167,37 @@ def _get_active_comment_row(
     return comment_row
 
 
+def _get_reply_parent_row(
+    session: Session,
+    actor: Identity,
+    project,
+    ticket_id: int,
+    parent_comment_id: int,
+):
+    """같은 티켓의 삭제되지 않은 원댓글만 대댓글 부모로 허용한다."""
+    parent_row = repository.active_comment_row(
+        session,
+        project.id,
+        ticket_id,
+        parent_comment_id,
+        actor.id,
+        override=uses_system_administrator_override(project),
+    )
+    if parent_row is None:
+        raise AuthError(
+            "parent_comment_not_found",
+            "답글 대상 댓글을 찾을 수 없습니다.",
+            404,
+        )
+    if parent_row[0].parent_comment_id is not None:
+        raise AuthError(
+            "comment_reply_depth_exceeded",
+            "대댓글에는 다시 답글을 등록할 수 없습니다.",
+            422,
+        )
+    return parent_row
+
+
 def _require_expected_version(comment: Comment, expected_version: int) -> None:
     """요청 version과 현재 댓글 version이 같은지 검증한다."""
     if comment.version != expected_version:
@@ -184,14 +243,14 @@ def list_ticket_comments(
     with project_service.project_operation_context(session, actor, "comment_list"):
         project = project_service.require_project_member(session, actor, project_key)
         ticket = _get_accessible_ticket(session, actor, project, ticket_key)
-        comment_rows = repository.list_active_comment_rows(
+        comment_rows = repository.list_comment_rows(
             session,
             project.id,
             ticket.id,
             actor.id,
             override=uses_system_administrator_override(project),
         )
-        return project, ticket, [build_comment_view(row) for row in comment_rows]
+        return project, ticket, build_threaded_comment_views(comment_rows)
 
 
 def create_comment(
@@ -213,6 +272,14 @@ def create_comment(
         project = project_service.require_project_user_access(session, actor, project_key)
         _require_active_project(project)
         ticket = _get_accessible_ticket(session, actor, project, ticket_key)
+        if payload.parent_comment_id is not None:
+            _get_reply_parent_row(
+                session,
+                actor,
+                project,
+                ticket.id,
+                payload.parent_comment_id,
+            )
         _validate_comment_body(
             session,
             project.id,
@@ -222,6 +289,7 @@ def create_comment(
         comment = Comment(
             project_id=project.id,
             ticket_id=ticket.id,
+            parent_comment_id=payload.parent_comment_id,
             author_id=actor.id,
             body_document=payload.body_document,
         )
@@ -242,7 +310,10 @@ def create_comment(
             ticket.id,
             comment.id,
         )
-        result = build_comment_view(comment_row)
+        result = build_comment_view(
+            comment_row,
+            depth=1 if comment.parent_comment_id is not None else 0,
+        )
 
     logger.info(
         "comment_created comment_id=%s project_id=%s ticket_id=%s",
@@ -312,7 +383,10 @@ def update_comment(
                 ticket.id,
                 comment.id,
             )
-        result = build_comment_view(comment_row)
+        result = build_comment_view(
+            comment_row,
+            depth=1 if comment.parent_comment_id is not None else 0,
+        )
 
     if comment_changed:
         logger.info(

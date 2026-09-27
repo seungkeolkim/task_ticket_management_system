@@ -14,6 +14,7 @@ class CommentCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     body_document: dict[str, Any]
+    parent_comment_id: int | None = Field(default=None, gt=0)
 
     @field_validator("body_document")
     @classmethod
@@ -59,11 +60,15 @@ class CommentView(BaseModel):
     id: int
     project_id: int
     ticket_id: int
+    parent_comment_id: int | None
+    depth: Literal[0, 1]
     author: CommentAuthorView
     body_document: dict[str, Any]
     body_html: str
     body_plain_text: str
     body_schema_version: Literal[2]
     version: int
+    is_deleted: bool
+    deleted_at: datetime | None
     created_at: datetime
     updated_at: datetime

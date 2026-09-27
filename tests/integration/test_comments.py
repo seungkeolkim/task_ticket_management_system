@@ -289,7 +289,18 @@ def test_comment_lifecycle_permissions_scope_and_audit(
         {"expected_version": 2},
     )
     assert delete_response.status_code == 204
-    assert client.get(f"/api/projects/DEV/tickets/{ticket['key']}/comments").json() == []
+    deleted_views = client.get(
+        f"/api/projects/DEV/tickets/{ticket['key']}/comments"
+    ).json()
+    assert len(deleted_views) == 2
+    assert all(comment["is_deleted"] for comment in deleted_views)
+    assert all(comment["body_html"] == "" for comment in deleted_views)
+    assert all(comment["body_plain_text"] == "" for comment in deleted_views)
+    assert all(
+        comment["body_document"]
+        == {"type": "doc", "content": [{"type": "paragraph"}]}
+        for comment in deleted_views
+    )
     db_session.expire_all()
     deleted_comment = db_session.get(Comment, created_comment["id"])
     assert deleted_comment is not None
@@ -314,6 +325,106 @@ def test_comment_lifecycle_permissions_scope_and_audit(
     ]
     assert all("body_document" not in audit.details for audit in comment_audits)
     assert all(audit.details["project_id"] == project.id for audit in comment_audits)
+
+
+def test_comment_replies_thread_order_scope_depth_and_deleted_parent_placeholder(
+    client,
+    comment_people,
+    db_session,
+):
+    """대댓글 thread 순서와 scope·depth 제한 및 삭제 원댓글 자리표시자를 검증한다."""
+    _ = comment_people
+    ticket = create_ticket(client)
+    other_ticket = create_ticket(client, title="다른 답글 대상 티켓")
+    first_root = create_comment(
+        client,
+        ticket["key"],
+        comment_document("첫 원댓글"),
+    ).json()
+    second_root = create_comment(
+        client,
+        ticket["key"],
+        comment_document("둘째 원댓글"),
+    ).json()
+
+    reply_response = api_post(
+        client,
+        f"/api/projects/DEV/tickets/{ticket['key']}/comments",
+        {
+            "body_document": comment_document("첫 원댓글의 답글"),
+            "parent_comment_id": first_root["id"],
+        },
+    )
+    assert reply_response.status_code == 201
+    reply = reply_response.json()
+    assert reply["parent_comment_id"] == first_root["id"]
+    assert reply["depth"] == 1
+
+    comments = client.get(
+        f"/api/projects/DEV/tickets/{ticket['key']}/comments"
+    ).json()
+    assert [comment["id"] for comment in comments] == [
+        first_root["id"],
+        reply["id"],
+        second_root["id"],
+    ]
+    assert [comment["depth"] for comment in comments] == [0, 1, 0]
+
+    nested_reply_response = api_post(
+        client,
+        f"/api/projects/DEV/tickets/{ticket['key']}/comments",
+        {
+            "body_document": comment_document("허용되지 않는 재중첩"),
+            "parent_comment_id": reply["id"],
+        },
+    )
+    assert nested_reply_response.status_code == 422
+    assert nested_reply_response.json()["code"] == "comment_reply_depth_exceeded"
+
+    cross_ticket_response = api_post(
+        client,
+        f"/api/projects/DEV/tickets/{other_ticket['key']}/comments",
+        {
+            "body_document": comment_document("다른 티켓 부모 참조"),
+            "parent_comment_id": first_root["id"],
+        },
+    )
+    assert cross_ticket_response.status_code == 404
+    assert cross_ticket_response.json()["code"] == "parent_comment_not_found"
+
+    delete_response = api_delete(
+        client,
+        f"/api/projects/DEV/tickets/{ticket['key']}/comments/{first_root['id']}",
+        {"expected_version": first_root["version"]},
+    )
+    assert delete_response.status_code == 204
+    comments_after_delete = client.get(
+        f"/api/projects/DEV/tickets/{ticket['key']}/comments"
+    ).json()
+    deleted_root = comments_after_delete[0]
+    assert deleted_root["id"] == first_root["id"]
+    assert deleted_root["is_deleted"] is True
+    assert deleted_root["deleted_at"] is not None
+    assert deleted_root["body_html"] == ""
+    assert comments_after_delete[1]["id"] == reply["id"]
+    assert comments_after_delete[1]["is_deleted"] is False
+
+    deleted_parent_reply_response = api_post(
+        client,
+        f"/api/projects/DEV/tickets/{ticket['key']}/comments",
+        {
+            "body_document": comment_document("삭제 댓글에 답글"),
+            "parent_comment_id": first_root["id"],
+        },
+    )
+    assert deleted_parent_reply_response.status_code == 404
+    assert deleted_parent_reply_response.json()["code"] == "parent_comment_not_found"
+
+    db_session.expire_all()
+    stored_root = db_session.get(Comment, first_root["id"])
+    stored_reply = db_session.get(Comment, reply["id"])
+    assert stored_root.body_document == comment_document("첫 원댓글")
+    assert stored_reply.parent_comment_id == stored_root.id
 
 
 def test_empty_and_attachment_only_comment_validation(client, comment_people, db_session):
@@ -548,6 +659,37 @@ def test_comment_html_forms_editor_labels_retention_and_csrf(
     assert edit_response.status_code == 200
     assert 'data-rich-text-label="댓글 수정 편집기"' in edit_response.text
     assert 'name="expected_version" value="1"' in edit_response.text
+
+    reply_page = client.get(
+        f"/projects/DEV/tickets/{ticket['key']}?reply_to={comment_id}"
+    )
+    assert reply_page.status_code == 200
+    assert 'data-rich-text-label="답글 작성 편집기"' in reply_page.text
+    assert f'name="parent_comment_id" value="{comment_id}"' in reply_page.text
+
+    reply_response = client.post(
+        f"/projects/DEV/tickets/{ticket['key']}/comments",
+        data={
+            "csrf_token": csrf_token(client),
+            "parent_comment_id": str(comment_id),
+            "body_document": json.dumps(comment_document("HTML 답글"), ensure_ascii=False),
+        },
+        headers=ORIGIN,
+        follow_redirects=False,
+    )
+    assert reply_response.status_code == 303
+    assert "#comment-" in reply_response.headers["location"]
+
+    delete_response = client.post(
+        f"/projects/DEV/tickets/{ticket['key']}/comments/{comment_id}/delete",
+        data={"csrf_token": csrf_token(client), "expected_version": "1"},
+        headers=ORIGIN,
+        follow_redirects=False,
+    )
+    assert delete_response.status_code == 303
+    deleted_page = client.get(delete_response.headers["location"])
+    assert "삭제된 댓글입니다." in deleted_page.text
+    assert "HTML 답글" in deleted_page.text
 
 
 def test_comment_list_query_count_does_not_grow_with_comment_count(

@@ -13,6 +13,7 @@
 | CNT-009 | 2026-09-26 | DECIDED | Tiptap은 에디터와 문서 구조에만 사용한다. 티켓 댓글·멘션·첨부파일·optimistic locking·변경 이력·감사 로그는 기존 애플리케이션 domain에서 직접 구현한다. inline comment와 Tiptap Cloud·협업·댓글·version history는 사용하지 않는다. image node는 base64나 임의 외부 URL 대신 권한 검사를 거치는 내부 attachment ID를 참조한다. | 프로젝트 권한과 transaction·보존 정책을 서버의 단일 기준으로 유지하고 외부 서비스 종속성을 만들지 않는다. 브라우저 undo/redo는 저장 전 편집 편의 기능일 뿐 업무 이력이 아니다. |
 | CNT-010 | 2026-09-26 | DECIDED | Tiptap JSON만 DB에 저장하고 파생 HTML과 plain text는 cache하지 않는다. 화면 DTO를 만드는 service에서 sanitized HTML을 생성하고, 목록·대시보드처럼 HTML이 필요 없는 경계에서는 plain text만 한 번 추출한다. | 원본과 cache의 transaction 일관성 및 재생성 migration 비용을 피한다. 실제 조회 부하가 확인되기 전에는 파생 저장소를 추가하지 않으며, 이후 cache가 필요하면 JSON과 같은 transaction에서만 갱신하는 별도 결정을 기록한다. |
 | CNT-011 | 2026-09-26 | DECIDED | 댓글의 Tiptap document에서 추출한 plain text가 공백이고 내부 attachment image도 없으면 빈 댓글로 보고 생성·수정을 거부한다. | 보이지 않는 공백이나 구조만 있는 댓글이 활동 영역에 쌓이는 것을 막되, 첨부 image만으로 의미가 있는 댓글은 허용한다. |
+| CNT-012 | 2026-09-27 | DECIDED | 댓글 thread는 원댓글과 한 단계 대댓글로 제한한다. 삭제된 댓글에는 새 대댓글을 등록하지 않지만 이미 등록된 대댓글은 유지한다. 삭제된 댓글은 일반 응답에서 원문을 은폐한 `삭제된 댓글입니다.` 자리표시자로 반환한다. | 무제한 중첩으로 인한 읽기·표시 복잡도를 피하면서 답글 맥락을 제공하고, 원댓글 삭제가 대댓글을 숨기거나 고아로 만들지 않도록 한다. |
 
 ## Open decisions
 

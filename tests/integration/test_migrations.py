@@ -227,6 +227,87 @@ def test_tiptap_downgrade_is_explicitly_destructive_for_v2_rows(
         engine.dispose()
 
 
+def test_comment_reply_migration_preserves_existing_comment_references(
+    alembic_config: Config,
+    database_url: str,
+) -> None:
+    """대댓글 migration 왕복이 기존 댓글·멘션·첨부 참조를 보존하는지 검증한다."""
+    command.upgrade(alembic_config, "20260926_0004")
+    engine = create_database_engine(database_url)
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text("INSERT INTO organizations (key, name) VALUES ('org', '조직')")
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO users "
+                    "(login_id, display_name, password_hash, organization_id) VALUES "
+                    "('owner', '담당자', 'hash', 1), ('target', '대상자', 'hash', 1)"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO projects (key, name, created_by_id) "
+                    "VALUES ('DEV', '개발', 1)"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO tickets (project_id, number, key, title, creator_id) "
+                    "VALUES (1, 1, 'DEV-1', '티켓', 1)"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO comments (project_id, ticket_id, author_id) "
+                    "VALUES (1, 1, 1)"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO mentions "
+                    "(project_id, ticket_id, comment_id, target_user_id, mentioned_by_id, "
+                    "created_at) VALUES (1, 1, 1, 2, 1, CURRENT_TIMESTAMP)"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO attachments "
+                    "(project_id, ticket_id, comment_id, original_filename, media_type, "
+                    "size_bytes, storage_key, uploaded_by_id, created_at) "
+                    "VALUES (1, 1, 1, 'evidence.txt', 'text/plain', 1, 'evidence', 1, "
+                    "CURRENT_TIMESTAMP)"
+                )
+            )
+
+        command.upgrade(alembic_config, "head")
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO comments "
+                    "(project_id, ticket_id, parent_comment_id, author_id) "
+                    "VALUES (1, 1, 1, 1)"
+                )
+            )
+            assert connection.scalar(text("SELECT parent_comment_id FROM comments WHERE id=2")) == 1
+            assert connection.scalar(text("SELECT comment_id FROM mentions")) == 1
+            assert connection.scalar(text("SELECT comment_id FROM attachments")) == 1
+            assert connection.exec_driver_sql("PRAGMA foreign_key_check").all() == []
+
+        command.downgrade(alembic_config, "20260926_0004")
+        with engine.connect() as connection:
+            assert "parent_comment_id" not in {
+                column["name"] for column in inspect(connection).get_columns("comments")
+            }
+            assert connection.scalar(text("SELECT count(*) FROM comments")) == 2
+            assert connection.scalar(text("SELECT comment_id FROM mentions")) == 1
+            assert connection.scalar(text("SELECT comment_id FROM attachments")) == 1
+            assert connection.exec_driver_sql("PRAGMA foreign_key_check").all() == []
+    finally:
+        engine.dispose()
+
+
 def test_duplicate_organizations_fail_before_schema_changes(
     alembic_config: Config, database_url: str
 ) -> None:

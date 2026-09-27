@@ -177,6 +177,21 @@
   background: var(--surface);
 }
 
+.comment-reply-card {
+  margin-left: 32px;
+  border-left: 3px solid var(--border-strong);
+}
+
+.comment-deleted-card {
+  background: var(--surface-soft);
+}
+
+.comment-deleted-message {
+  margin: 0;
+  color: var(--muted);
+  font-style: italic;
+}
+
 .comment-card-header,
 .comment-card-actions,
 .comment-form-actions {
@@ -200,10 +215,17 @@
   margin-top: 10px;
 }
 
-.comment-edit-form {
+.comment-edit-form,
+.comment-reply-form {
   margin-top: 12px;
   padding-top: 12px;
   border-top: 1px solid var(--border);
+}
+
+@media (max-width: 640px) {
+  .comment-reply-card {
+    margin-left: 16px;
+  }
 }
 
 .tiptap-body > :first-child,

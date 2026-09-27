@@ -56,6 +56,7 @@ alembic downgrade base
 - Revision `20260917_0002` adds 15 work/reporting tables without rewriting the identity baseline.
 - Revision `20260923_0003` adds `PROJECT_GUEST` to the project-member role constraint. Its downgrade removes guest memberships instead of promoting them to a writable role.
 - Revision `20260926_0004` replaces empty Markdown v1 ticket/comment storage with Tiptap JSON body schema v2 after a `tickets`·`comments`·`ticket_history` zero-row preflight. Its downgrade discards v2 ticket content and dependent rows instead of attempting a lossy Markdown conversion.
+- Revision `20260927_0005` adds a nullable, project·ticket-scoped comment self-reference for one-level replies. Its downgrade preserves comments but removes their parent relationship.
 - Validate upgrades with existing identity data as well as an empty database. Duplicate sibling organization names fail preflight before DDL; never silently rename or remove them.
 - Downgrade destroys the new work/reporting rows. It is not a data-preserving application rollback and does not remove filesystem attachments. Use a consistent backup for recovery.
 - SQLite DDL is not assumed to be fully transactional. Preserve a backup before applying migrations to a populated deployment.

@@ -27,7 +27,7 @@ def list_ticket_comments_api(
     session: Database,
     actor: Actor,
 ):
-    """티켓의 삭제되지 않은 댓글 목록을 조회한다."""
+    """티켓의 삭제 자리표시자를 포함한 thread 순서 댓글 목록을 조회한다."""
     return service.list_ticket_comments(session, actor, project_key, ticket_key)[2]
 
 

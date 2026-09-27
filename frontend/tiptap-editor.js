@@ -247,6 +247,19 @@ function initializeEditor(editorElement) {
   formElement.addEventListener('submit', () => synchronizePayload(editor, payloadElement))
 }
 
+/** 확인 문구가 지정된 form의 제출 전에 사용자의 최종 의사를 확인한다. */
+function initializeFormConfirmations() {
+  document.addEventListener('submit', (event) => {
+    const formElement = event.target.closest('form[data-confirm-message]')
+    if (!formElement) return
+    if (!window.confirm(formElement.dataset.confirmMessage)) {
+      event.preventDefault()
+    }
+  })
+}
+
+initializeFormConfirmations()
+
 for (const editorElement of document.querySelectorAll('[data-rich-text-editor]')) {
   initializeEditor(editorElement)
 }

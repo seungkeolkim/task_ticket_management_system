@@ -39,3 +39,23 @@ def test_ticket_and_comment_templates_set_context_specific_editor_labels():
     assert "'티켓 설명 편집기'" in ticket_form_template
     assert "'댓글 작성 편집기'" in ticket_detail_template
     assert "'댓글 수정 편집기'" in ticket_detail_template
+
+
+def test_comment_forms_require_confirmation_before_submission():
+    """댓글 작성·수정·삭제 form이 제출 전 확인 처리를 사용하는지 검증한다."""
+    root = repository_root()
+    editor_source = (root / "frontend" / "tiptap-editor.js").read_text(encoding="utf-8")
+    detail_template = (root / "app" / "web" / "templates" / "ticket_detail.html").read_text(
+        encoding="utf-8"
+    )
+
+    assert "form[data-confirm-message]" in editor_source
+    assert "window.confirm(formElement.dataset.confirmMessage)" in editor_source
+    assert "event.preventDefault()" in editor_source
+    for confirmation_message in (
+        "댓글을 등록하시겠습니까?",
+        "답글을 등록하시겠습니까?",
+        "댓글 수정을 저장하시겠습니까?",
+        "댓글을 삭제하시겠습니까?",
+    ):
+        assert f'data-confirm-message="{confirmation_message}"' in detail_template

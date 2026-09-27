@@ -25,6 +25,16 @@ def test_comment_schema_normalizes_document_and_rejects_extra_fields():
         CommentCreate(body_document=valid_document(), unexpected=True)
 
 
+def test_comment_create_requires_positive_parent_comment_id():
+    """대댓글 부모 ID를 생략하거나 양수로만 지정할 수 있는지 검증한다."""
+    root_payload = CommentCreate(body_document=valid_document())
+    reply_payload = CommentCreate(body_document=valid_document(), parent_comment_id=12)
+    assert root_payload.parent_comment_id is None
+    assert reply_payload.parent_comment_id == 12
+    with pytest.raises(ValidationError):
+        CommentCreate(body_document=valid_document(), parent_comment_id=0)
+
+
 def test_comment_update_and_delete_require_positive_version():
     """댓글 수정·삭제 DTO가 양의 expected_version을 요구하는지 검증한다."""
     with pytest.raises(ValidationError):

@@ -71,8 +71,8 @@
       <div class="section-title"><h2>댓글</h2><span>{{ comments|length }}개</span></div>
       {% if comment_error %}<div class="auth-message error" role="alert">{{ comment_error }}{% if comment_conflict %} <a href="/projects/{{ project.key }}/tickets/{{ ticket.key }}?edit_comment={{ selected_comment.id }}#comment-{{ selected_comment.id }}">최신 댓글 다시 불러오기</a>{% endif %}</div>{% endif %}
       {% if can_manage_comments %}
-      {% set new_comment_form = (comment_form_values or {}) if not selected_comment else {} %}
-      <form class="comment-create-form" action="/projects/{{ project.key }}/tickets/{{ ticket.key }}/comments" method="post">
+      {% set new_comment_form = (comment_form_values or {}) if not selected_comment and not reply_parent_comment else {} %}
+      <form class="comment-create-form" action="/projects/{{ project.key }}/tickets/{{ ticket.key }}/comments" method="post" data-confirm-message="댓글을 등록하시겠습니까?">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         {{ ui.rich_text_editor(
           '새 댓글',
@@ -90,14 +90,29 @@
 
       <div class="comment-list">
         {% for comment in comments %}
-        <article class="comment-card" id="comment-{{ comment.id }}">
+        <article class="comment-card{% if comment.depth == 1 %} comment-reply-card{% endif %}{% if comment.is_deleted %} comment-deleted-card{% endif %}" id="comment-{{ comment.id }}">
           <header class="comment-card-header">
-            <div><strong>{{ comment.author.display_name }}</strong><span class="comment-card-meta"> · {{ comment.author.login_id }} · {{ comment.created_at }}</span>{% if comment.version > 1 %}<span class="comment-card-meta"> · 수정 {{ comment.updated_at }}</span>{% endif %}</div>
-            {% if can_manage_comments %}<div class="comment-card-actions"><a class="button quiet" href="/projects/{{ project.key }}/tickets/{{ ticket.key }}?edit_comment={{ comment.id }}#comment-{{ comment.id }}">수정</a><form action="/projects/{{ project.key }}/tickets/{{ ticket.key }}/comments/{{ comment.id }}/delete" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="expected_version" value="{{ comment.version }}"><button class="button quiet" type="submit">삭제</button></form></div>{% endif %}
+            <div><strong>{{ comment.author.display_name }}</strong><span class="comment-card-meta"> · {{ comment.author.login_id }} · {{ comment.created_at }}</span>{% if not comment.is_deleted and comment.version > 1 %}<span class="comment-card-meta"> · 수정 {{ comment.updated_at }}</span>{% endif %}</div>
+            {% if can_manage_comments and not comment.is_deleted %}<div class="comment-card-actions">{% if comment.depth == 0 %}<a class="button quiet" href="/projects/{{ project.key }}/tickets/{{ ticket.key }}?reply_to={{ comment.id }}#comment-{{ comment.id }}">답글</a>{% endif %}<a class="button quiet" href="/projects/{{ project.key }}/tickets/{{ ticket.key }}?edit_comment={{ comment.id }}#comment-{{ comment.id }}">수정</a><form action="/projects/{{ project.key }}/tickets/{{ ticket.key }}/comments/{{ comment.id }}/delete" method="post" data-confirm-message="댓글을 삭제하시겠습니까?"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="expected_version" value="{{ comment.version }}"><button class="button quiet" type="submit">삭제</button></form></div>{% endif %}
           </header>
-          <div class="rich-text-viewer">{{ comment.body_html|safe }}</div>
+          {% if comment.is_deleted %}<p class="comment-deleted-message">삭제된 댓글입니다.</p>{% else %}<div class="rich-text-viewer">{{ comment.body_html|safe }}</div>{% endif %}
+          {% if reply_parent_comment and reply_parent_comment.id == comment.id %}
+          <form class="comment-reply-form" action="/projects/{{ project.key }}/tickets/{{ ticket.key }}/comments" method="post" data-confirm-message="답글을 등록하시겠습니까?">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="parent_comment_id" value="{{ comment.id }}">
+            {{ ui.rich_text_editor(
+              '답글 작성',
+              'body_document',
+              (comment_form_values or {}).get('body_document_json', '{"type":"doc","content":[{"type":"paragraph"}]}'),
+              '답글 작성 편집기',
+              '답글 내용을 입력하세요.',
+              '대댓글은 한 단계까지만 등록할 수 있습니다.'
+            ) }}
+            <div class="comment-form-actions"><a class="button secondary" href="/projects/{{ project.key }}/tickets/{{ ticket.key }}#comment-{{ comment.id }}">취소</a><button class="button primary" type="submit">답글 등록</button></div>
+          </form>
+          {% endif %}
           {% if selected_comment and selected_comment.id == comment.id %}
-          <form class="comment-edit-form" action="/projects/{{ project.key }}/tickets/{{ ticket.key }}/comments/{{ comment.id }}" method="post">
+          <form class="comment-edit-form" action="/projects/{{ project.key }}/tickets/{{ ticket.key }}/comments/{{ comment.id }}" method="post" data-confirm-message="댓글 수정을 저장하시겠습니까?">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="hidden" name="expected_version" value="{{ comment_form_values.get('expected_version', comment.version) }}">
             {{ ui.rich_text_editor(

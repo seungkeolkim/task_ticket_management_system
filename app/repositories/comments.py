@@ -35,7 +35,7 @@ def _comment_select(actor_id: int, *, override: bool):
     )
 
 
-def list_active_comment_rows(
+def list_comment_rows(
     session: Session,
     project_id: int,
     ticket_id: int,
@@ -43,13 +43,12 @@ def list_active_comment_rows(
     *,
     override: bool,
 ):
-    """티켓의 삭제되지 않은 댓글과 작성자를 안정적인 순서로 조회한다."""
+    """티켓의 댓글과 작성자를 soft delete 여부와 무관하게 안정적으로 조회한다."""
     return session.execute(
         _comment_select(actor_id, override=override)
         .where(
             Comment.project_id == project_id,
             Comment.ticket_id == ticket_id,
-            Comment.deleted_at.is_(None),
         )
         .order_by(Comment.created_at, Comment.id)
     ).all()

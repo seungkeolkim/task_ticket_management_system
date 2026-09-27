@@ -14,7 +14,8 @@
 - 완료·취소 티켓에도 사후 기록을 위한 댓글 작성·수정·삭제를 허용한다.
 - 비활성 프로젝트는 읽기 전용 보존 상태로 취급하여 댓글 쓰기를 차단한다.
 - 휴지통 티켓은 일반 상세 조회 대상이 아니므로 댓글을 조회하거나 변경할 수 없다.
-- 삭제는 `deleted_at`과 `deleted_by_id`를 기록하는 soft delete이며 삭제된 댓글 본문은 일반 조회에서 제외한다.
+- 삭제는 `deleted_at`과 `deleted_by_id`를 기록하는 soft delete이며 삭제된 댓글 본문은 일반 조회에서 은폐하고 자리표시자로 반환한다.
+- 원댓글에는 한 단계 대댓글을 등록할 수 있으며 대댓글 재중첩과 삭제된 원댓글에 대한 새 답글은 거부한다.
 - 댓글 수정은 `expected_version`을 필수로 받고 SQLAlchemy optimistic locking과 함께 stale write를 차단한다.
 - 댓글 생성·수정 요청에서 plain text가 공백이고 내부 attachment image도 없으면 빈 댓글로 판단하여 거부한다(CNT-011).
 - 댓글 본문 원문이나 렌더링 HTML은 감사 로그와 시스템 로그에 기록하지 않는다.
@@ -23,18 +24,18 @@
 
 ### 3.1 Schema와 DTO
 
-- `CommentCreate`: `body_document`
+- `CommentCreate`: `body_document`, 선택적 `parent_comment_id`
 - `CommentUpdate`: `body_document`, `expected_version`
 - `CommentDelete`: `expected_version`
 - `CommentAuthorView`: 사용자 ID, 로그인 ID, 표시 이름
-- `CommentView`: 댓글 ID, 작성자, 원문 document, sanitized HTML, schema version, version, 생성·수정 시각
-- 상세 화면에서 필요한 댓글 목록은 생성 시각과 ID의 오름차순으로 안정 정렬한다.
+- `CommentView`: 댓글 ID, 부모 댓글 ID, depth, 삭제 여부, 작성자, 원문 document, sanitized HTML, schema version, version, 생성·수정 시각
+- 상세 화면에서 필요한 댓글 목록은 원댓글 생성 순서와 각 원댓글의 대댓글 생성 순서로 안정 정렬한다.
 - 모든 validation 함수와 DTO validator에는 역할을 설명하는 docstring을 작성한다.
 
 ### 3.2 Repository
 
 - 프로젝트·티켓 scope와 membership 조건을 query 자체에 포함한다.
-- 일반 조회에서는 `deleted_at IS NULL`인 댓글만 반환한다.
+- 일반 조회는 삭제 댓글도 반환하되 service DTO에서 본문을 빈 document로 교체하고 삭제 자리표시자 상태를 제공한다.
 - 단일 댓글 수정·삭제 조회는 `project_id`, `ticket_id`, `comment_id`를 모두 조건으로 사용한다.
 - 작성자 정보를 batch 또는 join으로 조회하여 댓글 수에 비례하는 N+1 query를 만들지 않는다.
 - repository 함수는 flush 또는 조회까지만 담당하고 commit하지 않는다.
@@ -62,6 +63,8 @@
 - 티켓 상세의 임시 활동 안내를 댓글 목록과 작성 form으로 교체한다.
 - 댓글 수정은 명시적인 편집 동작으로 editor를 열고 현재 version을 함께 제출한다.
 - 삭제 성공 후 상세 화면으로 redirect하고 성공 메시지를 표시한다.
+- 댓글 작성 API와 HTML form은 선택적 `parent_comment_id`로 원댓글에 한 단계 대댓글을 등록한다.
+- 댓글·대댓글 등록, 댓글 수정과 삭제 HTML form은 공용 `data-confirm-message` 처리로 제출 전에 한 번 확인한다. 취소하면 요청을 전송하지 않는다.
 - 입력 오류 시 사용자가 작성한 document를 form에 유지하되 오류 응답과 로그에는 본문 원문을 포함하지 않는다.
 
 ## 4. 공용 Tiptap editor 설정
@@ -124,7 +127,8 @@
 - 다른 프로젝트 댓글 존재 은폐
 - 완료·취소 티켓 댓글 작성 허용
 - 비활성 프로젝트와 휴지통 티켓 댓글 쓰기 차단
-- 삭제 댓글 일반 조회 제외와 원본 row 유지
+- 삭제 댓글 원문 은폐·자리표시자 조회와 원본 row 유지
+- 한 단계 대댓글의 프로젝트·티켓 scope, thread 정렬과 재중첩 거부
 - stale `expected_version` 409 및 본문·감사 로그 rollback
 - no-op 수정 시 version과 감사 로그 미증가
 - 감사 저장 실패 시 댓글 변경 전체 rollback
@@ -157,7 +161,8 @@
 - 프로젝트 게스트·사용자·관리자와 시스템 관리자 override 정책이 서버에서 강제된다.
 - 댓글이 티켓 설명과 같은 body schema v2로 안전하게 저장·렌더링된다.
 - 빈 댓글, 다른 프로젝트 접근, stale write와 감사 실패가 데이터 변경 없이 거부된다.
-- 삭제된 댓글은 일반 조회에서 제외되며 DB 원본과 삭제 주체·시각은 유지된다.
+- 삭제된 댓글은 일반 조회에서 원문이 은폐된 자리표시자로 남고 DB 원본과 삭제 주체·시각은 유지된다.
+- 원댓글 아래 한 단계 대댓글을 등록할 수 있고 원댓글 삭제 후에도 기존 대댓글을 조회할 수 있다.
 - 티켓 상세 화면에서 댓글 조회·작성·수정·삭제를 수행할 수 있다.
 - 관련 단위·통합 테스트, 전체 pytest와 Ruff 검사가 통과한다.
 - 실제 완료된 항목만 `IMPLEMENTATION_ROADMAP.md`에 반영한다.

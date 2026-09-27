@@ -205,14 +205,27 @@ def _render_ticket_detail_page(request, session, actor, project_key, ticket_key,
         ticket_key,
     )
     edit_comment_id = context.pop("edit_comment_id", None)
+    reply_comment_id = context.pop("reply_comment_id", None)
     selected_comment = None
     if edit_comment_id is not None:
         selected_comment = next(
             (comment for comment in comments if comment.id == edit_comment_id),
             None,
         )
-        if selected_comment is None:
+        if selected_comment is None or selected_comment.is_deleted:
             raise AuthError("comment_not_found", "댓글을 찾을 수 없습니다.", 404)
+    reply_parent_comment = None
+    if reply_comment_id is not None:
+        reply_parent_comment = next(
+            (comment for comment in comments if comment.id == reply_comment_id),
+            None,
+        )
+        if (
+            reply_parent_comment is None
+            or reply_parent_comment.is_deleted
+            or reply_parent_comment.depth != 0
+        ):
+            raise AuthError("parent_comment_not_found", "답글 대상 댓글을 찾을 수 없습니다.", 404)
     comment_form_values = context.pop("comment_form_values", None)
     if selected_comment is not None and comment_form_values is None:
         comment_form_values = {
@@ -239,6 +252,7 @@ def _render_ticket_detail_page(request, session, actor, project_key, ticket_key,
         can_manage_comments=comment_service.can_manage_comments(project),
         comments=comments,
         selected_comment=selected_comment,
+        reply_parent_comment=reply_parent_comment,
         comment_form_values=comment_form_values,
         transitions=transitions,
         **context,
@@ -585,18 +599,21 @@ def create_comment_submit(
     session: Database,
     actor: Actor,
     body_document: Annotated[str, Form()] = "",
+    parent_comment_id: Annotated[str, Form()] = "",
     csrf_token: Annotated[str, Form()] = "",
 ):
     """티켓 댓글 form 생성을 처리한다."""
     verify_csrf(request, csrf_token, actor, get_settings())
     comment_form_values = {
         "body_document_json": body_document[:MAX_DOCUMENT_BYTES],
+        "parent_comment_id": parent_comment_id[:20],
     }
     try:
         payload = CommentCreate(
             body_document=_parse_comment_document(body_document),
+            parent_comment_id=parent_comment_id or None,
         )
-        comment_service.create_comment(
+        created_comment = comment_service.create_comment(
             session,
             actor,
             project_key,
@@ -612,6 +629,7 @@ def create_comment_submit(
             actor,
             project_key,
             ticket_key,
+            reply_comment_id=int(parent_comment_id) if parent_comment_id.isdecimal() else None,
             comment_form_values=comment_form_values,
             comment_error=_comment_form_error_message(
                 error,
@@ -620,7 +638,8 @@ def create_comment_submit(
             status_code=error.status_code if isinstance(error, AuthError) else 422,
         )
     return RedirectResponse(
-        f"/projects/{project_key}/tickets/{ticket_key}?comment_created=1#comments",
+        f"/projects/{project_key}/tickets/{ticket_key}"
+        f"?comment_created=1#comment-{created_comment.id}",
         status_code=303,
     )
 
@@ -740,6 +759,7 @@ def ticket_detail_page(
     comment_updated: bool = False,
     comment_deleted: bool = False,
     edit_comment: int | None = None,
+    reply_to: int | None = None,
 ):
     """티켓 상세 화면을 렌더링한다."""
     return _render_ticket_detail_page(
@@ -757,4 +777,5 @@ def ticket_detail_page(
         comment_updated=comment_updated,
         comment_deleted=comment_deleted,
         edit_comment_id=edit_comment,
+        reply_comment_id=reply_to,
     )
