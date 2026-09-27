@@ -2,13 +2,14 @@ import json
 from typing import Annotated
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Depends, Form, Query, Request
+from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
 from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.db.session import get_db_session
+from app.domain.attachments import is_inline_image_media_type
 from app.domain.auth import AuthError, Identity
 from app.domain.rich_text import MAX_DOCUMENT_BYTES, empty_body_document
 from app.schemas.comments import CommentCreate, CommentDelete, CommentUpdate
@@ -20,14 +21,35 @@ from app.schemas.tickets import (
     TicketTrashMove,
     TicketUpdate,
 )
+from app.services import attachments as attachment_service
 from app.services import comments as comment_service
 from app.services import tickets as service
+from app.storage.attachments import AttachmentStorage, get_attachment_storage
+from app.web.attachment_responses import (
+    build_attachment_download_response,
+    build_attachment_inline_response,
+)
 from app.web.rendering import render
 from app.web.security import require_web_user, verify_csrf
 
 router = APIRouter(include_in_schema=False)
 Database = Annotated[Session, Depends(get_db_session)]
 Actor = Annotated[Identity, Depends(require_web_user)]
+Storage = Annotated[AttachmentStorage, Depends(get_attachment_storage)]
+
+
+def _inline_image_accept_value() -> str:
+    """현재 설정에서 본문 image upload에 사용할 확장자 accept 값을 반환한다."""
+    attachment_settings = get_settings().attachments
+    image_extensions = [
+        extension
+        for extension in attachment_settings.allowed_extensions
+        if any(
+            is_inline_image_media_type(media_type)
+            for media_type in attachment_settings.allowed_media_types.get(extension, [])
+        )
+    ]
+    return ",".join(f".{extension}" for extension in image_extensions)
 
 
 def _parse_description_document(raw_document: str) -> object:
@@ -180,6 +202,7 @@ def _render_ticket_edit_page(request, session, actor, project_key, ticket_key, *
             "expected_version": str(ticket.version),
         },
     )
+    attachment_image_accept = _inline_image_accept_value()
     return render(
         request,
         "ticket_form.html",
@@ -191,6 +214,13 @@ def _render_ticket_edit_page(request, session, actor, project_key, ticket_key, *
         options=options,
         mode="edit",
         values=values,
+        attachment_image_upload_url=(
+            f"/api/projects/{project.key}/tickets/{ticket.key}/attachments"
+            if attachment_image_accept
+            else ""
+        ),
+        attachment_image_ticket_version=ticket.version,
+        attachment_image_accept=attachment_image_accept,
         **context,
     )
 
@@ -199,6 +229,12 @@ def _render_ticket_detail_page(request, session, actor, project_key, ticket_key,
     """티켓 상세 화면 렌더링한다."""
     project, ticket = service.get_ticket_detail(session, actor, project_key, ticket_key)
     _, _, comments = comment_service.list_ticket_comments(
+        session,
+        actor,
+        project_key,
+        ticket_key,
+    )
+    _, _, attachments = attachment_service.list_ticket_attachments(
         session,
         actor,
         project_key,
@@ -240,6 +276,8 @@ def _render_ticket_detail_page(request, session, actor, project_key, ticket_key,
         (status, service.STATUS_LABELS[status][0])
         for status in service.get_allowed_transitions(ticket.status)
     ]
+    can_manage_attachments = attachment_service.can_manage_attachments(project)
+    attachment_image_accept = _inline_image_accept_value()
     return render(
         request,
         "ticket_detail.html",
@@ -250,6 +288,19 @@ def _render_ticket_detail_page(request, session, actor, project_key, ticket_key,
         ticket=ticket,
         can_edit=service.can_edit_ticket(project, ticket, actor),
         can_manage_comments=comment_service.can_manage_comments(project),
+        can_manage_attachments=can_manage_attachments,
+        attachments=attachments,
+        attachment_accept=",".join(
+            f".{extension}" for extension in get_settings().attachments.allowed_extensions
+        ),
+        attachment_max_size_mb=get_settings().attachments.max_file_size_mb,
+        attachment_image_upload_url=(
+            f"/api/projects/{project.key}/tickets/{ticket.key}/attachments"
+            if can_manage_attachments and attachment_image_accept
+            else ""
+        ),
+        attachment_image_ticket_version=ticket.version,
+        attachment_image_accept=attachment_image_accept,
         comments=comments,
         selected_comment=selected_comment,
         reply_parent_comment=reply_parent_comment,
@@ -257,6 +308,23 @@ def _render_ticket_detail_page(request, session, actor, project_key, ticket_key,
         transitions=transitions,
         **context,
     )
+
+
+@router.get("/attachments/{attachment_id}")
+def display_inline_attachment_image(
+    attachment_id: int,
+    session: Database,
+    actor: Actor,
+    storage: Storage,
+):
+    """본문 image node가 참조하는 권한 보호 raster image를 표시한다."""
+    download = attachment_service.open_inline_attachment_image(
+        session,
+        actor,
+        attachment_id,
+        storage,
+    )
+    return build_attachment_inline_response(download)
 
 
 @router.get("/projects/{project_key}/tickets")
@@ -743,6 +811,69 @@ def delete_comment_submit(
     )
 
 
+@router.post("/projects/{project_key}/tickets/{ticket_key}/attachments")
+def upload_ticket_attachment_page(
+    project_key: str,
+    ticket_key: str,
+    request: Request,
+    session: Database,
+    actor: Actor,
+    storage: Storage,
+    file: Annotated[UploadFile, File()],
+    expected_version: Annotated[int, Form(gt=0)],
+    csrf_token: Annotated[str, Form()],
+):
+    """티켓 상세 화면의 일반 첨부파일 업로드 form을 처리한다."""
+    verify_csrf(request, csrf_token, actor, get_settings())
+    try:
+        attachment_service.upload_ticket_attachment(
+            session,
+            actor,
+            project_key,
+            ticket_key,
+            raw_filename=file.filename,
+            declared_media_type=file.content_type,
+            source=file.file,
+            expected_version=expected_version,
+            storage=storage,
+        )
+    except AuthError as error:
+        return _render_ticket_detail_page(
+            request,
+            session,
+            actor,
+            project_key,
+            ticket_key,
+            attachment_error=error.message,
+            status_code=error.status_code,
+        )
+    return RedirectResponse(
+        f"/projects/{project_key}/tickets/{ticket_key}?attachment_uploaded=1#attachments",
+        status_code=303,
+    )
+
+
+@router.get("/projects/{project_key}/tickets/{ticket_key}/attachments/{attachment_id}/download")
+def download_ticket_attachment_page(
+    project_key: str,
+    ticket_key: str,
+    attachment_id: int,
+    session: Database,
+    actor: Actor,
+    storage: Storage,
+):
+    """티켓 상세 화면에서 권한이 확인된 일반 첨부파일을 다운로드한다."""
+    download = attachment_service.open_ticket_attachment_download(
+        session,
+        actor,
+        project_key,
+        ticket_key,
+        attachment_id,
+        storage,
+    )
+    return build_attachment_download_response(download)
+
+
 @router.get("/projects/{project_key}/tickets/{ticket_key}")
 def ticket_detail_page(
     project_key: str,
@@ -758,6 +889,7 @@ def ticket_detail_page(
     comment_created: bool = False,
     comment_updated: bool = False,
     comment_deleted: bool = False,
+    attachment_uploaded: bool = False,
     edit_comment: int | None = None,
     reply_to: int | None = None,
 ):
@@ -776,6 +908,7 @@ def ticket_detail_page(
         comment_created=comment_created,
         comment_updated=comment_updated,
         comment_deleted=comment_deleted,
+        attachment_uploaded=attachment_uploaded,
         edit_comment_id=edit_comment,
         reply_comment_id=reply_to,
     )

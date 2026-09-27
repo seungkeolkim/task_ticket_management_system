@@ -279,23 +279,29 @@
 ## 8단계 — 첨부파일
 
 구현 전에 운영 환경의 전체 저장 용량과 최종 허용 확장자·MIME type 목록을 확인한다.
+구현 세부 현황과 다음 작업 순서는 [첨부파일 관리 구현 계획](docs/attachment_management_implementation_plan.md)에 유지한다.
 
-- [ ] 첨부파일 저장소 interface 정의
-- [ ] 로컬 마운트 디렉터리 adapter 구현
+- [x] 첨부파일 저장소 interface 정의
+- [x] 로컬 마운트 디렉터리 adapter 구현
 - [x] `Attachment` 메타데이터 모델 구현
-- [ ] UUID 기반 내부 저장 키 생성
-- [ ] 경로 조작과 파일명 충돌 방지
-- [ ] 기본 25MB 크기 제한 및 외부 설정 적용
-- [ ] 확장자와 MIME type 동시 검증
-- [ ] 실행 파일과 스크립트 파일 차단
-- [ ] 게스트 다운로드와 프로젝트 사용자 이상 업로드·삭제 권한을 검사하는 API 구현
-- [ ] 이미지 미리보기와 일반 파일 정보 제공
-- [ ] 본문 image node와 내부 attachment ID의 업로드·삽입·권한 검증 연결
+- [x] UUID 기반 내부 저장 키 생성
+- [x] 경로 조작과 파일명 충돌 방지
+- [x] 기본 25MB 크기 제한 및 외부 설정 적용
+- [x] 확장자와 MIME type 동시 검증
+- [x] 실행 파일과 스크립트 파일 차단
+- [x] 게스트 다운로드와 프로젝트 사용자 이상 업로드 권한을 검사하는 API 구현
+- [ ] 프로젝트 사용자 이상의 첨부파일 삭제 권한을 검사하는 API 구현
+- [x] 이미지 미리보기와 일반 파일 정보 제공
+- [x] 본문 image node와 내부 attachment ID의 업로드·삽입·권한 검증 연결
 - [ ] 삭제 즉시 접근 차단 및 기본 30일 보존 구현
 - [ ] 실제 파일 영구 삭제 명령 구현
-- [ ] 파일 시스템과 DB 실패 시 보상 처리 테스트 작성
+- [x] 파일 시스템과 DB 실패 시 보상 처리 테스트 작성
 
 완료 기준: 마운트된 파일 저장소에서 권한·크기·형식을 검증하며 파일을 안전하게 제공하고 삭제할 수 있다.
+
+2026-09-27 일반 첨부파일 기반 연결: 프로젝트 key와 전역 ticket ID를 사람이 찾을 수 있는 상위 경로로 사용하고 UUID 앞 4자를 두 단계 shard로 나눈 local storage adapter를 구현했다. 업로드는 mount root의 staging 영역에서 최대 크기·확장자별 MIME type·실제 signature 또는 OOXML container를 검증한 뒤 최종 경로로 원자 이동한다. 프로젝트 사용자 이상은 활성 프로젝트의 티켓에 일반 파일을 등록하고 게스트를 포함한 프로젝트 구성원은 권한 endpoint로 목록 조회·다운로드할 수 있다. 업로드는 티켓 version·CONTENT_CHANGED 이력·감사 로그를 같은 DB transaction에서 갱신하며 실패 시 blob을 보상 삭제한다. 전용 단위·통합 테스트 12개와 allowlist 설정 테스트 2개를 포함한 전체 pytest 290개 및 Ruff 검사를 통과했다. 첨부파일 삭제·30일 보존·영구 삭제는 후속이다.
+
+2026-09-27 본문 이미지 연결: 기존 티켓의 설명·댓글 editor에서 raster image를 일반 첨부파일로 즉시 업로드하고 반환된 attachment ID를 Tiptap image node에 삽입한다. renderer의 `/attachments/{id}` 요청은 활성 attachment와 프로젝트·티켓 접근 권한을 검사한 뒤 `inline`으로 제공한다. image만 있는 설명도 상세 화면에서 표시하며 다른 티켓의 attachment 참조를 차단한다. 새 티켓은 생성 후 편집 화면에서 이미지를 추가하고, 본문 저장을 취소한 업로드도 일반 첨부파일로 유지한다. Windows Python 3.13 전체 pytest 294개와 Ruff 및 frontend bundle build를 통과했다. 다음 구현 순서는 참조 중인 image를 포함한 삭제 정책이며 30일 후 blob 정리와 scheduler는 명시적인 후속 TODO다.
 
 ## 9단계 — 목록·검색·대시보드
 

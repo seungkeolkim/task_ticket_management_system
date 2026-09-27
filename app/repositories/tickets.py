@@ -16,15 +16,19 @@ from app.models import (
 
 
 def available_attachment_ids(
-    session: Session, project_id: int, attachment_ids: set[int]
+    session: Session,
+    project_id: int,
+    ticket_id: int,
+    attachment_ids: set[int],
 ) -> set[int]:
-    """프로젝트에서 현재 참조 가능한 attachment ID 집합을 반환한다."""
+    """같은 프로젝트·티켓에서 현재 참조 가능한 attachment ID 집합을 반환한다."""
     if not attachment_ids:
         return set()
     return set(
         session.scalars(
             select(Attachment.id).where(
                 Attachment.project_id == project_id,
+                Attachment.ticket_id == ticket_id,
                 Attachment.id.in_(attachment_ids),
                 Attachment.deleted_at.is_(None),
             )
