@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.db.session import get_db_session
 from app.domain.auth import AuthError, Identity
-from app.schemas.projects import MemberCreate, ProjectCreate
+from app.schemas.projects import MemberCreate, MemberRoleUpdate, ProjectCreate
 from app.schemas.tickets import TicketTrashRestore
 from app.services import projects as service
 from app.services import tickets as ticket_service
@@ -74,10 +74,17 @@ def my_projects_page(
     search_query: Annotated[str, Query(alias="q")] = "",
     page: int = 1,
     page_size: int | None = None,
+    membership_removed: bool = False,
 ):
     """현재 사용자의 프로젝트 목록 화면을 렌더링한다."""
     return render_project_list_page(
-        request, session, actor, search_query=search_query, page=page, page_size=page_size
+        request,
+        session,
+        actor,
+        search_query=search_query,
+        page=page,
+        page_size=page_size,
+        membership_removed=membership_removed,
     )
 
 
@@ -189,6 +196,8 @@ def project_members_page(
     actor: Actor,
     candidate_search_query: Annotated[str, Query(alias="candidate_q")] = "",
     added: bool = False,
+    role_updated: bool = False,
+    removed: bool = False,
 ):
     """프로젝트 구성원 관리 화면을 렌더링한다."""
     return render_project_detail_page(
@@ -199,6 +208,8 @@ def project_members_page(
         member_page=True,
         candidate_search_query=candidate_search_query,
         added=added,
+        role_updated=role_updated,
+        removed=removed,
     )
 
 
@@ -236,6 +247,89 @@ def add_project_member(
             status_code=error.status_code if isinstance(error, AuthError) else 422,
         )
     return RedirectResponse(f"/projects/{project_key}/members?added=1", status_code=303)
+
+
+def _raise_inaccessible_member_management_error(error: AuthError) -> None:
+    """프로젝트 접근 또는 관리 권한 오류를 공통 처리기로 전달한다."""
+    if error.status_code in {401, 403} or error.code == "project_not_found":
+        raise error
+
+
+@router.post("/projects/{project_key}/members/{member_id}/role")
+def update_project_member_role(
+    project_key: str,
+    member_id: int,
+    request: Request,
+    session: Database,
+    actor: Actor,
+    role: Annotated[str, Form()] = "",
+    csrf_token: Annotated[str, Form()] = "",
+):
+    """HTML form에서 프로젝트 참여자 역할을 변경한다."""
+    verify_csrf(request, csrf_token, actor, get_settings())
+    try:
+        service.update_project_member_role(
+            session,
+            actor,
+            project_key,
+            member_id,
+            MemberRoleUpdate(role=role),
+        )
+    except AuthError as error:
+        _raise_inaccessible_member_management_error(error)
+        return render_project_detail_page(
+            request,
+            session,
+            actor,
+            project_key,
+            member_page=True,
+            error=error.message,
+            status_code=error.status_code,
+        )
+    except ValidationError:
+        return render_project_detail_page(
+            request,
+            session,
+            actor,
+            project_key,
+            member_page=True,
+            error="프로젝트 역할을 확인하세요.",
+            status_code=422,
+        )
+    return RedirectResponse(
+        f"/projects/{project_key}/members?role_updated=1", status_code=303
+    )
+
+
+@router.post("/projects/{project_key}/members/{member_id}/remove")
+def remove_project_member(
+    project_key: str,
+    member_id: int,
+    request: Request,
+    session: Database,
+    actor: Actor,
+    csrf_token: Annotated[str, Form()] = "",
+):
+    """HTML form에서 프로젝트 참여자를 제거한다."""
+    verify_csrf(request, csrf_token, actor, get_settings())
+    try:
+        removed_user_id = service.remove_project_member(
+            session, actor, project_key, member_id
+        )
+    except AuthError as error:
+        _raise_inaccessible_member_management_error(error)
+        return render_project_detail_page(
+            request,
+            session,
+            actor,
+            project_key,
+            member_page=True,
+            error=error.message,
+            status_code=error.status_code,
+        )
+    if removed_user_id == actor.id:
+        return RedirectResponse("/projects?membership_removed=1", status_code=303)
+    return RedirectResponse(f"/projects/{project_key}/members?removed=1", status_code=303)
 
 
 def render_project_trash_page(

@@ -300,7 +300,13 @@ kbd { padding: 1px 6px; border: 1px solid var(--border-strong); border-radius: 5
 .project-live-grid .project-card { min-width: 0; }
 .project-live-grid .project-card-copy { overflow-wrap: anywhere; }
 .project-live-members { padding: 0 24px; }
-.project-live-member { display: grid; grid-template-columns: minmax(0, 1fr) 150px 60px; gap: 16px; align-items: center; padding: 18px 0; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
+.project-live-member { display: grid; grid-template-columns: minmax(150px, 1fr) 120px 52px minmax(280px, auto); gap: 16px; align-items: center; padding: 18px 0; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
+.project-member-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 7px; }
+.project-member-controls form { margin: 0; }
+.project-member-role-form { display: flex; align-items: center; gap: 7px; }
+.project-member-role-form select { min-width: 142px; height: 30px; padding: 0 8px; border: 1px solid var(--border); border-radius: 7px; background: #fff; color: var(--text); font-size: 12px; }
+.project-member-controls small { flex-basis: 100%; color: var(--amber); text-align: right; }
+.project-member-controls button:disabled { cursor: not-allowed; opacity: .5; }
 .project-description { white-space: pre-wrap; overflow-wrap: anywhere; }
 
 /* Interactive kanban state changes */

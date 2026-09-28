@@ -1,18 +1,49 @@
 {% extends "base.html" %}
 {% set values = values|default({}) %}
+{% set administrator_count = members|selectattr('role', 'equalto', 'PROJECT_ADMIN')|list|length %}
+{% set role_ranks = {'PROJECT_GUEST': 0, 'PROJECT_USER': 1, 'PROJECT_ADMIN': 2} %}
+{% set role_options = [('PROJECT_GUEST', '프로젝트 게스트'), ('PROJECT_USER', '프로젝트 사용자'), ('PROJECT_ADMIN', '프로젝트 관리자')] %}
 {% block content %}
 <header class="page-header compact-header"><div><span class="eyebrow">{{ project.key }}</span><h1>구성원과 역할</h1><p>조직 소속과 프로젝트 참여는 별도로 관리합니다.</p></div><a class="button secondary" href="/projects/{{ project.key }}">프로젝트 기본 정보</a></header>
 {% if added %}<div class="auth-message success" role="status">구성원을 등록했습니다.</div>{% endif %}
+{% if role_updated %}<div class="auth-message success" role="status">참여자 역할을 변경했습니다.</div>{% endif %}
+{% if removed %}<div class="auth-message success" role="status">프로젝트 참여자를 제거했습니다.</div>{% endif %}
 {% if error %}<div class="auth-message error" role="alert">{{ error }}</div>{% endif %}
 <div class="admin-live-layout">
   <section class="panel">
     <div class="panel-header"><h2>참여자 {{ members|length }}명</h2></div>
     <div class="project-live-members">
-    {% for member in members %}<article class="project-live-member"><div><strong>{{ member.display_name }}</strong><p>{{ member.login_id }}</p></div><span>{{ '프로젝트 관리자' if member.role == 'PROJECT_ADMIN' else ('프로젝트 사용자' if member.role == 'PROJECT_USER' else '프로젝트 게스트') }}</span><span>{{ '활성' if member.is_active else '비활성' }}</span></article>{% else %}<p class="empty-state">등록된 참여자가 없습니다.</p>{% endfor %}
+    {% for member in members %}
+      {% set is_last_administrator = member.role == 'PROJECT_ADMIN' and administrator_count == 1 %}
+      {% set expansion_restricted = not project.is_active or not member.is_active %}
+      <article class="project-live-member">
+        <div><strong>{{ member.display_name }}</strong><p>{{ member.login_id }}{% if current_user.id == member.user_id %} · 나{% endif %}</p></div>
+        <span>{{ '프로젝트 관리자' if member.role == 'PROJECT_ADMIN' else ('프로젝트 사용자' if member.role == 'PROJECT_USER' else '프로젝트 게스트') }}</span>
+        <span>{{ '활성' if member.is_active else '비활성' }}</span>
+        <div class="project-member-controls">
+          {% if project.can_manage %}
+          <form action="/projects/{{ project.key }}/members/{{ member.id }}/role" method="post" class="project-member-role-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <select name="role" aria-label="{{ member.display_name }} 역할">
+              {% for role_code, role_label in role_options %}
+              <option value="{{ role_code }}" {% if member.role == role_code %}selected{% endif %} {% if (is_last_administrator and role_code != 'PROJECT_ADMIN') or (expansion_restricted and role_ranks[role_code] > role_ranks[member.role]) %}disabled{% endif %}>{{ role_label }}</option>
+              {% endfor %}
+            </select>
+            <button class="button secondary small-button" type="submit">역할 변경</button>
+          </form>
+          <form action="/projects/{{ project.key }}/members/{{ member.id }}/remove" method="post" data-confirm-message="{{ member.display_name }} 사용자를 프로젝트에서 제거하시겠습니까?">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button class="button danger-outline small-button" type="submit" {% if is_last_administrator %}disabled title="마지막 프로젝트 관리자는 제거할 수 없습니다."{% endif %}>제거</button>
+          </form>
+          {% if current_user.id == member.user_id %}<small>변경 후 관리 권한이나 프로젝트 접근을 잃을 수 있습니다.</small>{% endif %}
+          {% else %}<span>관리자만 변경할 수 있습니다.</span>{% endif %}
+        </div>
+      </article>
+    {% else %}<p class="empty-state">등록된 참여자가 없습니다.</p>{% endfor %}
     </div>
   </section>
   {% if project.can_manage and project.is_active %}
-  <aside class="panel admin-create-panel"><h2>구성원 추가</h2><p>역할 변경과 참여자 제거는 후속 기능입니다.</p>
+  <aside class="panel admin-create-panel"><h2>구성원 추가</h2><p>활성 사용자를 프로젝트 역할과 함께 등록합니다.</p>
     <form method="get" class="admin-create-form"><label>후보 검색<input name="candidate_q" maxlength="100" value="{{ candidate_q }}" placeholder="이름 또는 로그인 ID"></label><button class="button secondary">후보 검색</button></form>
     <form method="post" action="/projects/{{ project.key }}/members" class="admin-create-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="candidate_q" value="{{ candidate_q }}">

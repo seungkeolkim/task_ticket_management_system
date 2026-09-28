@@ -15,6 +15,7 @@ from app.repositories.auth import lock_security_write
 from app.schemas.projects import (
     CandidateView,
     MemberCreate,
+    MemberRoleUpdate,
     MemberView,
     ProjectCreate,
     ProjectDetail,
@@ -23,6 +24,12 @@ from app.schemas.projects import (
 )
 
 logger = logging.getLogger(__name__)
+
+PROJECT_ROLE_RANK = {
+    ProjectRole.GUEST: 0,
+    ProjectRole.USER: 1,
+    ProjectRole.ADMIN: 2,
+}
 
 
 def record_project_audit_event(session, action, actor_id, project_id=None, **details):
@@ -291,3 +298,148 @@ def add_project_member(session, actor, project_key, payload: MemberCreate):
         payload.user_id,
     )
     return result
+
+
+def _require_role_change_allowed(project, member, user_is_active, requested_role) -> None:
+    """프로젝트와 사용자 활성 상태에 따른 역할 변경 범위를 검증한다."""
+    current_rank = PROJECT_ROLE_RANK[ProjectRole(member.role)]
+    requested_rank = PROJECT_ROLE_RANK[ProjectRole(requested_role)]
+    if requested_rank <= current_rank:
+        return
+    if not project.is_active:
+        raise AuthError(
+            "project_inactive_role_expansion",
+            "비활성 프로젝트에서는 참여자 권한을 확대할 수 없습니다.",
+            409,
+        )
+    if not user_is_active:
+        raise AuthError(
+            "inactive_member_role_expansion",
+            "비활성 사용자의 프로젝트 권한을 확대할 수 없습니다.",
+            409,
+        )
+
+
+def _require_member_removal_constraints(session, project_id, member) -> None:
+    """마지막 관리자와 활성 담당 티켓 보호 규칙을 검증한다."""
+    if (
+        member.role == ProjectRole.ADMIN
+        and repository.project_administrator_count(session, project_id) <= 1
+    ):
+        raise AuthError(
+            "last_project_administrator",
+            "마지막 프로젝트 관리자는 역할을 낮추거나 제거할 수 없습니다.",
+            409,
+        )
+    if repository.has_active_ticket_assignments(session, project_id, member.user_id):
+        raise AuthError(
+            "member_has_active_assignments",
+            "미완료 담당 티켓을 먼저 재배정하거나 담당자 미지정으로 변경하세요.",
+            409,
+        )
+
+
+def update_project_member_role(
+    session: Session,
+    actor: Identity,
+    project_key: str,
+    member_id: int,
+    payload: MemberRoleUpdate,
+) -> MemberView:
+    """기존 프로젝트 참여자의 역할을 변경한다."""
+    with project_operation_context(
+        session,
+        actor,
+        "project_member_role_update",
+        write_operation=True,
+        conflict_code="project_member_conflict",
+        conflict_message="참여자 정보가 변경되었습니다. 최신 목록을 다시 확인하세요.",
+    ):
+        project = require_project_administrator(session, actor, project_key)
+        repository.lock_project_membership_management(session, project.id)
+        result = repository.project_member(session, project.id, member_id)
+        if result is None:
+            raise AuthError("member_not_found", "프로젝트 참여자를 찾을 수 없습니다.", 404)
+        member, user_is_active = result
+        if member.role == payload.role:
+            current_view = repository.project_member_view(session, project.id, member.id)
+            return MemberView(**current_view)
+
+        _require_role_change_allowed(project, member, user_is_active, payload.role)
+        if member.role == ProjectRole.ADMIN and payload.role != ProjectRole.ADMIN:
+            if repository.project_administrator_count(session, project.id) <= 1:
+                raise AuthError(
+                    "last_project_administrator",
+                    "마지막 프로젝트 관리자는 역할을 낮추거나 제거할 수 없습니다.",
+                    409,
+                )
+        if payload.role == ProjectRole.GUEST and repository.has_active_ticket_assignments(
+            session, project.id, member.user_id
+        ):
+            raise AuthError(
+                "member_has_active_assignments",
+                "미완료 담당 티켓을 먼저 재배정하거나 담당자 미지정으로 변경하세요.",
+                409,
+            )
+
+        before_role = member.role
+        member.role = payload.role
+        session.flush()
+        record_project_audit_event(
+            session,
+            "project.member_role_changed",
+            actor.id,
+            project.id,
+            user_id=member.user_id,
+            before_role=before_role,
+            after_role=payload.role,
+        )
+        updated_view = repository.project_member_view(session, project.id, member.id)
+        result_view = MemberView(**updated_view)
+    logger.info(
+        "project_member_role_changed actor_id=%s project_id=%s user_id=%s",
+        actor.id,
+        project.id,
+        result_view.user_id,
+    )
+    return result_view
+
+
+def remove_project_member(
+    session: Session, actor: Identity, project_key: str, member_id: int
+) -> int:
+    """기존 프로젝트 참여자를 프로젝트에서 제거한다."""
+    with project_operation_context(
+        session,
+        actor,
+        "project_member_remove",
+        write_operation=True,
+        conflict_code="project_member_conflict",
+        conflict_message="참여자 정보가 변경되었습니다. 최신 목록을 다시 확인하세요.",
+    ):
+        project = require_project_administrator(session, actor, project_key)
+        repository.lock_project_membership_management(session, project.id)
+        result = repository.project_member(session, project.id, member_id)
+        if result is None:
+            raise AuthError("member_not_found", "프로젝트 참여자를 찾을 수 없습니다.", 404)
+        member, _ = result
+        _require_member_removal_constraints(session, project.id, member)
+        removed_user_id = member.user_id
+        removed_role = member.role
+        session.delete(member)
+        session.flush()
+        record_project_audit_event(
+            session,
+            "project.member_removed",
+            actor.id,
+            project.id,
+            user_id=removed_user_id,
+            role=removed_role,
+        )
+    logger.info(
+        "project_member_removed actor_id=%s project_id=%s user_id=%s",
+        actor.id,
+        project.id,
+        removed_user_id,
+    )
+    return removed_user_id

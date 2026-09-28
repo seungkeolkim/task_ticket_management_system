@@ -1329,6 +1329,52 @@ def test_fsm_timestamps_reopen_and_history_versions(client, ticket_people, db_se
     assert histories[7].after_state["cancelled_at"] is None
 
 
+def test_reopen_and_restore_reject_ineligible_historical_assignee(
+    client, ticket_people, db_session
+):
+    """종료·휴지통 티켓의 과거 담당자가 부적격하면 재개·복구를 차단한다."""
+    people, project = ticket_people
+    terminal_ticket = create_ticket(
+        client, title="종료 담당자 보존", assignee_id=people["member"].id
+    ).json()
+    progressed = transition_ticket(
+        client, terminal_ticket["key"], "IN_PROGRESS", terminal_ticket["version"]
+    ).json()
+    completed = transition_ticket(
+        client, terminal_ticket["key"], "DONE", progressed["version"]
+    ).json()
+    deleted_ticket = create_ticket(
+        client, title="휴지통 담당자 보존", assignee_id=people["member"].id
+    ).json()
+    deletion_batch = move_to_trash(
+        client, deleted_ticket["key"], deleted_ticket["version"]
+    ).json()
+
+    login(client, "manager")
+    member_id = db_session.scalar(
+        select(ProjectMember.id).where(
+            ProjectMember.project_id == project.id,
+            ProjectMember.user_id == people["member"].id,
+        )
+    )
+    db_session.rollback()
+    changed = patch(
+        client,
+        f"/api/projects/DEV/members/{member_id}",
+        {"role": "PROJECT_GUEST"},
+    )
+    assert changed.status_code == 200
+
+    reopened = transition_ticket(
+        client, terminal_ticket["key"], "IN_PROGRESS", completed["version"]
+    )
+    restored = restore_trash_batch(
+        client, deletion_batch["id"], deletion_batch["root_ticket_version"]
+    )
+    assert reopened.status_code == restored.status_code == 409
+    assert reopened.json()["code"] == restored.json()["code"] == "invalid_assignee"
+
+
 def test_subtask_move_parent_validation_and_cross_project_rejection(
     client, ticket_people, db_session
 ):
