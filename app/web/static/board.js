@@ -49,16 +49,13 @@
     });
   };
 
-  const transition = async (card, targetStatus, select) => {
-    const currentStatus = card.dataset.currentStatus;
+  const transition = async (card, targetStatus) => {
     if (!canMoveTo(card, targetStatus)) {
-      if (select) select.value = currentStatus;
       showFeedback("현재 상태에서는 선택한 상태로 이동할 수 없습니다.", true);
       return;
     }
 
     card.classList.add("is-updating");
-    if (select) select.disabled = true;
     showFeedback(`${card.dataset.ticketKey} 상태를 변경하는 중입니다.`);
     try {
       const response = await window.fetch(
@@ -96,10 +93,6 @@
       window.location.reload();
     } catch (error) {
       card.classList.remove("is-updating");
-      if (select) {
-        select.disabled = false;
-        select.value = currentStatus;
-      }
       showFeedback(error.message || "상태 변경 중 오류가 발생했습니다.", true);
     }
   };
@@ -140,15 +133,8 @@
         draggedCard &&
         column.closest(".kanban-board") === draggedCard.closest(".kanban-board")
       ) {
-        transition(draggedCard, column.dataset.status, null);
+        transition(draggedCard, column.dataset.status);
       }
-    });
-  });
-
-  root.querySelectorAll("[data-board-status]").forEach((select) => {
-    select.addEventListener("change", () => {
-      const card = select.closest(".kanban-card");
-      if (card) transition(card, select.value, select);
     });
   });
 })();

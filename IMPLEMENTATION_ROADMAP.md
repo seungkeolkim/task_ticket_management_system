@@ -344,8 +344,10 @@
 - [x] Epic 없는 Task 그룹 구현
 - [x] 같은 상태의 Task·Subtask 계층 표시
 - [x] 다른 상태의 Subtask 부모 식별 그룹 표시
+- [x] Subtask 카드의 배경색 구분과 왼쪽 들여쓰기 적용
 - [x] 카드에 키·제목·중요도·담당자·마감일 표시
 - [x] 드래그 대상의 FSM 허용 여부 표시
+- [x] 카드별 상태 선택 control 제거 및 drag-only 상태 변경 UI 적용
 - [x] 완료 의존성이 남은 카드의 완료 drop 차단
 - [x] 서버에서 권한·FSM·의존성 재검증
 - [x] optimistic locking 충돌 시 보드 새로고침 안내
@@ -357,6 +359,10 @@
 2026-09-27 업무 화면 typography 보정: `body`의 14px 상속을 8~10px 고정 규칙이 덮던 티켓 목록·인라인 상세·칸반·대시보드 핵심 정보를 본문 14px, 보조 정보 13px, metadata 12px design token으로 정리했다. 구조화 본문 viewer도 같은 본문 token을 사용한다.
 
 2026-09-28 티켓 계층 탐색 연결: Task 상세의 `Subtask 목록`과 Subtask 상세의 `상위 Task & 같은 Task의 Subtask`를 전체·인라인 상세와 API에 연결했다. 각 항목은 키·제목·상태·담당자와 상세 링크를 제공하고 현재 Subtask를 강조하며, 완료·취소 티켓은 유지하고 휴지통 티켓은 제외한다. 진행률·완료 비율은 계산하지 않는다. 기존 `(project_id, parent_id)` index를 사용해 상세당 한 번의 계층 query로 조회하며 Windows Python 환경에서 전체 pytest 322개와 Ruff 및 diff 검사를 통과했다.
+
+2026-09-28 칸반 카드 상태 control 제거: 카드마다 표시하던 상태 select와 해당 JavaScript event 경로·CSS를 제거하고 상태 변경을 drag-and-drop으로 단일화했다. 카드의 FSM 허용 상태·의존성·version metadata와 서버 전이 API, 오류 feedback과 성공·stale 이후 보드 재조회는 유지한다. Windows Python 환경에서 전체 pytest 322개와 Ruff 및 diff 검사를 통과했다.
+
+2026-09-28 칸반 Subtask 카드 구분: 모든 Subtask 카드에 유형 전용 class를 부여하고 공통 design token 기반의 옅은 배경색과 8px 왼쪽 margin을 적용했다. 같은 상태 Task 아래와 다른 상태 열의 상위 Task 식별 group에서 동일하게 표시되며 카드 정보와 drag 동작은 변경하지 않았다. Windows Python 환경에서 전체 pytest 322개와 Ruff 및 diff 검사를 통과했다.
 
 ## 11단계 — 운영 준비 및 최종 검증
 

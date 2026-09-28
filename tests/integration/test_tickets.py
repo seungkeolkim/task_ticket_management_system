@@ -2088,7 +2088,9 @@ def test_board_groups_same_and_different_status_subtasks_and_audits_override(
     assert no_epic_group["columns"][0]["tasks"][0]["card"]["key"] == "DEV-5"
     assert "DEV-6" not in str(payload)
     board_html = client.get("/projects/DEV/board").text
-    assert "상태 변경" in board_html
+    assert "상태 변경" not in board_html
+    assert "data-board-status" not in board_html
+    assert board_html.count("subtask-card") == 2
     assert 'draggable="true"' in board_html
     assert "/static/board.js" in board_html
 
@@ -2193,8 +2195,8 @@ def test_board_transition_metadata_dependency_permission_and_javascript(
     assert source_card["completion_blocked"] is True
     html = client.get("/projects/DEV/board").text
     assert "의존 대상이 완료될 때까지 완료로 이동할 수 없습니다." in html
-    assert "완료 · 의존성 미완료" in html
-    assert "data-board-status" in html
+    assert "완료 · 의존성 미완료" not in html
+    assert "data-board-status" not in html
 
     login(client, "outsider")
     outsider_card = find_card(client.get("/api/projects/DEV/tickets/board").json(), source["key"])
@@ -2217,3 +2219,4 @@ def test_board_transition_metadata_dependency_permission_and_javascript(
     assert "expected_version" in script.text
     assert "X-CSRF-Token" in script.text
     assert "window.location.reload()" in script.text
+    assert "data-board-status" not in script.text

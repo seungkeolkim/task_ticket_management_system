@@ -17,7 +17,10 @@ def test_primary_work_surfaces_use_readable_typography_tokens():
     assert "--font-work-meta: 12px;" in stylesheet
     assert ".ticket-table-row," in stylesheet
     assert ".kanban-card h3 {" in stylesheet
-    assert ".board-status-control select {" in stylesheet
+    assert ".kanban-card footer," in stylesheet
+    assert ".subtask-card {" in stylesheet
+    assert "margin-left: 8px;" in stylesheet
+    assert "background: var(--surface-tint);" in stylesheet
     assert stylesheet.rfind("/* Readable typography for primary work surfaces */") > (
         stylesheet.rfind("/* Interactive kanban state changes */")
     )
