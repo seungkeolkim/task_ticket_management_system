@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.db.session import get_db_session
 from app.domain.auth import AuthError, Identity
-from app.schemas.projects import MemberCreate, MemberRoleUpdate, ProjectCreate
+from app.schemas.projects import MemberCreate, MemberRoleUpdate, ProjectCreate, ProjectUpdate
 from app.schemas.tickets import TicketTrashRestore
 from app.services import projects as service
 from app.services import tickets as ticket_service
@@ -182,10 +182,72 @@ def render_project_detail_page(
 @router.get("/projects/{project_key}")
 @router.get("/projects/{project_key}/settings")
 def project_overview_page(
-    project_key: str, request: Request, session: Database, actor: Actor, created: bool = False
+    project_key: str,
+    request: Request,
+    session: Database,
+    actor: Actor,
+    created: bool = False,
+    updated: bool = False,
 ):
     """프로젝트 개요 화면을 렌더링한다."""
-    return render_project_detail_page(request, session, actor, project_key, created=created)
+    return render_project_detail_page(
+        request,
+        session,
+        actor,
+        project_key,
+        created=created,
+        updated=updated,
+    )
+
+
+@router.post("/projects/{project_key}/settings")
+def update_project_settings(
+    project_key: str,
+    request: Request,
+    session: Database,
+    actor: Actor,
+    name: Annotated[str, Form()] = "",
+    description: Annotated[str, Form()] = "",
+    is_active: Annotated[str, Form()] = "",
+    csrf_token: Annotated[str, Form()] = "",
+):
+    """HTML form에서 프로젝트 기본 정보와 활성 상태를 변경한다."""
+    verify_csrf(request, csrf_token, actor, get_settings())
+    values = {
+        "name": name[:200],
+        "description": description[:4000],
+        "is_active": is_active[:10],
+    }
+    try:
+        payload = ProjectUpdate(
+            name=name,
+            description=description,
+            is_active=is_active,
+        )
+        service.update_project(session, actor, project_key, payload)
+    except AuthError as error:
+        if error.status_code in {401, 403} or error.code == "project_not_found":
+            raise
+        return render_project_detail_page(
+            request,
+            session,
+            actor,
+            project_key,
+            values=values,
+            error=error.message,
+            status_code=error.status_code,
+        )
+    except ValidationError:
+        return render_project_detail_page(
+            request,
+            session,
+            actor,
+            project_key,
+            values=values,
+            error="프로젝트 이름·설명·활성 상태를 확인하세요.",
+            status_code=422,
+        )
+    return RedirectResponse(f"/projects/{project_key}/settings?updated=1", status_code=303)
 
 
 @router.get("/projects/{project_key}/members")

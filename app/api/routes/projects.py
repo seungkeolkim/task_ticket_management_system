@@ -14,6 +14,8 @@ from app.schemas.projects import (
     ProjectCreate,
     ProjectDetail,
     ProjectPage,
+    ProjectUpdate,
+    ProjectView,
 )
 from app.services import projects as service
 from app.web.security import require_api_admin, require_api_user, verify_csrf
@@ -78,6 +80,19 @@ def create_project(
 def get_project_detail(project_key: str, session: Database, actor: Actor):
     """프로젝트 상세 정보를 조회한다."""
     return service.get_project_detail(session, actor, project_key)
+
+
+@router.patch("/projects/{project_key}", response_model=ProjectView)
+def update_project(
+    project_key: str,
+    request: Request,
+    payload: ProjectUpdate,
+    session: Database,
+    actor: Actor,
+):
+    """프로젝트 기본 정보와 활성 상태를 변경한다."""
+    verify_csrf(request, request.headers.get("x-csrf-token", ""), actor, get_settings())
+    return service.update_project(session, actor, project_key, payload)
 
 
 @router.get("/projects/{project_key}/members", response_model=list[MemberView])

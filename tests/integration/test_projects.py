@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from app.core.config import get_settings
 from app.domain.auth import AuthError, hash_password
 from app.models import AuditLog, Organization, Project, ProjectMember, Ticket, User
-from app.schemas.projects import MemberCreate, MemberRoleUpdate, ProjectCreate
+from app.schemas.projects import MemberCreate, MemberRoleUpdate, ProjectCreate, ProjectUpdate
 from app.services import projects as service
 from app.services.auth import get_current_identity
 
@@ -156,6 +156,7 @@ def test_project_paths_hide_existence_from_same_organization(client, people, suf
     assert hidden.json() == missing.json()
     assert "실제 개발 프로젝트" not in client.get("/projects").text
     assert client.get("/api/projects/DEV").status_code == 404
+    assert patch(client, "/api/projects/DEV", {"name": "숨은 프로젝트"}).status_code == 404
     assert client.get("/api/projects/DEV/members").status_code == 404
     assert client.get("/api/projects/DEV/candidates").status_code == 404
     assert (
@@ -184,6 +185,10 @@ def test_permissions_csrf_and_inactive_accounts(client, people, db_session):
         == 403
     )
     assert client.post("/admin/projects", data={}).status_code == 403
+    assert client.patch(
+        "/api/projects/DEV", json={"name": "변경"}, headers=ORIGIN
+    ).status_code == 403
+    assert client.post("/projects/DEV/settings", data={}).status_code == 403
     assert client.post("/projects/DEV/members", data={}).status_code == 403
     manager_member_id = db_session.scalar(
         select(ProjectMember.id).where(ProjectMember.user_id == people["manager"].id)
@@ -316,6 +321,156 @@ def test_override_audits_and_member_role_do_not_leak_privileges(client, people, 
     )
 
 
+def test_project_update_deactivate_reactivate_and_noop(client, people, db_session):
+    """프로젝트 수정·비활성화·재활성화와 no-op을 검증한다."""
+    assert create(client, people).status_code == 201
+    login(client, "manager")
+    updated = patch(
+        client,
+        "/api/projects/DEV",
+        {"name": "  변경된 프로젝트  ", "description": "  변경된 설명  "},
+    )
+    assert updated.status_code == 200
+    assert updated.json() == {
+        "id": updated.json()["id"],
+        "key": "DEV",
+        "name": "변경된 프로젝트",
+        "description": "변경된 설명",
+        "is_active": True,
+        "role": "PROJECT_ADMIN",
+        "can_manage": True,
+    }
+    project = db_session.scalar(select(Project).where(Project.key == "DEV"))
+    before_noop_updated_at = project.updated_at
+    update_audit_count = db_session.scalar(
+        select(func.count()).select_from(AuditLog).where(AuditLog.action == "project.updated")
+    )
+    db_session.rollback()
+    assert patch(client, "/api/projects/DEV", {"name": "변경된 프로젝트"}).status_code == 200
+    project = db_session.scalar(select(Project).where(Project.key == "DEV"))
+    assert project.updated_at == before_noop_updated_at
+    assert (
+        db_session.scalar(
+            select(func.count()).select_from(AuditLog).where(AuditLog.action == "project.updated")
+        )
+        == update_audit_count
+    )
+    db_session.rollback()
+
+    assert (
+        post(client, "/api/projects/DEV/members", {"user_id": people["member"].id}).status_code
+        == 201
+    )
+    deactivated = patch(client, "/api/projects/DEV", {"is_active": False})
+    assert deactivated.status_code == 200 and deactivated.json()["is_active"] is False
+    assert client.get("/api/projects/DEV").status_code == 200
+    assert (
+        post(client, "/api/projects/DEV/members", {"user_id": people["outsider"].id}).json()[
+            "code"
+        ]
+        == "project_inactive"
+    )
+    blocked_ticket = post(
+        client,
+        "/api/projects/DEV/tickets",
+        {"type": "TASK", "title": "비활성 프로젝트 티켓", "priority": "MAJOR"},
+    )
+    assert blocked_ticket.status_code == 409
+    assert blocked_ticket.json()["code"] == "project_inactive"
+    reactivated = patch(client, "/api/projects/DEV", {"is_active": True})
+    assert reactivated.status_code == 200 and reactivated.json()["is_active"] is True
+    assert (
+        post(client, "/api/projects/DEV/members", {"user_id": people["outsider"].id}).status_code
+        == 201
+    )
+    status_events = list(
+        db_session.scalars(
+            select(AuditLog).where(
+                AuditLog.action.in_(("project.deactivated", "project.reactivated"))
+            ).order_by(AuditLog.id)
+        )
+    )
+    assert [event.action for event in status_events] == [
+        "project.deactivated",
+        "project.reactivated",
+    ]
+    assert status_events[0].details == {
+        "before_is_active": True,
+        "after_is_active": False,
+    }
+    assert status_events[1].details == {
+        "before_is_active": False,
+        "after_is_active": True,
+    }
+
+
+def test_project_update_permissions_validation_and_override_audit(
+    client, people, db_session
+):
+    """프로젝트 수정 권한·입력 검증과 시스템 관리자 override를 검증한다."""
+    assert create(client, people).status_code == 201
+    assert patch(client, "/api/projects/DEV", {}).status_code == 422
+    assert patch(client, "/api/projects/DEV", {"name": None}).status_code == 422
+    assert patch(client, "/api/projects/DEV", {"name": " "}).status_code == 422
+    assert patch(client, "/api/projects/DEV", {"key": "CHANGED"}).status_code == 422
+
+    override_count = db_session.scalar(
+        select(func.count())
+        .select_from(AuditLog)
+        .where(AuditLog.action == "project.override_access")
+    )
+    changed = patch(client, "/api/projects/DEV", {"description": "시스템 관리자 변경"})
+    assert changed.status_code == 200
+    assert changed.json()["role"] is None and changed.json()["can_manage"] is True
+    assert (
+        db_session.scalar(
+            select(func.count())
+            .select_from(AuditLog)
+            .where(AuditLog.action == "project.override_access")
+        )
+        == override_count + 1
+    )
+    project_update_count = db_session.scalar(
+        select(func.count()).select_from(AuditLog).where(AuditLog.action == "project.updated")
+    )
+    override_count_after_change = db_session.scalar(
+        select(func.count())
+        .select_from(AuditLog)
+        .where(AuditLog.action == "project.override_access")
+    )
+    db_session.rollback()
+    assert (
+        patch(client, "/api/projects/DEV", {"description": "시스템 관리자 변경"}).status_code
+        == 200
+    )
+    assert (
+        db_session.scalar(
+            select(func.count()).select_from(AuditLog).where(AuditLog.action == "project.updated")
+        )
+        == project_update_count
+    )
+    assert (
+        db_session.scalar(
+            select(func.count())
+            .select_from(AuditLog)
+            .where(AuditLog.action == "project.override_access")
+        )
+        == override_count_after_change + 1
+    )
+    db_session.rollback()
+
+    login(client, "manager")
+    assert (
+        post(client, "/api/projects/DEV/members", {"user_id": people["member"].id}).status_code
+        == 201
+    )
+    login(client, "member")
+    assert patch(client, "/api/projects/DEV", {"name": "권한 없음"}).status_code == 403
+    assert 'action="/projects/DEV/settings"' not in client.get("/projects/DEV/settings").text
+    login(client, "outsider")
+    assert patch(client, "/api/projects/DEV", {"name": "숨은 변경"}).status_code == 404
+
+
 def test_html_forms_escape_input_and_refresh_from_database(client, people):
     """DB·HTML 관련 동작을 검증한다."""
     values = dict(
@@ -333,6 +488,38 @@ def test_html_forms_escape_input_and_refresh_from_database(client, people):
     invalid = client.post("/admin/projects", data=values | {"key": "?"}, headers=ORIGIN)
     assert invalid.status_code == 422 and "&lt;script&gt;" in invalid.text
     login(client, "manager")
+    settings_page = client.get("/projects/WEB/settings")
+    assert settings_page.status_code == 200
+    assert 'action="/projects/WEB/settings"' in settings_page.text
+    settings_response = client.post(
+        "/projects/WEB/settings",
+        data={
+            "csrf_token": token(client),
+            "name": '<script>alert("project")</script>',
+            "description": "화면 변경",
+            "is_active": "false",
+        },
+        headers=ORIGIN,
+        follow_redirects=False,
+    )
+    assert settings_response.status_code == 303
+    updated_settings_page = client.get(settings_response.headers["location"])
+    assert "프로젝트 정보를 저장" in updated_settings_page.text
+    assert "&lt;script&gt;" in updated_settings_page.text
+    assert '<script>alert("project")</script>' not in updated_settings_page.text
+    assert "비활성" in updated_settings_page.text
+    reactivated_response = client.post(
+        "/projects/WEB/settings",
+        data={
+            "csrf_token": token(client),
+            "name": "화면 프로젝트",
+            "description": "화면 변경",
+            "is_active": "true",
+        },
+        headers=ORIGIN,
+        follow_redirects=False,
+    )
+    assert reactivated_response.status_code == 303
     response = client.post(
         "/projects/WEB/members",
         data={"csrf_token": token(client), "user_id": people["member"].id, "role": "PROJECT_ADMIN"},
@@ -437,6 +624,15 @@ def test_audit_failures_rollback_create_add_and_override(
         actor = get_current_identity(
             session, client.cookies.get(get_settings().session.cookie_name)
         )
+        with pytest.raises(RuntimeError):
+            service.update_project(
+                session,
+                actor,
+                "DEV",
+                ProjectUpdate(name="감사 실패"),
+            )
+        project = session.scalar(select(Project).where(Project.key == "DEV"))
+        assert project.name == "실제 개발 프로젝트"
         with pytest.raises(RuntimeError):
             service.add_project_member(
                 session, actor, "DEV", MemberCreate(user_id=people["outsider"].id)
