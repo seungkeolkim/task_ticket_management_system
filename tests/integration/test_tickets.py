@@ -1218,6 +1218,140 @@ def test_search_and_stable_pagination(client, ticket_people, db_session):
     assert client.get("/api/projects/DEV/tickets?page=0").status_code == 400
 
 
+def test_project_ticket_list_filters_hierarchy_users_dates_and_sorting(
+    client, ticket_people, db_session
+):
+    """프로젝트 목록의 업무 filter와 정렬이 같은 권한 query에 적용되는지 검증한다."""
+    people, project = ticket_people
+    epic = Ticket(
+        project_id=project.id,
+        number=1,
+        key="DEV-1",
+        type="EPIC",
+        title="필터 Epic",
+        creator_id=people["manager"].id,
+        priority="MINOR",
+        due_date=date(2026, 10, 1),
+        created_at=datetime(2026, 9, 1, tzinfo=UTC),
+        updated_at=datetime(2026, 9, 2, tzinfo=UTC),
+    )
+    db_session.add(epic)
+    db_session.flush()
+    task = Ticket(
+        project_id=project.id,
+        number=2,
+        key="DEV-2",
+        type="TASK",
+        title="필터 Task",
+        parent_id=epic.id,
+        creator_id=people["member"].id,
+        assignee_id=people["manager"].id,
+        status="IN_PROGRESS",
+        priority="BLOCKER",
+        due_date=date(2026, 10, 10),
+        created_at=datetime(2026, 9, 10, tzinfo=UTC),
+        updated_at=datetime(2026, 9, 20, tzinfo=UTC),
+    )
+    db_session.add(task)
+    db_session.flush()
+    subtask = Ticket(
+        project_id=project.id,
+        number=3,
+        key="DEV-3",
+        type="SUBTASK",
+        title="필터 Subtask",
+        parent_id=task.id,
+        creator_id=people["member"].id,
+        status="DONE",
+        priority="CRITICAL",
+        due_date=date(2026, 10, 15),
+        created_at=datetime(2026, 9, 15, tzinfo=UTC),
+        updated_at=datetime(2026, 9, 25, tzinfo=UTC),
+    )
+    db_session.add(subtask)
+    project.next_ticket_number = 4
+    db_session.commit()
+
+    def ticket_keys(path: str) -> list[str]:
+        """목록 API 응답의 ticket key 순서를 반환한다."""
+        response = client.get(path)
+        assert response.status_code == 200
+        return [ticket["key"] for ticket in response.json()["tickets"]]
+
+    assert ticket_keys("/api/projects/DEV/tickets?type=TASK&type=SUBTASK") == [
+        "DEV-3",
+        "DEV-2",
+    ]
+    assert ticket_keys("/api/projects/DEV/tickets?status=IN_PROGRESS&priority=BLOCKER") == [
+        "DEV-2"
+    ]
+    assert ticket_keys(f"/api/projects/DEV/tickets?epic_id={epic.id}") == [
+        "DEV-3",
+        "DEV-2",
+        "DEV-1",
+    ]
+    assert ticket_keys(f"/api/projects/DEV/tickets?parent_id={task.id}") == ["DEV-3"]
+    assert ticket_keys(
+        f"/api/projects/DEV/tickets?creator_id={people['manager'].id}"
+    ) == ["DEV-1"]
+    assert ticket_keys(
+        f"/api/projects/DEV/tickets?assignee_id={people['manager'].id}"
+    ) == ["DEV-2"]
+    assert ticket_keys("/api/projects/DEV/tickets?unassigned=true") == ["DEV-3", "DEV-1"]
+    assert ticket_keys(
+        "/api/projects/DEV/tickets?created_from=2026-09-10&created_through=2026-09-15"
+    ) == ["DEV-3", "DEV-2"]
+    assert ticket_keys(
+        "/api/projects/DEV/tickets?due_from=2026-10-02&due_through=2026-10-12"
+    ) == ["DEV-2"]
+    assert ticket_keys(
+        "/api/projects/DEV/tickets?sort_by=priority&sort_direction=desc"
+    ) == ["DEV-2", "DEV-3", "DEV-1"]
+    assert ticket_keys(
+        "/api/projects/DEV/tickets?sort_by=due_date&sort_direction=asc"
+    ) == ["DEV-1", "DEV-2", "DEV-3"]
+    filter_options = client.get("/api/projects/DEV/tickets/filter-options").json()
+    assert {item["key"] for item in filter_options["hierarchy"]} == {"DEV-1", "DEV-2"}
+    assert {item["id"] for item in filter_options["users"]} == {
+        people["manager"].id,
+        people["member"].id,
+    }
+
+
+def test_project_ticket_filter_page_preserves_query_state_and_validates_ranges(
+    client, ticket_people
+):
+    """필터 UI와 pagination·inline link가 현재 query를 보존하는지 검증한다."""
+    people, _ = ticket_people
+    ticket = create_ticket(
+        client,
+        title="URL 보존 티켓",
+        assignee_id=people["manager"].id,
+        priority="CRITICAL",
+    ).json()
+    query = (
+        "type=TASK&status=TODO&priority=CRITICAL"
+        f"&assignee_id={people['manager'].id}"
+        "&created_from=2026-01-01&created_through=2026-12-31"
+        "&sort_by=number&sort_direction=asc&page_size=10"
+    )
+
+    page = client.get(f"/projects/DEV/tickets?{query}")
+
+    assert page.status_code == 200
+    assert 'name="type" value="TASK" checked' in page.text
+    assert 'name="status" value="TODO" checked' in page.text
+    assert 'name="priority" value="CRITICAL" checked' in page.text
+    assert f"assignee_id={people['manager'].id}" in page.text
+    assert "created_from=2026-01-01" in page.text
+    assert "sort_by=number" in page.text
+    assert f"selected={ticket['key']}" in page.text
+    assert client.get(
+        "/api/projects/DEV/tickets?created_from=2026-10-02&created_through=2026-10-01"
+    ).status_code == 400
+    assert client.get("/projects/DEV/tickets?epic_id=&due_from=").status_code == 200
+
+
 def test_concurrent_number_allocation_is_monotonic(client, ticket_people, db_session_factory):
     """동시성 관련 동작을 검증한다."""
     _, project = ticket_people

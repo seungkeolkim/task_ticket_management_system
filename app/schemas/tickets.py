@@ -225,6 +225,18 @@ class TicketPage(BaseModel):
     page_size: int
 
 
+class TicketFilterHierarchyOption(BaseModel):
+    id: int
+    key: str
+    type: TicketType
+    title: str
+
+
+class TicketListFilterOptions(BaseModel):
+    users: list[TicketUserView]
+    hierarchy: list[TicketFilterHierarchyOption]
+
+
 class TicketTrashBatchView(BaseModel):
     id: int
     project_id: int
