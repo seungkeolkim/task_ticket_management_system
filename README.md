@@ -7,7 +7,6 @@ FastAPI, SQLAlchemy, Alembic, and SQLite를 사용하는 사내용 태스크·�
 - [요구사항](REQUIREMENTS.md)
 - [구현 로드맵 및 진척도](IMPLEMENTATION_ROADMAP.md)
 - [첨부파일 저장과 권한](docs/attachments.md)
-- [첨부파일 관리 구현 계획 및 인수인계](docs/attachment_management_implementation_plan.md)
 - [의사결정 기록](docs/decisions/README.md)
 - [기존 프로젝트 참조 및 차용 가이드](REFERENCE_IMPLEMENTATION.md)
 - [DB 설계 규칙](docs/database_conventions.md)
