@@ -188,11 +188,16 @@ def build_ticket_list_item_view(ticket_row) -> TicketListItemView:
 def build_ticket_view(ticket_row) -> TicketView:
     """티켓 row를 구조화 본문이 포함된 상세 view로 변환한다."""
     ticket = ticket_row[0]
+    description_plain_text = extract_body_document_text(ticket.description_document)
+    description_attachment_ids = set(iter_attachment_ids(ticket.description_document))
     return TicketView(
         **_build_ticket_common_view_values(ticket_row),
-        description_plain_text=extract_body_document_text(ticket.description_document),
+        description_plain_text=description_plain_text,
         description_document=ticket.description_document,
         description_html=render_body_document_html(ticket.description_document),
+        description_has_content=bool(
+            description_plain_text.strip() or description_attachment_ids
+        ),
         body_schema_version=ticket.body_schema_version,
     )
 
@@ -401,6 +406,55 @@ def _build_ticket_change_history(
     )
 
 
+def build_ticket_snapshot(
+    session: Session,
+    ticket: Ticket,
+    parent_key: str | None,
+) -> TicketState:
+    """티켓 외부 콘텐츠 service가 사용할 전체 업무 snapshot을 반환한다."""
+    return _build_ticket_snapshot(session, ticket, parent_key)
+
+
+def build_ticket_external_content_history(
+    ticket: Ticket,
+    actor_id: int,
+    before: TicketState,
+    after: TicketState,
+    *,
+    field: str,
+    before_value: object,
+    after_value: object,
+) -> TicketHistory:
+    """첨부파일처럼 snapshot 외부에 저장되는 콘텐츠 변경 이력을 구성한다."""
+    event = TicketEvent(
+        event_key=uuid4(),
+        operation_id=uuid4(),
+        ticket_key=ticket.key,
+        project_id=ticket.project_id,
+        ticket_version=ticket.version,
+        event_type=HistoryEventType.CONTENT_CHANGED,
+        actor_id=actor_id,
+        occurred_at=ticket.updated_at,
+        before_state=before,
+        after_state=after,
+        changes=[FieldChange(field=field, before=before_value, after=after_value)],
+    )
+    return TicketHistory(
+        project_id=ticket.project_id,
+        ticket_id=ticket.id,
+        event_key=str(event.event_key),
+        operation_id=str(event.operation_id),
+        ticket_version=ticket.version,
+        event_type=event.event_type,
+        actor_id=actor_id,
+        occurred_at=event.occurred_at,
+        schema_version=event.schema_version,
+        before_state=event.before_state.model_dump(mode="json"),
+        after_state=event.after_state.model_dump(mode="json"),
+        changes=[change.model_dump(mode="json") for change in event.changes],
+    )
+
+
 def _get_project(session: Session, actor: Identity, project_key: str):
     """읽기 가능한 프로젝트를 조회한다."""
     return project_service.require_project_member(session, actor, project_key)
@@ -412,12 +466,25 @@ def _get_writable_project(session: Session, actor: Identity, project_key: str):
 
 
 def _require_available_document_attachments(
-    session: Session, project_id: int, description_document: dict[str, object]
+    session: Session,
+    project_id: int,
+    ticket_id: int | None,
+    description_document: dict[str, object],
 ) -> None:
-    """본문 image node가 현재 프로젝트의 활성 attachment만 참조하는지 확인한다."""
+    """본문 image node가 현재 티켓의 활성 attachment만 참조하는지 확인한다."""
     requested_attachment_ids = set(iter_attachment_ids(description_document))
+    if not requested_attachment_ids:
+        return
+    if ticket_id is None:
+        raise AuthError(
+            "invalid_description_attachment",
+            "티켓을 생성한 뒤 설명에 이미지를 추가하세요.",
+        )
     available_attachment_ids = repository.available_attachment_ids(
-        session, project_id, requested_attachment_ids
+        session,
+        project_id,
+        ticket_id,
+        requested_attachment_ids,
     )
     if requested_attachment_ids != available_attachment_ids:
         raise AuthError(
@@ -1312,7 +1379,10 @@ def create_ticket(
         ):
             raise AuthError("invalid_assignee", "활성 프로젝트 구성원을 담당자로 선택하세요.")
         _require_available_document_attachments(
-            session, project.id, payload.description_document
+            session,
+            project.id,
+            None,
+            payload.description_document,
         )
         number = repository.allocate_number(session, project.id)
         ticket = Ticket(
@@ -1380,7 +1450,10 @@ def update_ticket(
         ):
             raise AuthError("invalid_assignee", "활성 프로젝트 구성원을 담당자로 선택하세요.")
         _require_available_document_attachments(
-            session, project.id, payload.description_document
+            session,
+            project.id,
+            ticket.id,
+            payload.description_document,
         )
 
         current_parent_key = row._mapping["parent_key"]

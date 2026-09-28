@@ -175,6 +175,7 @@ class TicketListItemView(BaseModel):
 class TicketView(TicketListItemView):
     description_document: dict[str, Any]
     description_html: str
+    description_has_content: bool
     body_schema_version: Literal[2]
 
 

@@ -140,6 +140,19 @@
   background: var(--surface);
 }
 
+.rich-text-image-status {
+  min-height: 18px;
+  color: var(--muted);
+}
+
+.rich-text-image-status.is-error {
+  color: var(--red);
+}
+
+.rich-text-image-status:empty {
+  display: none;
+}
+
 .tiptap-body {
   position: relative;
   min-height: 240px;
@@ -302,6 +315,10 @@
 
 .tiptap-body img,
 .rich-text-viewer img {
+  display: block;
   max-width: 100%;
   height: auto;
+  margin: 12px 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
 }

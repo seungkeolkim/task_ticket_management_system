@@ -408,3 +408,44 @@ kbd { padding: 1px 6px; border: 1px solid var(--border-strong); border-radius: 5
 .board-status-control select {
   min-width: 108px;
 }
+
+.attachment-row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+
+.attachment-row:first-child { border-top: 0; }
+.attachment-row strong, .attachment-row small { display: block; }
+.attachment-row strong { overflow-wrap: anywhere; font-size: var(--font-work-body); }
+.attachment-row small { margin-top: 2px; color: var(--muted); font-size: var(--font-work-meta); }
+
+.attachment-upload-form {
+  display: flex;
+  align-items: end;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.attachment-upload-form label {
+  display: grid;
+  flex: 1;
+  gap: 5px;
+  color: var(--text-soft);
+  font-size: var(--font-work-secondary);
+  font-weight: 700;
+}
+
+.attachment-upload-form input[type="file"] {
+  padding: 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.attachment-upload-form > span { color: var(--muted); font-size: var(--font-work-meta); }

@@ -325,10 +325,10 @@ def test_list_dashboard_and_board_skip_description_html_rendering(
     assert len(plain_text_extract_calls) == 4
 
 
-def test_description_image_requires_active_same_project_attachment(
+def test_description_image_requires_active_same_ticket_attachment(
     client, ticket_people, db_session
 ):
-    """설명 image가 같은 프로젝트의 활성 attachment만 참조하는지 검증한다."""
+    """설명 image가 같은 프로젝트·티켓의 활성 attachment만 참조하는지 검증한다."""
     people, project = ticket_people
     ticket = create_ticket(client, title="이미지 참조 티켓").json()
     ticket_row = db_session.scalar(select(Ticket).where(Ticket.key == ticket["key"]))
@@ -352,12 +352,32 @@ def test_description_image_requires_active_same_project_attachment(
         deleted_at=datetime.now(UTC),
         purge_after=datetime.now(UTC) + timedelta(days=30),
     )
+    same_project_ticket = Ticket(
+        project_id=project.id,
+        number=2,
+        key="DEV-2",
+        title="같은 프로젝트의 다른 티켓",
+        creator_id=people["member"].id,
+    )
+    db_session.add(same_project_ticket)
+    db_session.flush()
+    same_project_attachment = Attachment(
+        project_id=project.id,
+        ticket_id=same_project_ticket.id,
+        original_filename="same-project.png",
+        media_type="image/png",
+        size_bytes=128,
+        storage_key="ticket-tests/same-project.png",
+        uploaded_by_id=people["member"].id,
+    )
     other_project = Project(
         key="OTHER",
         name="다른 프로젝트",
         created_by_id=people["sysadmin"].id,
     )
-    db_session.add_all([active_attachment, deleted_attachment, other_project])
+    db_session.add_all(
+        [active_attachment, deleted_attachment, same_project_attachment, other_project]
+    )
     db_session.flush()
     other_ticket = Ticket(
         project_id=other_project.id,
@@ -392,7 +412,11 @@ def test_description_image_requires_active_same_project_attachment(
         "description_html"
     ]
 
-    for attachment_id in (deleted_attachment.id, other_attachment.id):
+    for attachment_id in (
+        deleted_attachment.id,
+        same_project_attachment.id,
+        other_attachment.id,
+    ):
         rejected = update_ticket(
             client,
             ticket["key"],

@@ -59,3 +59,19 @@ def test_comment_forms_require_confirmation_before_submission():
         "댓글을 삭제하시겠습니까?",
     ):
         assert f'data-confirm-message="{confirmation_message}"' in detail_template
+
+
+def test_editor_uploads_image_attachment_and_inserts_internal_node():
+    """editor가 보호된 upload API 결과를 외부 URL 없이 image node로 삽입하는지 검증한다."""
+    root = repository_root()
+    editor_source = (root / "frontend" / "tiptap-editor.js").read_text(encoding="utf-8")
+    macro_template = (root / "app" / "web" / "templates" / "_macros.html").read_text(
+        encoding="utf-8"
+    )
+
+    assert "data-rich-text-image-upload-url" in macro_template
+    assert "rich_text_editor_button('uploadImage', '이미지 업로드', 'image')" in macro_template
+    assert "uploadPayload.append('expected_version', expectedVersion)" in editor_source
+    assert "'X-CSRF-Token': csrfToken" in editor_source
+    assert "attachmentId: responsePayload.attachment.id" in editor_source
+    assert "updateTicketVersion(uploadUrl, responsePayload.ticket_version)" in editor_source

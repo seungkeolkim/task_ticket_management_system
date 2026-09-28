@@ -35,6 +35,21 @@ deleted_file_retention_days = 30
 allowed_extensions = ["png", "jpg", "jpeg", "gif", "webp", "pdf", "txt", "md", "csv", "docx", "xlsx", "pptx", "zip"]
 blocked_extensions = ["exe", "com", "bat", "cmd", "ps1", "sh", "js", "vbs", "msi", "dll", "scr"]
 
+[attachments.allowed_media_types]
+png = ["image/png"]
+jpg = ["image/jpeg"]
+jpeg = ["image/jpeg"]
+gif = ["image/gif"]
+webp = ["image/webp"]
+pdf = ["application/pdf"]
+txt = ["text/plain"]
+md = ["text/markdown", "text/plain"]
+csv = ["text/csv", "text/plain", "application/csv"]
+docx = ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"]
+xlsx = ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"]
+pptx = ["application/vnd.openxmlformats-officedocument.presentationml.presentation"]
+zip = ["application/zip", "application/x-zip-compressed"]
+
 [audit]
 retention_days = 30
 cleanup_interval_hours = 24

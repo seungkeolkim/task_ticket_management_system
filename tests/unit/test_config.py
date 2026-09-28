@@ -91,3 +91,36 @@ def test_logging_rotation_settings_can_be_overridden(
     assert settings.logging.max_size_mb == 25
     assert settings.logging.backup_count == 3
     assert settings.log_file_path == str(tmp_path / "logs" / "system.log")
+
+
+def test_attachment_allowlist_normalizes_extensions_and_media_types(tmp_path: Path) -> None:
+    """첨부파일 allowlist가 점·대소문자·공백을 정규화하는지 검증한다."""
+    config_file = tmp_path / "application.toml"
+    config_file.write_text(
+        "[attachments]\n"
+        'allowed_extensions = [".PDF"]\n'
+        'blocked_extensions = ["EXE"]\n'
+        "[attachments.allowed_media_types]\n"
+        'pdf = ["Application/PDF"]\n',
+        encoding="utf-8",
+    )
+
+    settings = load_settings(str(config_file))
+
+    assert settings.attachments.allowed_extensions == ["pdf"]
+    assert settings.attachments.blocked_extensions == ["exe"]
+    assert settings.attachments.allowed_media_types == {"pdf": ["application/pdf"]}
+
+
+def test_attachment_allowlist_requires_media_type_for_each_extension(tmp_path: Path) -> None:
+    """MIME mapping이 없는 허용 확장자를 기동 설정 오류로 거부하는지 검증한다."""
+    config_file = tmp_path / "application.toml"
+    config_file.write_text(
+        "[attachments]\n"
+        'allowed_extensions = ["pdf"]\n'
+        "blocked_extensions = []\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValidationError, match="missing extensions: pdf"):
+        load_settings(str(config_file))

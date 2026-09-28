@@ -63,6 +63,48 @@ class AttachmentSettings(StrictSettingsModel):
     deleted_file_retention_days: int = Field(default=30, ge=0)
     allowed_extensions: list[str] = Field(default_factory=list)
     blocked_extensions: list[str] = Field(default_factory=list)
+    allowed_media_types: dict[str, list[str]] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def validate_attachment_allowlist(self) -> AttachmentSettings:
+        """첨부파일 확장자와 MIME type allowlist의 형식을 검증한다."""
+        normalized_allowed_extensions = [
+            extension.strip().lower().lstrip(".") for extension in self.allowed_extensions
+        ]
+        normalized_blocked_extensions = [
+            extension.strip().lower().lstrip(".") for extension in self.blocked_extensions
+        ]
+        if any(not extension for extension in normalized_allowed_extensions):
+            raise ValueError("attachments.allowed_extensions contains an empty extension")
+        if any(not extension for extension in normalized_blocked_extensions):
+            raise ValueError("attachments.blocked_extensions contains an empty extension")
+        if len(set(normalized_allowed_extensions)) != len(normalized_allowed_extensions):
+            raise ValueError("attachments.allowed_extensions contains duplicate values")
+        if set(normalized_allowed_extensions) & set(normalized_blocked_extensions):
+            raise ValueError("allowed and blocked attachment extensions must not overlap")
+
+        normalized_media_types: dict[str, list[str]] = {}
+        for extension, media_types in self.allowed_media_types.items():
+            normalized_extension = extension.strip().lower().lstrip(".")
+            normalized_values = [media_type.strip().lower() for media_type in media_types]
+            if not normalized_extension or not normalized_values or any(
+                not media_type or "/" not in media_type for media_type in normalized_values
+            ):
+                raise ValueError("attachments.allowed_media_types contains an invalid entry")
+            normalized_media_types[normalized_extension] = normalized_values
+
+        missing_media_type_extensions = set(normalized_allowed_extensions) - set(
+            normalized_media_types
+        )
+        if missing_media_type_extensions:
+            missing_values = ", ".join(sorted(missing_media_type_extensions))
+            raise ValueError(
+                "attachments.allowed_media_types is missing extensions: " + missing_values
+            )
+        self.allowed_extensions = normalized_allowed_extensions
+        self.blocked_extensions = normalized_blocked_extensions
+        self.allowed_media_types = normalized_media_types
+        return self
 
 
 class AuditSettings(StrictSettingsModel):

@@ -6,6 +6,7 @@ FastAPI, SQLAlchemy, Alembic, and SQLite를 사용하는 사내용 태스크·�
 
 - [요구사항](REQUIREMENTS.md)
 - [구현 로드맵 및 진척도](IMPLEMENTATION_ROADMAP.md)
+- [첨부파일 저장과 권한](docs/attachments.md)
 - [의사결정 기록](docs/decisions/README.md)
 - [기존 프로젝트 참조 및 차용 가이드](REFERENCE_IMPLEMENTATION.md)
 - [DB 설계 규칙](docs/database_conventions.md)
@@ -53,7 +54,7 @@ Docker Compose는 개발 중인 `app`, `migrations`, `alembic.ini`를 컨테이�
 
 Compose는 TOML을 직접 해석할 수 없으므로 직접 `docker compose up`을 실행하면 필수 포트 변수가 없다는 오류와 함께 중단됩니다. 항상 실행 래퍼를 사용하면 설정 변경과 포트 매핑이 어긋나지 않습니다. 다른 호스트 설정 파일을 사용하려면 절대 경로로 `APP_CONFIG_FILE=/path/to/application.toml sh ./run_compose.sh start`를 실행합니다.
 
-루트 `/`는 내 작업 대시보드이며 로그인하지 않았다면 로그인 화면으로 이동합니다. 인증, 사용자·조직 조회·생성, 프로젝트 생성·조회·참여자 등록, 티켓 생성·조회·편집·상태 전이·관계 관리·계층 단위 휴지통 이동과 복구, 댓글·대댓글 관리, 내 작업 대시보드와 칸반 상태 이동은 실제 DB에 연결되어 있습니다. 휴지통 영구 삭제, 멘션 쓰기, 첨부파일 service와 저장 필터는 후속 범위입니다. 최초 실행 전 [초기 관리자 설정](docs/authentication.md)에 따라 CLI 또는 bootstrap 환경 변수로 관리자를 생성하세요.
+루트 `/`는 내 작업 대시보드이며 로그인하지 않았다면 로그인 화면으로 이동합니다. 인증, 사용자·조직 조회·생성, 프로젝트 생성·조회·참여자 등록, 티켓 생성·조회·편집·상태 전이·관계 관리·계층 단위 휴지통 이동과 복구, 댓글·대댓글 관리, 일반 첨부파일과 본문 이미지의 업로드·조회, 내 작업 대시보드와 칸반 상태 이동은 실제 DB에 연결되어 있습니다. 휴지통·첨부파일 삭제와 영구 정리, 멘션 쓰기와 저장 필터는 후속 범위입니다. 최초 실행 전 [초기 관리자 설정](docs/authentication.md)에 따라 CLI 또는 bootstrap 환경 변수로 관리자를 생성하세요.
 
 ## 로컬 개발
 

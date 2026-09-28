@@ -14,7 +14,9 @@
 | CNT-010 | 2026-09-26 | DECIDED | Tiptap JSON만 DB에 저장하고 파생 HTML과 plain text는 cache하지 않는다. 화면 DTO를 만드는 service에서 sanitized HTML을 생성하고, 목록·대시보드처럼 HTML이 필요 없는 경계에서는 plain text만 한 번 추출한다. | 원본과 cache의 transaction 일관성 및 재생성 migration 비용을 피한다. 실제 조회 부하가 확인되기 전에는 파생 저장소를 추가하지 않으며, 이후 cache가 필요하면 JSON과 같은 transaction에서만 갱신하는 별도 결정을 기록한다. |
 | CNT-011 | 2026-09-26 | DECIDED | 댓글의 Tiptap document에서 추출한 plain text가 공백이고 내부 attachment image도 없으면 빈 댓글로 보고 생성·수정을 거부한다. | 보이지 않는 공백이나 구조만 있는 댓글이 활동 영역에 쌓이는 것을 막되, 첨부 image만으로 의미가 있는 댓글은 허용한다. |
 | CNT-012 | 2026-09-27 | DECIDED | 댓글 thread는 원댓글과 한 단계 대댓글로 제한한다. 삭제된 댓글에는 새 대댓글을 등록하지 않지만 이미 등록된 대댓글은 유지한다. 삭제된 댓글은 일반 응답에서 원문을 은폐한 `삭제된 댓글입니다.` 자리표시자로 반환한다. | 무제한 중첩으로 인한 읽기·표시 복잡도를 피하면서 답글 맥락을 제공하고, 원댓글 삭제가 대댓글을 숨기거나 고아로 만들지 않도록 한다. |
+| CNT-013 | 2026-09-27 | DECIDED | local 첨부파일은 `projects/<project-key>/tickets/<ticket-id>/<uuid 앞 2자>/<다음 2자>/<uuid>.<확장자>` 상대 key로 저장한다. 업로드는 mount root의 staging 영역에서 크기·확장자별 MIME type·실제 signature 또는 OOXML container를 검증한 뒤 최종 경로로 원자 이동한다. 원본 파일명은 metadata에만 보존하고 다운로드는 권한 endpoint를 사용한다. | 프로젝트 key와 전역 ticket ID로 운영자가 파일 위치를 찾을 수 있고 UUID shard로 한 directory의 파일 수를 제한한다. 경로 조작·충돌을 막고 DB commit 실패 시 최종 blob을 보상 삭제한다. 기본 allowlist는 PNG·JPEG·GIF·WebP·PDF·UTF-8 text/Markdown/CSV·DOCX·XLSX·PPTX·ZIP이며 외부 설정으로 축소하거나 변경할 수 있다. |
+| CNT-014 | 2026-09-27 | DECIDED | 기존 티켓의 설명·댓글 editor에서 이미지를 일반 티켓 첨부파일로 즉시 업로드한 뒤 Tiptap image node에는 attachment ID만 삽입한다. 본문 저장을 취소해도 업로드된 파일은 일반 첨부파일로 유지한다. 새 티켓은 ticket ID가 없으므로 생성 후 편집 화면에서 이미지를 추가한다. image 조회는 활성 attachment와 현재 프로젝트·티켓 접근 권한을 다시 검사하는 보호 endpoint를 사용한다. | 임시 attachment 소유권·만료 상태를 추가하지 않고 일반 첨부파일의 저장·검증·이력 계약을 재사용한다. 이미지 참조 동작을 먼저 확정한 뒤 참조 중인 파일의 삭제 정책을 결정하며, 30일 후 실제 blob 정리는 별도 후속 TODO로 유지한다. |
 
 ## Open decisions
 
-- 운영 환경의 전체 첨부파일 저장 용량과 최종 확장자·MIME allowlist는 첨부파일 구현 전에 확정한다.
+- 운영 환경의 전체 첨부파일 저장 용량과 용량 초과 시 차단·경고 정책은 실제 배포 전에 확정한다.

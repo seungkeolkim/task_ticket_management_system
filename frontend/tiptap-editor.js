@@ -7,6 +7,7 @@ import { FontSize, TextStyle } from '@tiptap/extension-text-style'
 import StarterKit from '@tiptap/starter-kit'
 
 const EMPTY_DOCUMENT = { type: 'doc', content: [{ type: 'paragraph' }] }
+const activeImageUploadUrls = new Set()
 
 const AttachmentImage = Node.create({
   name: 'image',
@@ -175,12 +176,96 @@ function executeButtonCommand(editor, commandName) {
   commands[commandName]?.()
 }
 
+/** 같은 티켓을 사용하는 editor와 form의 최신 optimistic-lock version을 동기화한다. */
+function updateTicketVersion(uploadUrl, ticketVersion) {
+  for (const editorElement of document.querySelectorAll('[data-rich-text-image-upload-url]')) {
+    if (editorElement.dataset.richTextImageUploadUrl === uploadUrl) {
+      editorElement.dataset.richTextImageTicketVersion = String(ticketVersion)
+    }
+  }
+  for (const versionInput of document.querySelectorAll('[data-ticket-expected-version]')) {
+    versionInput.value = String(ticketVersion)
+  }
+}
+
+/** 동일 티켓의 image upload button을 함께 잠그거나 해제한다. */
+function setImageUploadButtonsDisabled(uploadUrl, disabled) {
+  for (const editorElement of document.querySelectorAll('[data-rich-text-image-upload-url]')) {
+    if (editorElement.dataset.richTextImageUploadUrl !== uploadUrl) continue
+    const fieldElement = editorElement.closest('.rich-text-field')
+    const uploadButton = fieldElement?.querySelector('[data-rich-text-command="uploadImage"]')
+    if (uploadButton) uploadButton.disabled = disabled
+  }
+}
+
+/** 선택한 image를 일반 첨부파일로 올린 뒤 현재 selection에 image node를 삽입한다. */
+async function uploadEditorImage(editor, editorElement, formElement, imageFile, statusElement) {
+  const uploadUrl = editorElement.dataset.richTextImageUploadUrl
+  const expectedVersion = editorElement.dataset.richTextImageTicketVersion
+  const csrfToken = formElement.querySelector('input[name="csrf_token"]')?.value
+  if (!uploadUrl || !expectedVersion || !csrfToken) {
+    statusElement.textContent = '이미지 업로드 정보를 확인할 수 없습니다.'
+    statusElement.classList.add('is-error')
+    return
+  }
+  if (activeImageUploadUrls.has(uploadUrl)) {
+    statusElement.textContent = '이 티켓의 다른 이미지 업로드가 끝날 때까지 기다려 주세요.'
+    statusElement.classList.add('is-error')
+    return
+  }
+
+  activeImageUploadUrls.add(uploadUrl)
+  setImageUploadButtonsDisabled(uploadUrl, true)
+  statusElement.textContent = '이미지를 업로드하고 있습니다.'
+  statusElement.classList.remove('is-error')
+  const uploadPayload = new FormData()
+  uploadPayload.append('expected_version', expectedVersion)
+  uploadPayload.append('file', imageFile)
+
+  try {
+    const response = await fetch(uploadUrl, {
+      method: 'POST',
+      body: uploadPayload,
+      credentials: 'same-origin',
+      headers: { 'X-CSRF-Token': csrfToken },
+    })
+    const responsePayload = await response.json()
+    if (!response.ok) {
+      throw new Error(responsePayload.message || '이미지를 업로드하지 못했습니다.')
+    }
+    editor
+      .chain()
+      .focus()
+      .insertContent({
+        type: 'image',
+        attrs: {
+          attachmentId: responsePayload.attachment.id,
+          alt: responsePayload.attachment.original_filename,
+          title: responsePayload.attachment.original_filename,
+        },
+      })
+      .run()
+    updateTicketVersion(uploadUrl, responsePayload.ticket_version)
+    statusElement.textContent = '이미지를 업로드하고 본문에 삽입했습니다.'
+  } catch (error) {
+    statusElement.textContent = error instanceof Error
+      ? error.message
+      : '이미지를 업로드하지 못했습니다.'
+    statusElement.classList.add('is-error')
+  } finally {
+    activeImageUploadUrls.delete(uploadUrl)
+    setImageUploadButtonsDisabled(uploadUrl, false)
+  }
+}
+
 /** 단일 form 안의 Tiptap editor와 가장 가까운 payload·toolbar를 연결한다. */
 function initializeEditor(editorElement) {
   const formElement = editorElement.closest('form')
   const fieldElement = editorElement.closest('.rich-text-field')
   const payloadElement = fieldElement?.querySelector('[data-rich-text-payload]')
   const toolbarElement = fieldElement?.querySelector('[data-rich-text-toolbar]')
+  const imageInputElement = fieldElement?.querySelector('[data-rich-text-image-input]')
+  const imageStatusElement = fieldElement?.querySelector('[data-rich-text-image-status]')
   if (!formElement || !payloadElement || !toolbarElement) return
 
   const accessibleLabel = editorElement.dataset.richTextLabel || '구조화 본문 편집기'
@@ -237,19 +322,44 @@ function initializeEditor(editorElement) {
   fieldElement.addEventListener('click', (event) => {
     const button = event.target.closest('button[data-rich-text-command]')
     if (!button) return
+    if (button.dataset.richTextCommand === 'uploadImage') {
+      imageInputElement?.click()
+      return
+    }
     executeButtonCommand(editor, button.dataset.richTextCommand)
   })
   fieldElement.addEventListener('change', (event) => {
+    const imageInput = event.target.closest('[data-rich-text-image-input]')
+    if (imageInput) {
+      const [imageFile] = imageInput.files
+      if (imageFile && imageStatusElement) {
+        uploadEditorImage(editor, editorElement, formElement, imageFile, imageStatusElement)
+      }
+      imageInput.value = ''
+      return
+    }
     const select = event.target.closest('select[data-rich-text-command]')
     if (!select) return
     executeSelectCommand(editor, select.dataset.richTextCommand, select.value)
   })
-  formElement.addEventListener('submit', () => synchronizePayload(editor, payloadElement))
+  formElement.addEventListener('submit', (event) => {
+    const uploadUrl = editorElement.dataset.richTextImageUploadUrl
+    if (uploadUrl && activeImageUploadUrls.has(uploadUrl)) {
+      event.preventDefault()
+      if (imageStatusElement) {
+        imageStatusElement.textContent = '이미지 업로드가 끝난 뒤 저장해 주세요.'
+        imageStatusElement.classList.add('is-error')
+      }
+      return
+    }
+    synchronizePayload(editor, payloadElement)
+  })
 }
 
 /** 확인 문구가 지정된 form의 제출 전에 사용자의 최종 의사를 확인한다. */
 function initializeFormConfirmations() {
   document.addEventListener('submit', (event) => {
+    if (event.defaultPrevented) return
     const formElement = event.target.closest('form[data-confirm-message]')
     if (!formElement) return
     if (!window.confirm(formElement.dataset.confirmMessage)) {
