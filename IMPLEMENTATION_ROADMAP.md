@@ -282,6 +282,8 @@
 
 2026-09-27 댓글 제출 확인: 댓글·대댓글 등록, 댓글 수정과 삭제 HTML form에 공용 `data-confirm-message` 확인 처리를 적용했다. 사용자가 확인을 취소하면 browser가 form 요청을 전송하지 않으며 JSON API 계약은 변경하지 않는다. frontend bundle build, Windows Python 3.13 전체 pytest 274개와 Ruff 검사를 통과했다.
 
+2026-09-28 TaskItem editor checkbox 정렬 보정: `.field input`의 공용 100% 너비·42px 최소 높이 규칙이 Tiptap이 생성한 checkbox에도 적용되던 충돌을 editor 전용 CSS로 차단했다. checkbox를 16px로 고정하고 label·첫 문단 margin을 정렬해 편집 중 checkbox와 같은 줄의 텍스트가 어긋나지 않게 했다. frontend bundle build, Windows Python 환경 전체 pytest 323개와 Ruff 및 diff 검사를 통과했다.
+
 ## 8단계 — 첨부파일
 
 운영 배포 전 전체 저장 용량과 최종 허용 확장자·MIME type 목록을 확인한다.

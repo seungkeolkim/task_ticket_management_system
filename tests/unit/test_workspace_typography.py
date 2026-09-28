@@ -33,3 +33,21 @@ def test_rich_text_viewer_uses_work_surface_body_size():
     )
 
     assert "font-size: var(--font-work-body, 14px);" in stylesheet
+
+
+def test_rich_text_editor_task_checkbox_overrides_form_input_dimensions():
+    """TaskItem checkbox가 공용 form input 크기 규칙을 상속하지 않는지 검증합니다."""
+    stylesheet = (repository_root() / "frontend" / "tiptap-editor.css").read_text(
+        encoding="utf-8"
+    )
+
+    checkbox_selector = (
+        ".rich-text-field .tiptap-body li[data-checked] > label > input[type='checkbox']"
+    )
+    assert checkbox_selector in stylesheet
+    assert "width: 16px;" in stylesheet
+    assert "height: 16px;" in stylesheet
+    assert "min-height: 0;" in stylesheet
+    assert "flex: 0 0 16px;" in stylesheet
+    assert ".tiptap-body li[data-checked] > div > p {" in stylesheet
+    assert "margin: 0;" in stylesheet
