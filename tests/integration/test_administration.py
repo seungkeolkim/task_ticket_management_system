@@ -1,19 +1,21 @@
 import re
 from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
 from app.core.config import get_settings
-from app.domain.auth import hash_password, verify_password
+from app.domain.auth import AuthError, hash_password, verify_password
 from app.main import app
-from app.models import AuditLog, Organization, User
-from app.schemas.administration import OrganizationCreate
+from app.models import AuditLog, Organization, User, UserSession
+from app.schemas.administration import OrganizationCreate, UserUpdate
 from app.services import administration as service
 from app.services.auth import get_current_identity
 
 PASSWORD = "Disposable-admin-12345!"
+RESET_PASSWORD = "Reset-user-pass-67890!"
 ORIGIN = {"Origin": "http://testserver"}
 
 
@@ -25,6 +27,11 @@ def token(client):
 def post(client, path, payload):
     """CSRF 보호가 적용된 테스트 POST 요청을 보낸다."""
     return client.post(path, json=payload, headers=ORIGIN | {"X-CSRF-Token": token(client)})
+
+
+def patch(client, path, payload):
+    """CSRF 보호가 적용된 테스트 PATCH 요청을 보낸다."""
+    return client.patch(path, json=payload, headers=ORIGIN | {"X-CSRF-Token": token(client)})
 
 
 def login(client, login_id="admin", password=PASSWORD):
@@ -62,6 +69,35 @@ def new_user(default_organization_id, **overrides):
         "password": "New-user-pass-12345!",
         **overrides,
     }
+
+
+def user_update_payload(user: User, **overrides):
+    """관리 기능 테스트용 사용자 수정 정보를 제공한다."""
+    return {
+        "display_name": user.display_name,
+        "email": user.email,
+        "organization_id": user.organization_id,
+        "system_role": user.system_role,
+        "is_active": user.is_active,
+        **overrides,
+    }
+
+
+def create_managed_user(db_session, admin, **overrides):
+    """관리 기능 테스트용 대상 사용자를 생성한다."""
+    values = {
+        "login_id": "managed.user",
+        "display_name": "관리 대상",
+        "email": "managed@example.com",
+        "organization_id": admin.organization_id,
+        "password_hash": hash_password("Managed-user-pass-12345!"),
+        "must_change_password": False,
+    }
+    values.update(overrides)
+    managed_user = User(**values)
+    db_session.add(managed_user)
+    db_session.commit()
+    return managed_user
 
 
 def test_organization_user_and_first_login_flow(client, admin, db_session):
@@ -113,6 +149,376 @@ def test_organization_user_and_first_login_flow(client, admin, db_session):
         assert login(newcomer, "new.user", "Changed-user-pass-12345!").status_code == 200
         assert newcomer.get("/").status_code == 200
         assert newcomer.get("/admin/users").status_code == 403
+
+
+def test_user_update_deactivation_reactivation_and_session_revocation(
+    client, admin, db_session
+):
+    """사용자 수정·비활성화·재활성화와 session 폐기를 검증한다."""
+    destination = Organization(key="destination", name="이동 조직")
+    db_session.add(destination)
+    db_session.commit()
+    managed_user = create_managed_user(db_session, admin)
+    with TestClient(app) as managed_client:
+        assert (
+            login(managed_client, managed_user.login_id, "Managed-user-pass-12345!").status_code
+            == 200
+        )
+        updated = patch(
+            client,
+            f"/api/admin/users/{managed_user.id}",
+            user_update_payload(
+                managed_user,
+                display_name="변경된 사용자",
+                email="UPDATED@EXAMPLE.COM",
+                organization_id=destination.id,
+                system_role="SYSTEM_ADMIN",
+            ),
+        )
+        assert updated.status_code == 200
+        assert updated.json()["display_name"] == "변경된 사용자"
+        assert updated.json()["email"] == "updated@example.com"
+        assert updated.json()["organization_name"] == "이동 조직"
+        db_session.refresh(managed_user)
+        assert managed_user.system_role == "SYSTEM_ADMIN" and managed_user.is_active
+
+        deactivated = patch(
+            client,
+            f"/api/admin/users/{managed_user.id}",
+            user_update_payload(managed_user, is_active=False),
+        )
+        assert deactivated.status_code == 200
+        assert not deactivated.json()["is_active"]
+        assert deactivated.json()["deactivated_at"] is not None
+        assert managed_client.get("/api/auth/me").status_code == 401
+        assert (
+            db_session.scalar(
+                select(func.count())
+                .select_from(UserSession)
+                .where(UserSession.user_id == managed_user.id)
+            )
+            == 0
+        )
+
+        db_session.refresh(managed_user)
+        reactivated = patch(
+            client,
+            f"/api/admin/users/{managed_user.id}",
+            user_update_payload(managed_user, is_active=True),
+        )
+        assert reactivated.status_code == 200
+        assert reactivated.json()["is_active"]
+        assert reactivated.json()["deactivated_at"] is None
+
+    actions = list(
+        db_session.scalars(
+            select(AuditLog.action)
+            .where(AuditLog.target_type == "user", AuditLog.target_id == str(managed_user.id))
+            .order_by(AuditLog.id)
+        )
+    )
+    assert actions == ["user.updated", "user.deactivated", "user.reactivated"]
+    update_audit = db_session.scalar(
+        select(AuditLog).where(
+            AuditLog.action == "user.updated",
+            AuditLog.target_id == str(managed_user.id),
+        )
+    )
+    assert set(update_audit.details["changed_fields"]) == {
+        "display_name",
+        "email",
+        "organization_id",
+        "system_role",
+    }
+
+
+def test_last_active_administrator_is_protected(client, admin, db_session):
+    """마지막 활성 시스템 관리자의 강등과 비활성화를 차단한다."""
+    for overrides in (
+        {"system_role": "USER"},
+        {"is_active": False},
+    ):
+        response = patch(
+            client,
+            f"/api/admin/users/{admin.id}",
+            user_update_payload(admin, **overrides),
+        )
+        assert response.status_code == 409
+        assert response.json()["code"] == "last_active_administrator"
+        db_session.refresh(admin)
+        assert admin.system_role == "SYSTEM_ADMIN" and admin.is_active
+
+    second_administrator = create_managed_user(
+        db_session,
+        admin,
+        login_id="second.admin",
+        email="second-admin@example.com",
+        system_role="SYSTEM_ADMIN",
+    )
+    response = patch(
+        client,
+        f"/api/admin/users/{admin.id}",
+        user_update_payload(admin, system_role="USER"),
+    )
+    assert response.status_code == 200
+    assert response.json()["system_role"] == "USER"
+    db_session.refresh(second_administrator)
+    assert second_administrator.is_active and second_administrator.system_role == "SYSTEM_ADMIN"
+
+
+def test_concurrent_administrator_deactivation_keeps_one_active(
+    client, admin, db_session, db_session_factory
+):
+    """동시 관리자 비활성화에서도 활성 관리자를 한 명 이상 유지한다."""
+    second_administrator = create_managed_user(
+        db_session,
+        admin,
+        login_id="concurrent.admin",
+        email="concurrent-admin@example.com",
+        system_role="SYSTEM_ADMIN",
+    )
+    first_token = client.cookies.get(get_settings().session.cookie_name)
+    with TestClient(app) as second_client:
+        assert (
+            login(
+                second_client, second_administrator.login_id, "Managed-user-pass-12345!"
+            ).status_code
+            == 200
+        )
+        second_token = second_client.cookies.get(get_settings().session.cookie_name)
+        start_barrier = Barrier(2)
+
+        def deactivate_target(token_value, target_user_id, target_values):
+            """별도 transaction에서 상대 관리자를 비활성화한다."""
+            with db_session_factory() as session:
+                identity = get_current_identity(session, token_value)
+                start_barrier.wait()
+                try:
+                    service.update_user(
+                        session,
+                        identity,
+                        target_user_id,
+                        UserUpdate(**(target_values | {"is_active": False})),
+                        "127.0.0.1",
+                    )
+                    return 200
+                except AuthError as error:
+                    return error.status_code
+
+        first_values = user_update_payload(admin)
+        second_values = user_update_payload(second_administrator)
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            first_attempt = pool.submit(
+                deactivate_target,
+                first_token,
+                second_administrator.id,
+                second_values,
+            )
+            second_attempt = pool.submit(
+                deactivate_target,
+                second_token,
+                admin.id,
+                first_values,
+            )
+            results = sorted((first_attempt.result(), second_attempt.result()))
+    assert results == [200, 403]
+    db_session.expire_all()
+    assert (
+        db_session.scalar(
+            select(func.count())
+            .select_from(User)
+            .where(User.system_role == "SYSTEM_ADMIN", User.is_active.is_(True))
+        )
+        == 1
+    )
+
+
+def test_password_reset_revokes_sessions_and_forces_change(client, admin, db_session):
+    """관리자 비밀번호 초기화가 session 폐기와 변경 강제를 적용하는지 검증한다."""
+    managed_user = create_managed_user(db_session, admin)
+    with TestClient(app) as managed_client:
+        assert (
+            login(managed_client, managed_user.login_id, "Managed-user-pass-12345!").status_code
+            == 200
+        )
+        reset = post(
+            client,
+            f"/api/admin/users/{managed_user.id}/password-reset",
+            {"temporary_password": RESET_PASSWORD, "confirmation": RESET_PASSWORD},
+        )
+        assert reset.status_code == 200
+        assert reset.json()["must_change_password"]
+        assert RESET_PASSWORD not in reset.text
+        assert managed_client.get("/api/auth/me").status_code == 401
+        assert (
+            login(
+                managed_client, managed_user.login_id, "Managed-user-pass-12345!"
+            ).status_code
+            == 401
+        )
+        new_login = login(managed_client, managed_user.login_id, RESET_PASSWORD)
+        assert new_login.status_code == 200
+        assert new_login.json()["must_change_password"]
+
+    db_session.refresh(managed_user)
+    assert verify_password(RESET_PASSWORD, managed_user.password_hash)
+    reset_audit = db_session.scalar(
+        select(AuditLog).where(
+            AuditLog.action == "user.password_reset",
+            AuditLog.target_id == str(managed_user.id),
+        )
+    )
+    assert reset_audit is not None and reset_audit.actor_user_id == admin.id
+
+
+def test_user_update_and_password_reset_validation(client, admin, db_session):
+    """사용자 수정·비밀번호 초기화의 중복·조직·확인값 검증을 확인한다."""
+    managed_user = create_managed_user(db_session, admin)
+    other_user = create_managed_user(
+        db_session,
+        admin,
+        login_id="other.user",
+        email="other@example.com",
+    )
+    inactive_organization = Organization(
+        key="inactive-update", name="비활성 이동 조직", is_active=False
+    )
+    db_session.add(inactive_organization)
+    db_session.commit()
+
+    duplicate_email = patch(
+        client,
+        f"/api/admin/users/{managed_user.id}",
+        user_update_payload(managed_user, email=other_user.email),
+    )
+    assert duplicate_email.status_code == 409
+    invalid_organization = patch(
+        client,
+        f"/api/admin/users/{managed_user.id}",
+        user_update_payload(managed_user, organization_id=inactive_organization.id),
+    )
+    assert invalid_organization.status_code == 400
+    mismatch = post(
+        client,
+        f"/api/admin/users/{managed_user.id}/password-reset",
+        {"temporary_password": RESET_PASSWORD, "confirmation": "Different-pass-12345!"},
+    )
+    assert mismatch.status_code == 422
+    db_session.refresh(managed_user)
+    assert verify_password("Managed-user-pass-12345!", managed_user.password_hash)
+
+
+def test_user_lifecycle_api_requires_admin_and_csrf(client, admin, db_session):
+    """사용자 lifecycle API의 관리자 권한과 CSRF 검증을 확인한다."""
+    managed_user = create_managed_user(db_session, admin)
+    update_payload = user_update_payload(managed_user, display_name="권한 검증 변경")
+    reset_payload = {
+        "temporary_password": RESET_PASSWORD,
+        "confirmation": RESET_PASSWORD,
+    }
+    assert (
+        client.patch(
+            f"/api/admin/users/{managed_user.id}", json=update_payload, headers=ORIGIN
+        ).status_code
+        == 403
+    )
+    assert (
+        client.post(
+            f"/api/admin/users/{managed_user.id}/password-reset",
+            json=reset_payload,
+            headers=ORIGIN,
+        ).status_code
+        == 403
+    )
+    admin.system_role = "USER"
+    db_session.commit()
+    assert (
+        patch(client, f"/api/admin/users/{managed_user.id}", update_payload).status_code
+        == 403
+    )
+    assert (
+        post(
+            client,
+            f"/api/admin/users/{managed_user.id}/password-reset",
+            reset_payload,
+        ).status_code
+        == 403
+    )
+
+
+def test_user_management_web_forms_are_connected(client, admin, db_session):
+    """사용자 수정과 비밀번호 초기화 web form 연결을 검증한다."""
+    managed_user = create_managed_user(db_session, admin)
+    page = client.get("/admin/users")
+    csrf = re.search('name="csrf_token" value="([^"]+)"', page.text).group(1)
+    assert f'action="/admin/users/{managed_user.id}/update"' in page.text
+    assert f'action="/admin/users/{managed_user.id}/password-reset"' in page.text
+    update_response = client.post(
+        f"/admin/users/{managed_user.id}/update",
+        data={
+            "display_name": "화면 변경 사용자",
+            "email": managed_user.email,
+            "organization_id": managed_user.organization_id,
+            "system_role": "USER",
+            "is_active": "true",
+            "csrf_token": csrf,
+        },
+        headers=ORIGIN,
+        follow_redirects=False,
+    )
+    assert update_response.status_code == 303
+    assert f"updated={managed_user.id}" in update_response.headers["location"]
+    reset_response = client.post(
+        f"/admin/users/{managed_user.id}/password-reset",
+        data={
+            "temporary_password": RESET_PASSWORD,
+            "confirmation": RESET_PASSWORD,
+            "csrf_token": csrf,
+        },
+        headers=ORIGIN,
+        follow_redirects=False,
+    )
+    assert reset_response.status_code == 303
+    assert f"password_reset={managed_user.id}" in reset_response.headers["location"]
+    assert (
+        client.post(
+            f"/admin/users/{managed_user.id}/update", data={}, headers=ORIGIN
+        ).status_code
+        == 403
+    )
+
+
+def test_user_deactivation_audit_failure_rolls_back_user_and_session(
+    client, admin, db_session, db_session_factory, monkeypatch
+):
+    """비활성화 감사 실패 시 사용자와 session 변경을 함께 rollback한다."""
+    managed_user = create_managed_user(db_session, admin)
+    with TestClient(app) as managed_client:
+        assert (
+            login(managed_client, managed_user.login_id, "Managed-user-pass-12345!").status_code
+            == 200
+        )
+
+        def fail(*args, **kwargs):
+            """감사 저장 실패를 재현한다."""
+            raise RuntimeError("simulated audit failure")
+
+        monkeypatch.setattr(service, "record_audit_event", fail)
+        raw_token = client.cookies.get(get_settings().session.cookie_name)
+        with db_session_factory() as session:
+            identity = get_current_identity(session, raw_token)
+            target = session.get(User, managed_user.id)
+            with pytest.raises(RuntimeError, match="audit failure"):
+                service.update_user(
+                    session,
+                    identity,
+                    target.id,
+                    UserUpdate(**(user_update_payload(target) | {"is_active": False})),
+                    "127.0.0.1",
+                )
+        db_session.expire_all()
+        assert db_session.get(User, managed_user.id).is_active
+        assert managed_client.get("/api/auth/me").status_code == 200
 
 
 @pytest.mark.parametrize("path", ["/api/admin/users", "/api/admin/organizations"])

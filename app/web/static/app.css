@@ -286,6 +286,14 @@ kbd { padding: 1px 6px; border: 1px solid var(--border-strong); border-radius: 5
 .admin-live-table th,.admin-live-table td { padding:16px; text-align:left; border-bottom:1px solid var(--border); overflow-wrap:anywhere; }
 .admin-live-table th { color:var(--muted); background:var(--surface-soft); font-size:11px; }
 .admin-live-table small { display:block; margin-top:5px; color:var(--muted); font-size:11px; }
+.user-management-actions { min-width:88px; }
+.user-management-actions summary { cursor:pointer; list-style:none; }
+.user-management-actions summary::-webkit-details-marker { display:none; }
+.user-management-popover { display:grid; gap:18px; width:320px; margin-top:10px; padding:16px; border:1px solid var(--border); border-radius:10px; background:var(--surface); box-shadow:var(--shadow); }
+.user-management-popover .admin-create-form { margin-top:0; }
+.user-management-popover .password-reset-form { padding-top:16px; border-top:1px solid var(--border); }
+.admin-create-form .checkbox-row { display:flex; align-items:center; gap:8px; }
+.admin-create-form .checkbox-row input { width:auto; }
 .created-row { background:var(--primary-soft); }
 .admin-org-tree { display:grid; gap:8px; }
 .admin-org-item { padding:10px; border:1px solid var(--border); border-radius:8px; }

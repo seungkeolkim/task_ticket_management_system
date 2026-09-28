@@ -9,7 +9,12 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.db.session import get_db_session
 from app.domain.auth import AuthError, Identity
-from app.schemas.administration import OrganizationCreate, UserCreate
+from app.schemas.administration import (
+    OrganizationCreate,
+    UserCreate,
+    UserPasswordReset,
+    UserUpdate,
+)
 from app.services import administration as service
 from app.web.rendering import render
 from app.web.security import get_client_ip_address, require_web_admin, verify_csrf
@@ -62,6 +67,8 @@ def user_management_page(
     page: int = 1,
     page_size: int | None = None,
     created: int | None = None,
+    updated: int | None = None,
+    password_reset: int | None = None,
 ):
     """사용자 관리 화면을 렌더링한다."""
     return render_user_management_page(
@@ -72,6 +79,8 @@ def user_management_page(
         page=page,
         page_size=page_size,
         created=created,
+        updated=updated,
+        password_reset=password_reset,
     )
 
 
@@ -134,6 +143,90 @@ def user_submit(
             status_code=error.status_code,
         )
     return RedirectResponse(f"/admin/users?created={row_id}", status_code=303)
+
+
+@router.post("/admin/users/{user_id}/update")
+def user_update_submit(
+    user_id: int,
+    request: Request,
+    session: Database,
+    actor: Administrator,
+    display_name: Annotated[str, Form()] = "",
+    email: Annotated[str, Form()] = "",
+    organization_id: Annotated[str, Form()] = "",
+    system_role: Annotated[str, Form()] = "USER",
+    is_active: Annotated[str, Form()] = "",
+    csrf_token: Annotated[str, Form()] = "",
+):
+    """사용자 수정 form 제출을 처리한다."""
+    verify_csrf(request, csrf_token, actor, get_settings())
+    try:
+        payload = UserUpdate(
+            display_name=display_name,
+            email=email,
+            organization_id=organization_id,
+            system_role=system_role,
+            is_active=is_active == "true",
+        )
+        service.update_user(
+            session, actor, user_id, payload, get_client_ip_address(request)
+        )
+    except ValidationError:
+        return render_user_management_page(
+            request,
+            session,
+            actor,
+            error="사용자 정보의 형식과 길이를 확인하세요.",
+            status_code=422,
+        )
+    except AuthError as error:
+        return render_user_management_page(
+            request,
+            session,
+            actor,
+            error=error.message,
+            status_code=error.status_code,
+        )
+    return RedirectResponse(f"/admin/users?updated={user_id}", status_code=303)
+
+
+@router.post("/admin/users/{user_id}/password-reset")
+def user_password_reset_submit(
+    user_id: int,
+    request: Request,
+    session: Database,
+    actor: Administrator,
+    temporary_password: Annotated[str, Form()] = "",
+    confirmation: Annotated[str, Form()] = "",
+    csrf_token: Annotated[str, Form()] = "",
+):
+    """사용자 임시 비밀번호 설정 form 제출을 처리한다."""
+    verify_csrf(request, csrf_token, actor, get_settings())
+    try:
+        payload = UserPasswordReset(
+            temporary_password=temporary_password,
+            confirmation=confirmation,
+        )
+        service.reset_user_password(
+            session, actor, user_id, payload, get_client_ip_address(request)
+        )
+    except ValidationError:
+        return render_user_management_page(
+            request,
+            session,
+            actor,
+            error="임시 비밀번호와 확인값을 확인하세요.",
+            status_code=422,
+        )
+    except AuthError as error:
+        return render_user_management_page(
+            request,
+            session,
+            actor,
+            error=error.message,
+            status_code=error.status_code,
+        )
+    return RedirectResponse(f"/admin/users?password_reset={user_id}", status_code=303)
 
 
 @router.post("/admin/organizations")
