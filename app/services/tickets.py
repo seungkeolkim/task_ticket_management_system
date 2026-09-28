@@ -973,6 +973,17 @@ def restore_ticket_trash_batch(
                 "상위 티켓을 먼저 복구해야 이 항목을 복구할 수 있습니다.",
                 409,
             )
+        ineligible_ticket_keys = repository.ineligible_assignee_ticket_keys(
+            session, project.id, [ticket.id for ticket in hierarchy]
+        )
+        if ineligible_ticket_keys:
+            raise AuthError(
+                "invalid_assignee",
+                "현재 담당자가 활성 프로젝트 사용자 또는 관리자가 아닌 티켓이 있어 "
+                "복구할 수 없습니다: "
+                + ", ".join(ineligible_ticket_keys[:5]),
+                409,
+            )
 
         parent_keys = {
             ticket.id: repository.parent_key_for_ticket(session, project.id, ticket)
@@ -1549,6 +1560,18 @@ def transition_ticket(
         if payload.target_status not in get_allowed_transitions(current_status):
             raise AuthError(
                 "invalid_status_transition", "현재 상태에서 요청한 상태로 변경할 수 없습니다.", 409
+            )
+        if (
+            current_status in TERMINAL_STATUSES
+            and ticket.assignee_id is not None
+            and not repository.assignee_is_active_member(
+                session, project.id, ticket.assignee_id
+            )
+        ):
+            raise AuthError(
+                "invalid_assignee",
+                "현재 담당자를 활성 프로젝트 사용자 또는 관리자 상태로 먼저 복구하세요.",
+                409,
             )
         if payload.target_status == TicketStatus.DONE:
             if repository.incomplete_dependency_count(session, project.id, ticket.id):

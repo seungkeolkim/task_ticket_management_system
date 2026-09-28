@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -9,6 +9,7 @@ from app.domain.auth import Identity
 from app.schemas.projects import (
     CandidateView,
     MemberCreate,
+    MemberRoleUpdate,
     MemberView,
     ProjectCreate,
     ProjectDetail,
@@ -105,3 +106,38 @@ def add_project_member(
     """프로젝트 구성원 추가를 처리한다."""
     verify_csrf(request, request.headers.get("x-csrf-token", ""), actor, get_settings())
     return {"id": service.add_project_member(session, actor, project_key, payload)}
+
+
+@router.patch(
+    "/projects/{project_key}/members/{member_id}",
+    response_model=MemberView,
+)
+def update_project_member_role(
+    project_key: str,
+    member_id: int,
+    request: Request,
+    payload: MemberRoleUpdate,
+    session: Database,
+    actor: Actor,
+):
+    """프로젝트 참여자 역할을 변경한다."""
+    verify_csrf(request, request.headers.get("x-csrf-token", ""), actor, get_settings())
+    return service.update_project_member_role(session, actor, project_key, member_id, payload)
+
+
+@router.delete(
+    "/projects/{project_key}/members/{member_id}",
+    status_code=204,
+    response_class=Response,
+)
+def remove_project_member(
+    project_key: str,
+    member_id: int,
+    request: Request,
+    session: Database,
+    actor: Actor,
+) -> Response:
+    """프로젝트 참여자를 제거한다."""
+    verify_csrf(request, request.headers.get("x-csrf-token", ""), actor, get_settings())
+    service.remove_project_member(session, actor, project_key, member_id)
+    return Response(status_code=204)

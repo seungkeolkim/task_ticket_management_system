@@ -433,6 +433,38 @@ def assignee_is_active_member(session: Session, project_id: int, user_id: int) -
     )
 
 
+def ineligible_assignee_ticket_keys(
+    session: Session, project_id: int, ticket_ids: list[int]
+) -> list[str]:
+    """복구 대상 중 현재 담당자가 적격하지 않은 티켓 키를 반환한다."""
+    if not ticket_ids:
+        return []
+    membership = aliased(ProjectMember)
+    assignee = aliased(User)
+    return list(
+        session.scalars(
+            select(Ticket.key)
+            .outerjoin(
+                membership,
+                (membership.project_id == Ticket.project_id)
+                & (membership.user_id == Ticket.assignee_id),
+            )
+            .outerjoin(assignee, assignee.id == Ticket.assignee_id)
+            .where(
+                Ticket.project_id == project_id,
+                Ticket.id.in_(ticket_ids),
+                Ticket.assignee_id.is_not(None),
+                or_(
+                    membership.id.is_(None),
+                    membership.role == ProjectRole.GUEST,
+                    assignee.is_active.is_not(True),
+                ),
+            )
+            .order_by(Ticket.number, Ticket.id)
+        )
+    )
+
+
 def assignees(session: Session, project_id: int, actor_id: int, *, override: bool):
     """지정 가능한 활성 담당자 후보를 조회한다."""
     scope = project_scope(project_id, actor_id, override=override).subquery()

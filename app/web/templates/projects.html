@@ -6,6 +6,7 @@
   {% if current_user.is_admin %}<a class="button secondary" href="{{ '/projects' if admin_page else '/admin/projects' }}">{{ '내 프로젝트' if admin_page else '전체 프로젝트 관리' }}</a>{% endif %}
 </header>
 {% if error %}<div class="auth-message error" role="alert">{{ error }}</div>{% endif %}
+{% if membership_removed %}<div class="auth-message success" role="status">프로젝트 참여에서 나왔습니다.</div>{% endif %}
 <form method="get" class="toolbar-card">
   <label class="search-field grow"><span>⌕</span><input name="q" aria-label="프로젝트 이름 또는 키 검색" placeholder="프로젝트 이름 또는 키 검색" maxlength="100" value="{{ q }}"></label>
   <select name="page_size" class="select-control" aria-label="페이지 크기">{% for size in [10,20,50] %}<option value="{{ size }}" {% if result.page_size == size %}selected{% endif %}>{{ size }}개</option>{% endfor %}</select>

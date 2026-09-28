@@ -1,7 +1,8 @@
 from sqlalchemy import exists, func, or_, select
 from sqlalchemy.orm import Session
 
-from app.models import Project, ProjectMember, User
+from app.domain.codes import ProjectRole, TicketStatus
+from app.models import Project, ProjectMember, Ticket, User
 
 
 def get_actor_status(session: Session, user_id: int):
@@ -78,6 +79,72 @@ def duplicate_member(session: Session, project_id: int, user_id: int) -> bool:
         )
         is not None
     )
+
+
+def lock_project_membership_management(session: Session, project_id: int) -> None:
+    """프로젝트별 참여자 변경을 직렬화할 잠금 경계를 제공한다."""
+    if session.get_bind().dialect.name == "sqlite":
+        return
+    session.execute(
+        select(Project.id).where(Project.id == project_id).with_for_update()
+    ).scalar_one()
+
+
+def project_member(session: Session, project_id: int, member_id: int):
+    """프로젝트 범위에서 단일 참여자와 사용자 상태를 조회한다."""
+    return session.execute(
+        select(ProjectMember, User.is_active.label("user_is_active"))
+        .join(User, User.id == ProjectMember.user_id)
+        .where(ProjectMember.project_id == project_id, ProjectMember.id == member_id)
+    ).one_or_none()
+
+
+def project_administrator_count(session: Session, project_id: int) -> int:
+    """프로젝트에 등록된 관리자 수를 반환한다."""
+    return (
+        session.scalar(
+            select(func.count())
+            .select_from(ProjectMember)
+            .where(
+                ProjectMember.project_id == project_id,
+                ProjectMember.role == ProjectRole.ADMIN,
+            )
+        )
+        or 0
+    )
+
+
+def has_active_ticket_assignments(session: Session, project_id: int, user_id: int) -> bool:
+    """사용자가 휴지통 밖의 미완료 티켓을 담당하는지 반환한다."""
+    return (
+        session.scalar(
+            select(Ticket.id)
+            .where(
+                Ticket.project_id == project_id,
+                Ticket.assignee_id == user_id,
+                Ticket.deleted_at.is_(None),
+                Ticket.status.notin_((TicketStatus.DONE, TicketStatus.CANCELLED)),
+            )
+            .limit(1)
+        )
+        is not None
+    )
+
+
+def project_member_view(session: Session, project_id: int, member_id: int):
+    """역할 변경 결과로 반환할 단일 참여자 정보를 조회한다."""
+    return session.execute(
+        select(
+            ProjectMember.id,
+            User.id.label("user_id"),
+            User.login_id,
+            User.display_name,
+            ProjectMember.role,
+            User.is_active,
+        )
+        .join(User, User.id == ProjectMember.user_id)
+        .where(ProjectMember.project_id == project_id, ProjectMember.id == member_id)
+    ).mappings().one_or_none()
 
 
 def list_project_members(

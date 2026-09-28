@@ -27,6 +27,13 @@ class MemberCreate(BaseModel):
     role: Literal["PROJECT_ADMIN", "PROJECT_USER", "PROJECT_GUEST"] = "PROJECT_USER"
 
 
+class MemberRoleUpdate(BaseModel):
+    """프로젝트 참여자 역할 변경 입력을 검증한다."""
+
+    model_config = ConfigDict(extra="forbid")
+    role: Literal["PROJECT_ADMIN", "PROJECT_USER", "PROJECT_GUEST"]
+
+
 class ProjectView(BaseModel):
     id: int
     key: str
