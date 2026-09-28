@@ -169,6 +169,23 @@ def test_document_renderer_and_plain_text_preserve_supported_content() -> None:
     assert "항목" in plain_text and "결과" in plain_text
 
 
+def test_document_renderer_does_not_link_plain_url_text() -> None:
+    """viewer가 저장된 link mark 없이 URL처럼 보이는 text를 동적으로 연결하지 않는지 검증한다."""
+    document = {
+        "type": "doc",
+        "content": [
+            {
+                "type": "paragraph",
+                "content": [{"type": "text", "text": "https://example.com/docs"}],
+            }
+        ],
+    }
+
+    rendered_html = render_body_document_html(document)
+
+    assert rendered_html == "<p>https://example.com/docs</p>"
+
+
 @pytest.mark.parametrize(
     "mark",
     [

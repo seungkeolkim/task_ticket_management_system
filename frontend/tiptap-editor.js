@@ -290,7 +290,7 @@ function initializeEditor(editorElement) {
         horizontalRule: false,
         link: {
           openOnClick: false,
-          autolink: false,
+          autolink: true,
           defaultProtocol: 'https',
           protocols: ['http', 'https'],
         },

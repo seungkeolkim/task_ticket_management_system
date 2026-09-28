@@ -1,6 +1,6 @@
 from datetime import date
 
-from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy import and_, case, func, or_, select, update
 from sqlalchemy.orm import Session, aliased
 
 from app.domain.codes import ProjectRole
@@ -13,6 +13,7 @@ from app.models import (
     TicketRelation,
     User,
 )
+from app.schemas.contracts import TicketFilter
 
 
 def available_attachment_ids(
@@ -170,26 +171,141 @@ def ticket_rows(
     actor_id: int,
     *,
     override: bool,
-    query_text: str = "",
+    ticket_filter: TicketFilter,
     page: int = 1,
-    page_size: int = 20,
 ):
-    """프로젝트 티켓 목록 row를 검색·조회한다."""
+    """프로젝트 티켓 목록 row를 filter·sort·page 조건으로 조회한다."""
     query = ticket_query(project_id, actor_id, override=override)
-    if query_text:
+    if ticket_filter.query:
         query = query.where(
             or_(
-                Ticket.key.icontains(query_text, autoescape=True),
-                Ticket.title.icontains(query_text, autoescape=True),
+                Ticket.key.icontains(ticket_filter.query, autoescape=True),
+                Ticket.title.icontains(ticket_filter.query, autoescape=True),
             )
         )
+    if ticket_filter.types:
+        query = query.where(Ticket.type.in_(ticket_filter.types))
+    if ticket_filter.statuses:
+        query = query.where(Ticket.status.in_(ticket_filter.statuses))
+    if ticket_filter.priorities:
+        query = query.where(Ticket.priority.in_(ticket_filter.priorities))
+    if ticket_filter.epic_id is not None:
+        selected_epic_ids = select(Ticket.id).where(
+            Ticket.project_id == project_id,
+            Ticket.id == ticket_filter.epic_id,
+            Ticket.type == "EPIC",
+            Ticket.deleted_at.is_(None),
+        )
+        task_ids = select(Ticket.id).where(
+            Ticket.project_id == project_id,
+            Ticket.type == "TASK",
+            Ticket.parent_id.in_(selected_epic_ids),
+            Ticket.deleted_at.is_(None),
+        )
+        query = query.where(
+            or_(
+                Ticket.id.in_(selected_epic_ids),
+                Ticket.parent_id.in_(selected_epic_ids),
+                and_(Ticket.type == "SUBTASK", Ticket.parent_id.in_(task_ids)),
+            )
+        )
+    if ticket_filter.parent_id is not None:
+        selected_parent_ids = select(Ticket.id).where(
+            Ticket.project_id == project_id,
+            Ticket.id == ticket_filter.parent_id,
+            Ticket.type.in_(("EPIC", "TASK")),
+            Ticket.deleted_at.is_(None),
+        )
+        query = query.where(Ticket.parent_id.in_(selected_parent_ids))
+    if ticket_filter.creator_ids:
+        query = query.where(Ticket.creator_id.in_(ticket_filter.creator_ids))
+    if ticket_filter.unassigned:
+        query = query.where(Ticket.assignee_id.is_(None))
+    elif ticket_filter.assignee_ids:
+        query = query.where(Ticket.assignee_id.in_(ticket_filter.assignee_ids))
+    if ticket_filter.created_from is not None:
+        query = query.where(Ticket.created_at >= ticket_filter.created_from)
+    if ticket_filter.created_before is not None:
+        query = query.where(Ticket.created_at < ticket_filter.created_before)
+    if ticket_filter.updated_from is not None:
+        query = query.where(Ticket.updated_at >= ticket_filter.updated_from)
+    if ticket_filter.updated_before is not None:
+        query = query.where(Ticket.updated_at < ticket_filter.updated_before)
+    if ticket_filter.due_from is not None:
+        query = query.where(Ticket.due_date >= ticket_filter.due_from)
+    if ticket_filter.due_through is not None:
+        query = query.where(Ticket.due_date <= ticket_filter.due_through)
+
     total = session.scalar(select(func.count()).select_from(query.subquery())) or 0
+    sort_columns = _ticket_sort_columns(ticket_filter)
     rows = session.execute(
-        query.order_by(Ticket.updated_at.desc(), Ticket.id.desc())
-        .offset((page - 1) * page_size)
-        .limit(page_size)
+        query.order_by(*sort_columns)
+        .offset((page - 1) * ticket_filter.page_size)
+        .limit(ticket_filter.page_size)
     ).all()
     return rows, total
+
+
+def _ticket_sort_columns(ticket_filter: TicketFilter) -> tuple:
+    """목록 sort 기준과 안정적인 ticket ID 보조 정렬을 반환한다."""
+    direction = ticket_filter.sort_direction
+    if ticket_filter.sort_by == "priority":
+        primary_column = case(
+            (Ticket.priority == "TRIVIAL", 1),
+            (Ticket.priority == "MINOR", 2),
+            (Ticket.priority == "MAJOR", 3),
+            (Ticket.priority == "CRITICAL", 4),
+            (Ticket.priority == "BLOCKER", 5),
+            else_=0,
+        )
+    else:
+        primary_column = getattr(Ticket, ticket_filter.sort_by)
+
+    ordered_primary = (
+        primary_column.asc() if direction == "asc" else primary_column.desc()
+    )
+    ordered_identifier = Ticket.id.asc() if direction == "asc" else Ticket.id.desc()
+    if ticket_filter.sort_by == "due_date":
+        return (Ticket.due_date.is_(None).asc(), ordered_primary, ordered_identifier)
+    return (ordered_primary, ordered_identifier)
+
+
+def ticket_filter_users(session: Session, project_id: int):
+    """프로젝트의 활성 티켓에서 creator·assignee로 참조된 사용자 후보를 반환한다."""
+    referenced_user_ids = (
+        select(Ticket.creator_id.label("user_id"))
+        .where(Ticket.project_id == project_id, Ticket.deleted_at.is_(None))
+        .union(
+            select(Ticket.assignee_id.label("user_id")).where(
+                Ticket.project_id == project_id,
+                Ticket.deleted_at.is_(None),
+                Ticket.assignee_id.is_not(None),
+            ),
+            select(ProjectMember.user_id.label("user_id")).where(
+                ProjectMember.project_id == project_id,
+                ProjectMember.role != ProjectRole.GUEST,
+            ),
+        )
+        .subquery()
+    )
+    return session.execute(
+        select(User.id, User.login_id, User.display_name)
+        .where(User.id.in_(select(referenced_user_ids.c.user_id)))
+        .order_by(User.display_name, User.id)
+    ).mappings().all()
+
+
+def ticket_filter_hierarchy(session: Session, project_id: int):
+    """프로젝트 목록 filter에서 선택할 활성 Epic·Task를 반환한다."""
+    return session.execute(
+        select(Ticket.id, Ticket.key, Ticket.type, Ticket.title)
+        .where(
+            Ticket.project_id == project_id,
+            Ticket.type.in_(("EPIC", "TASK")),
+            Ticket.deleted_at.is_(None),
+        )
+        .order_by(Ticket.number, Ticket.id)
+    ).mappings().all()
 
 
 def ticket_row(

@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -11,6 +12,7 @@ from app.schemas.tickets import (
     TicketCreate,
     TicketCreateOptions,
     TicketDetailView,
+    TicketListFilterOptions,
     TicketPage,
     TicketRelationCreate,
     TicketRelationDelete,
@@ -61,13 +63,55 @@ def list_project_tickets_api(
     session: Database,
     actor: Actor,
     search_query: Annotated[str, Query(alias="q")] = "",
+    types: Annotated[list[str] | None, Query(alias="type")] = None,
+    statuses: Annotated[list[str] | None, Query(alias="status")] = None,
+    priorities: Annotated[list[str] | None, Query(alias="priority")] = None,
+    epic_id: int | None = None,
+    parent_id: int | None = None,
+    creator_ids: Annotated[list[int] | None, Query(alias="creator_id")] = None,
+    assignee_ids: Annotated[list[int] | None, Query(alias="assignee_id")] = None,
+    unassigned: bool = False,
+    created_from: date | None = None,
+    created_through: date | None = None,
+    updated_from: date | None = None,
+    updated_through: date | None = None,
+    due_from: date | None = None,
+    due_through: date | None = None,
+    sort_by: str = "updated_at",
+    sort_direction: str = "desc",
     page: int = 1,
     page_size: int | None = None,
 ):
     """프로젝트 티켓 API 목록을 조회한다."""
+    ticket_filter = service.build_project_ticket_filter(
+        search_query=search_query,
+        types=types,
+        statuses=statuses,
+        priorities=priorities,
+        epic_id=epic_id,
+        parent_id=parent_id,
+        creator_ids=creator_ids,
+        assignee_ids=assignee_ids,
+        unassigned=unassigned,
+        created_from=created_from,
+        created_through=created_through,
+        updated_from=updated_from,
+        updated_through=updated_through,
+        due_from=due_from,
+        due_through=due_through,
+        sort_by=sort_by,
+        sort_direction=sort_direction,
+        page_size=page_size,
+    )
     return service.list_project_tickets(
-        session, actor, project_key, search_query=search_query, page=page, page_size=page_size
+        session, actor, project_key, ticket_filter=ticket_filter, page=page
     )[1]
+
+
+@router.get("/filter-options", response_model=TicketListFilterOptions)
+def get_ticket_filter_options_api(project_key: str, session: Database, actor: Actor):
+    """프로젝트 티켓 filter 후보 API를 조회한다."""
+    return service.get_project_ticket_filter_options(session, actor, project_key)
 
 
 @router.get("/creation-options", response_model=TicketCreateOptions)
