@@ -6,7 +6,15 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.db.session import get_db_session
 from app.domain.auth import Identity
-from app.schemas.administration import OrganizationCreate, OrganizationView, UserCreate, UserPage
+from app.schemas.administration import (
+    OrganizationCreate,
+    OrganizationView,
+    UserCreate,
+    UserPage,
+    UserPasswordReset,
+    UserUpdate,
+    UserView,
+)
 from app.services import administration as service
 from app.web.security import get_client_ip_address, require_api_admin, verify_csrf
 
@@ -38,6 +46,36 @@ def create_user(request: Request, payload: UserCreate, session: Database, actor:
     """사용자 생성을 처리한다."""
     verify_csrf(request, request.headers.get("x-csrf-token", ""), actor, get_settings())
     return {"id": service.create_user(session, actor, payload, get_client_ip_address(request))}
+
+
+@router.patch("/users/{user_id}", response_model=UserView)
+def update_user(
+    user_id: int,
+    request: Request,
+    payload: UserUpdate,
+    session: Database,
+    actor: Administrator,
+):
+    """관리자 사용자 수정을 처리한다."""
+    verify_csrf(request, request.headers.get("x-csrf-token", ""), actor, get_settings())
+    return service.update_user(
+        session, actor, user_id, payload, get_client_ip_address(request)
+    )
+
+
+@router.post("/users/{user_id}/password-reset", response_model=UserView)
+def reset_user_password(
+    user_id: int,
+    request: Request,
+    payload: UserPasswordReset,
+    session: Database,
+    actor: Administrator,
+):
+    """관리자 사용자 임시 비밀번호 설정을 처리한다."""
+    verify_csrf(request, request.headers.get("x-csrf-token", ""), actor, get_settings())
+    return service.reset_user_password(
+        session, actor, user_id, payload, get_client_ip_address(request)
+    )
 
 
 @router.post("/organizations", status_code=201)

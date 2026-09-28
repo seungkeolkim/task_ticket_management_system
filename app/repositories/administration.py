@@ -56,12 +56,43 @@ def administrator_status(session: Session, user_id: int):
     ).one_or_none()
 
 
-def duplicate_user(session: Session, login_id: str, email: str | None) -> bool:
+def get_user_with_organization(session: Session, user_id: int):
+    """관리 대상 사용자와 소속 조직명을 최신 상태로 조회한다."""
+    return session.execute(
+        select(User, Organization.name)
+        .join(Organization, User.organization_id == Organization.id)
+        .where(User.id == user_id)
+        .execution_options(populate_existing=True)
+    ).one_or_none()
+
+
+def active_system_administrator_count(session: Session) -> int:
+    """활성 시스템 관리자 수를 조회한다."""
+    return (
+        session.scalar(
+            select(func.count())
+            .select_from(User)
+            .where(User.system_role == "SYSTEM_ADMIN", User.is_active.is_(True))
+        )
+        or 0
+    )
+
+
+def duplicate_user(
+    session: Session,
+    login_id: str,
+    email: str | None,
+    *,
+    exclude_user_id: int | None = None,
+) -> bool:
     """사용자 중복 여부를 조회한다."""
     filters = [User.login_id == login_id]
     if email:
         filters.append(User.email == email)
-    return session.scalar(select(User.id).where(or_(*filters)).limit(1)) is not None
+    query = select(User.id).where(or_(*filters))
+    if exclude_user_id is not None:
+        query = query.where(User.id != exclude_user_id)
+    return session.scalar(query.limit(1)) is not None
 
 
 def duplicate_organization(session: Session, parent_id: int | None, name: str) -> bool:

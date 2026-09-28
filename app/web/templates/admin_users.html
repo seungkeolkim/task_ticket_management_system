@@ -2,10 +2,12 @@
 {% set values = values|default({}) %}
 {% block content %}
 <header class="page-header compact-header">
-  <div><span class="eyebrow">SYSTEM ADMIN</span><h1>사용자 관리</h1><p>계정을 등록하고 조직과 시스템 역할을 확인합니다.</p></div>
+  <div><span class="eyebrow">SYSTEM ADMIN</span><h1>사용자 관리</h1><p>계정을 등록하고 조직·역할·활성 상태와 임시 비밀번호를 관리합니다.</p></div>
   <a class="button primary" href="#create-user">＋ 사용자 생성</a>
 </header>
 {% if created %}<div class="auth-message success" role="status">사용자를 생성했습니다. 새 사용자에게 임시 비밀번호를 안내해 주세요.</div>{% endif %}
+{% if updated %}<div class="auth-message success" role="status">사용자 정보를 변경했습니다.</div>{% endif %}
+{% if password_reset %}<div class="auth-message success" role="status">임시 비밀번호를 설정했습니다. 대상 사용자의 기존 로그인은 종료됩니다.</div>{% endif %}
 {% if error %}<div class="auth-message error" role="alert">{{ error }}</div>{% endif %}
 <div class="admin-live-layout">
   <section class="panel data-panel admin-list-panel">
@@ -16,15 +18,41 @@
     </form>
     <div class="admin-table-scroll">
       <table class="admin-live-table">
-        <thead><tr><th scope="col">사용자</th><th scope="col">조직</th><th scope="col">시스템 역할</th><th scope="col">상태</th><th scope="col">비밀번호</th></tr></thead>
+        <thead><tr><th scope="col">사용자</th><th scope="col">조직</th><th scope="col">시스템 역할</th><th scope="col">상태</th><th scope="col">비밀번호</th><th scope="col">관리</th></tr></thead>
         <tbody>{% for user in result.users %}
-          <tr {% if created == user.id %}class="created-row"{% endif %}>
+          <tr {% if created == user.id or updated == user.id or password_reset == user.id %}class="created-row"{% endif %}>
             <td><strong>{{ user.display_name }}</strong><small>{{ user.login_id }}</small><small>{{ user.email or '이메일 없음' }}</small></td>
             <td>{{ user.organization_name }}</td>
             <td><span class="role-pill">{{ '시스템 관리자' if user.system_role == 'SYSTEM_ADMIN' else '일반 사용자' }}</span></td>
-            <td>{{ '활성' if user.is_active else '비활성' }}</td><td>{{ '변경 대기' if user.must_change_password else '설정 완료' }}</td>
+            <td>{{ '활성' if user.is_active else '비활성' }}{% if user.deactivated_at %}<small>{{ user.deactivated_at }}</small>{% endif %}</td><td>{{ '변경 대기' if user.must_change_password else '설정 완료' }}</td>
+            <td>
+              <details class="user-management-actions">
+                <summary class="button quiet">관리</summary>
+                <div class="user-management-popover">
+                  <form method="post" action="/admin/users/{{ user.id }}/update" class="admin-create-form" data-confirm-message="사용자 정보를 변경하시겠습니까?">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <strong>정보·권한 변경</strong>
+                    <small>로그인 ID {{ user.login_id }}는 변경되지 않습니다.</small>
+                    <label>표시 이름<input name="display_name" required maxlength="200" value="{{ user.display_name }}"></label>
+                    <label>이메일 <small>(선택)</small><input name="email" type="email" maxlength="320" value="{{ user.email or '' }}"></label>
+                    <label>소속 조직<select name="organization_id" required>{% for org in organizations %}<option value="{{ org.id }}" {% if not org.selectable %}disabled{% endif %} {% if user.organization_id == org.id %}selected{% endif %}>{{ '— ' * org.depth }}{{ org.name }}{% if not org.selectable %} (선택 불가){% endif %}</option>{% endfor %}</select></label>
+                    <label>시스템 역할<select name="system_role"><option value="USER" {% if user.system_role == 'USER' %}selected{% endif %}>일반 사용자</option><option value="SYSTEM_ADMIN" {% if user.system_role == 'SYSTEM_ADMIN' %}selected{% endif %}>시스템 관리자</option></select></label>
+                    <label class="checkbox-row"><input name="is_active" type="checkbox" value="true" {% if user.is_active %}checked{% endif %}> 활성 계정</label>
+                    <button type="submit" class="button secondary button-wide">변경 저장</button>
+                  </form>
+                  <form method="post" action="/admin/users/{{ user.id }}/password-reset" class="admin-create-form password-reset-form" data-confirm-message="임시 비밀번호를 설정하고 기존 로그인을 종료하시겠습니까?">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <strong>임시 비밀번호 설정</strong>
+                    <label>임시 비밀번호<input name="temporary_password" type="password" required minlength="12" maxlength="128" autocomplete="new-password"></label>
+                    <label>비밀번호 확인<input name="confirmation" type="password" required minlength="12" maxlength="128" autocomplete="new-password"></label>
+                    <small>설정 후 기존 session은 모두 폐기되며 다음 로그인에서 비밀번호 변경을 요구합니다.</small>
+                    <button type="submit" class="button danger-outline button-wide">임시 비밀번호 설정</button>
+                  </form>
+                </div>
+              </details>
+            </td>
           </tr>
-        {% else %}<tr><td colspan="5" class="empty-state">조회된 사용자가 없습니다.</td></tr>{% endfor %}</tbody>
+        {% else %}<tr><td colspan="6" class="empty-state">조회된 사용자가 없습니다.</td></tr>{% endfor %}</tbody>
       </table>
     </div>
     <footer class="data-panel-foot"><span>전체 {{ result.total }}명 · {{ result.page }}페이지</span><div class="pagination compact">

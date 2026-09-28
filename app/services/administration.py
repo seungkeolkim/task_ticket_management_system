@@ -7,15 +7,18 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.db.transaction import request_transaction
+from app.db.types import utc_now
 from app.domain.auth import AuthError, Identity, hash_password, normalize_login_id
 from app.models import Organization, User
 from app.repositories import administration as repository
-from app.repositories.auth import lock_security_write
+from app.repositories.auth import lock_security_write, revoke_user_sessions
 from app.schemas.administration import (
     OrganizationCreate,
     OrganizationView,
     UserCreate,
     UserPage,
+    UserPasswordReset,
+    UserUpdate,
     UserView,
 )
 from app.services.auth import record_audit_event
@@ -88,6 +91,8 @@ def user_view(user: User, organization_name: str) -> UserView:
         is_active=user.is_active,
         must_change_password=user.must_change_password,
         created_at=user.created_at,
+        updated_at=user.updated_at,
+        deactivated_at=user.deactivated_at,
     )
 
 
@@ -215,3 +220,164 @@ def create_user(session: Session, actor: Identity, payload: UserCreate, ip_addre
         raise
     logger.info("user_created actor_id=%s user_id=%s", actor.id, row_id)
     return row_id
+
+
+def _managed_user(session: Session, user_id: int) -> tuple[User, str]:
+    """관리 대상 사용자와 조직명을 조회하고 없으면 안전한 오류를 반환한다."""
+    row = repository.get_user_with_organization(session, user_id)
+    if row is None:
+        raise AuthError("user_not_found", "사용자를 찾을 수 없습니다.", 404)
+    return row
+
+
+def _protect_last_active_administrator(
+    session: Session, user: User, payload: UserUpdate
+) -> None:
+    """마지막 활성 시스템 관리자를 없애는 변경을 차단한다."""
+    removes_active_administrator = (
+        user.is_active
+        and user.system_role == "SYSTEM_ADMIN"
+        and (not payload.is_active or payload.system_role != "SYSTEM_ADMIN")
+    )
+    if removes_active_administrator and repository.active_system_administrator_count(session) <= 1:
+        raise AuthError(
+            "last_active_administrator",
+            "마지막 활성 시스템 관리자는 비활성화하거나 일반 사용자로 변경할 수 없습니다.",
+            409,
+        )
+
+
+def update_user(
+    session: Session,
+    actor: Identity,
+    user_id: int,
+    payload: UserUpdate,
+    ip_address: str,
+) -> UserView:
+    """사용자 기본 정보·역할·활성 상태를 수정한다."""
+    logger.debug("user_update_started actor_id=%s target_user_id=%s", actor.id, user_id)
+    try:
+        with request_transaction(session):
+            lock_security_write(session)
+            require_administrator(session, actor)
+            user, organization_name = _managed_user(session, user_id)
+            selected_organization = get_active_organization(
+                session, actor, payload.organization_id
+            )
+            if repository.duplicate_user(
+                session,
+                user.login_id,
+                payload.email,
+                exclude_user_id=user.id,
+            ):
+                raise AuthError("user_conflict", "이메일이 이미 사용 중입니다.", 409)
+            _protect_last_active_administrator(session, user, payload)
+            previous_active = user.is_active
+            changed_fields = [
+                field_name
+                for field_name, current_value, requested_value in (
+                    ("display_name", user.display_name, payload.display_name),
+                    ("email", user.email, payload.email),
+                    ("organization_id", user.organization_id, payload.organization_id),
+                    ("system_role", user.system_role, payload.system_role),
+                    ("is_active", user.is_active, payload.is_active),
+                )
+                if current_value != requested_value
+            ]
+            changed = bool(changed_fields)
+            if changed:
+                user.display_name = payload.display_name
+                user.email = payload.email
+                user.organization_id = payload.organization_id
+                user.system_role = payload.system_role
+                user.is_active = payload.is_active
+                if previous_active and not payload.is_active:
+                    user.deactivated_at = utc_now()
+                    user.deactivated_by_id = actor.id
+                    revoke_user_sessions(session, user.id)
+                    audit_action = "user.deactivated"
+                elif not previous_active and payload.is_active:
+                    user.deactivated_at = None
+                    user.deactivated_by_id = None
+                    audit_action = "user.reactivated"
+                else:
+                    audit_action = "user.updated"
+                session.flush()
+                record_audit_event(
+                    session,
+                    audit_action,
+                    actor.id,
+                    target_type="user",
+                    target_id=str(user.id),
+                    ip_address=ip_address,
+                    details={"changed_fields": changed_fields},
+                )
+                organization_name = selected_organization.name
+            result = user_view(user, organization_name)
+    except AuthError as error:
+        logger.info(
+            "user_update_rejected actor_id=%s target_user_id=%s code=%s",
+            actor.id,
+            user_id,
+            error.code,
+        )
+        raise
+    except IntegrityError:
+        logger.info(
+            "user_update_rejected actor_id=%s target_user_id=%s code=conflict",
+            actor.id,
+            user_id,
+        )
+        raise AuthError(
+            "user_conflict", "사용자 정보가 중복되거나 변경되었습니다. 다시 확인하세요.", 409
+        ) from None
+    except Exception:
+        logger.exception("user_update_failed actor_id=%s target_user_id=%s", actor.id, user_id)
+        raise
+    if changed:
+        logger.info("user_updated actor_id=%s target_user_id=%s", actor.id, user_id)
+    return result
+
+
+def reset_user_password(
+    session: Session,
+    actor: Identity,
+    user_id: int,
+    payload: UserPasswordReset,
+    ip_address: str,
+) -> UserView:
+    """관리자가 임시 비밀번호를 설정하고 대상 사용자의 session을 폐기한다."""
+    logger.debug("user_password_reset_started actor_id=%s target_user_id=%s", actor.id, user_id)
+    try:
+        with request_transaction(session):
+            lock_security_write(session)
+            require_administrator(session, actor)
+            user, organization_name = _managed_user(session, user_id)
+            user.password_hash = hash_password(payload.temporary_password.get_secret_value())
+            user.must_change_password = True
+            revoke_user_sessions(session, user.id)
+            session.flush()
+            record_audit_event(
+                session,
+                "user.password_reset",
+                actor.id,
+                target_type="user",
+                target_id=str(user.id),
+                ip_address=ip_address,
+            )
+            result = user_view(user, organization_name)
+    except AuthError as error:
+        logger.info(
+            "user_password_reset_rejected actor_id=%s target_user_id=%s code=%s",
+            actor.id,
+            user_id,
+            error.code,
+        )
+        raise
+    except Exception:
+        logger.exception(
+            "user_password_reset_failed actor_id=%s target_user_id=%s", actor.id, user_id
+        )
+        raise
+    logger.info("user_password_reset actor_id=%s target_user_id=%s", actor.id, user_id)
+    return result

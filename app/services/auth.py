@@ -51,6 +51,7 @@ def record_audit_event(
     ip_address: str | None = None,
     target_type: str | None = None,
     target_id: str | None = None,
+    details: dict | None = None,
 ) -> None:
     """audit event 기록한다."""
     session.add(
@@ -60,7 +61,7 @@ def record_audit_event(
             ip_address=ip_address,
             target_type=target_type,
             target_id=target_id,
-            details={},
+            details=details or {},
         )
     )
 
