@@ -308,6 +308,32 @@
   margin: 0;
 }
 
+.tiptap-body li[data-checked] > label {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: flex-start;
+  margin-top: 4px;
+  line-height: 1;
+  user-select: none;
+}
+
+.rich-text-field .tiptap-body li[data-checked] > label > input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  min-height: 0;
+  flex: 0 0 16px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  accent-color: var(--primary);
+}
+
+.tiptap-body li[data-checked] > div > p {
+  margin: 0;
+}
+
 .rich-text-viewer {
   overflow-wrap: anywhere;
   font-size: var(--font-work-body, 14px);

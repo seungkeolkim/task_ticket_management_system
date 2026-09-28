@@ -197,8 +197,25 @@ class TicketRelationView(BaseModel):
     created_at: datetime
 
 
+class TicketHierarchyItemView(BaseModel):
+    key: str
+    type: TicketType
+    type_label: str
+    title: str
+    status: TicketStatus
+    status_label: str
+    status_code: str
+    assignee: TicketUserView | None
+
+
+class TicketHierarchyView(BaseModel):
+    parent_task: TicketHierarchyItemView | None = None
+    subtasks: list[TicketHierarchyItemView] = Field(default_factory=list)
+
+
 class TicketDetailView(TicketView):
     relations: list[TicketRelationView] = Field(default_factory=list)
+    hierarchy: TicketHierarchyView = Field(default_factory=TicketHierarchyView)
 
 
 class TicketPage(BaseModel):

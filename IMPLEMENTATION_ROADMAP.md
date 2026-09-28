@@ -282,6 +282,8 @@
 
 2026-09-27 댓글 제출 확인: 댓글·대댓글 등록, 댓글 수정과 삭제 HTML form에 공용 `data-confirm-message` 확인 처리를 적용했다. 사용자가 확인을 취소하면 browser가 form 요청을 전송하지 않으며 JSON API 계약은 변경하지 않는다. frontend bundle build, Windows Python 3.13 전체 pytest 274개와 Ruff 검사를 통과했다.
 
+2026-09-28 TaskItem editor checkbox 정렬 보정: `.field input`의 공용 100% 너비·42px 최소 높이 규칙이 Tiptap이 생성한 checkbox에도 적용되던 충돌을 editor 전용 CSS로 차단했다. checkbox를 16px로 고정하고 label·첫 문단 margin을 정렬해 편집 중 checkbox와 같은 줄의 텍스트가 어긋나지 않게 했다. frontend bundle build, Windows Python 환경 전체 pytest 323개와 Ruff 및 diff 검사를 통과했다.
+
 ## 8단계 — 첨부파일
 
 운영 배포 전 전체 저장 용량과 최종 허용 확장자·MIME type 목록을 확인한다.
@@ -338,13 +340,16 @@
 - [ ] 사용자·조직·프로젝트 관리 화면 구현
 - [x] 티켓 목록과 인라인 상세 패널 구현
 - [x] 직접 접근 가능한 전체 티켓 상세 페이지 구현
+- [x] Task·Subtask 상세의 상위·하위·같은 Task 계층 탐색과 상태 표시 구현
 - [x] 상태별 칸반 열 구현
 - [x] Epic 그룹 접기·펼치기 구현
 - [x] Epic 없는 Task 그룹 구현
 - [x] 같은 상태의 Task·Subtask 계층 표시
 - [x] 다른 상태의 Subtask 부모 식별 그룹 표시
+- [x] Subtask 카드의 배경색 구분과 왼쪽 들여쓰기 적용
 - [x] 카드에 키·제목·중요도·담당자·마감일 표시
 - [x] 드래그 대상의 FSM 허용 여부 표시
+- [x] 카드별 상태 선택 control 제거 및 drag-only 상태 변경 UI 적용
 - [x] 완료 의존성이 남은 카드의 완료 drop 차단
 - [x] 서버에서 권한·FSM·의존성 재검증
 - [x] optimistic locking 충돌 시 보드 새로고침 안내
@@ -354,6 +359,12 @@
 완료 기준: 관리 기능과 티켓 업무 흐름을 웹 UI에서 수행할 수 있고 칸반 드래그가 API 규칙과 일치한다.
 
 2026-09-27 업무 화면 typography 보정: `body`의 14px 상속을 8~10px 고정 규칙이 덮던 티켓 목록·인라인 상세·칸반·대시보드 핵심 정보를 본문 14px, 보조 정보 13px, metadata 12px design token으로 정리했다. 구조화 본문 viewer도 같은 본문 token을 사용한다.
+
+2026-09-28 티켓 계층 탐색 연결: Task 상세의 `Subtask 목록`과 Subtask 상세의 `상위 Task & 같은 Task의 Subtask`를 전체·인라인 상세와 API에 연결했다. 각 항목은 키·제목·상태·담당자와 상세 링크를 제공하고 현재 Subtask를 강조하며, 완료·취소 티켓은 유지하고 휴지통 티켓은 제외한다. 진행률·완료 비율은 계산하지 않는다. 기존 `(project_id, parent_id)` index를 사용해 상세당 한 번의 계층 query로 조회하며 Windows Python 환경에서 전체 pytest 322개와 Ruff 및 diff 검사를 통과했다.
+
+2026-09-28 칸반 카드 상태 control 제거: 카드마다 표시하던 상태 select와 해당 JavaScript event 경로·CSS를 제거하고 상태 변경을 drag-and-drop으로 단일화했다. 카드의 FSM 허용 상태·의존성·version metadata와 서버 전이 API, 오류 feedback과 성공·stale 이후 보드 재조회는 유지한다. Windows Python 환경에서 전체 pytest 322개와 Ruff 및 diff 검사를 통과했다.
+
+2026-09-28 칸반 Subtask 카드 구분: 모든 Subtask 카드에 유형 전용 class를 부여하고 공통 design token 기반의 옅은 배경색과 8px 왼쪽 margin을 적용했다. 같은 상태 Task 아래와 다른 상태 열의 상위 Task 식별 group에서 동일하게 표시되며 카드 정보와 drag 동작은 변경하지 않았다. Windows Python 환경에서 전체 pytest 322개와 Ruff 및 diff 검사를 통과했다.
 
 ## 11단계 — 운영 준비 및 최종 검증
 
