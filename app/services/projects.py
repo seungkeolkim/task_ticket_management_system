@@ -20,6 +20,7 @@ from app.schemas.projects import (
     ProjectCreate,
     ProjectDetail,
     ProjectPage,
+    ProjectUpdate,
     ProjectView,
 )
 
@@ -267,6 +268,81 @@ def create_project(session, actor, payload: ProjectCreate):
     return result
 
 
+def update_project(
+    session: Session,
+    actor: Identity,
+    project_key: str,
+    payload: ProjectUpdate,
+) -> ProjectView:
+    """프로젝트 이름·설명·활성 상태를 변경한다."""
+    changed_fields: list[str] = []
+    with project_operation_context(
+        session,
+        actor,
+        "project_update",
+        write_operation=True,
+        conflict_code="project_conflict",
+        conflict_message="프로젝트 정보가 변경되었습니다. 최신 내용을 다시 확인하세요.",
+    ):
+        project_access = require_project_administrator(session, actor, project_key)
+        project_row = repository.lock_project_management(session, project_access.id)
+        editable_fields = ("name", "description", "is_active")
+        desired_values = {
+            field_name: getattr(payload, field_name)
+            for field_name in editable_fields
+            if field_name in payload.model_fields_set
+        }
+        changed_fields = [
+            field_name
+            for field_name, desired_value in desired_values.items()
+            if getattr(project_row, field_name) != desired_value
+        ]
+        if not changed_fields:
+            return build_project_view(
+                project_row,
+                project_access.role,
+                project_access.can_manage,
+            )
+
+        was_active = project_row.is_active
+        for field_name in changed_fields:
+            setattr(project_row, field_name, desired_values[field_name])
+        session.flush()
+
+        profile_fields = [
+            field_name for field_name in changed_fields if field_name in {"name", "description"}
+        ]
+        if profile_fields:
+            record_project_audit_event(
+                session,
+                "project.updated",
+                actor.id,
+                project_row.id,
+                changed_fields=profile_fields,
+            )
+        if "is_active" in changed_fields:
+            record_project_audit_event(
+                session,
+                "project.reactivated" if project_row.is_active else "project.deactivated",
+                actor.id,
+                project_row.id,
+                before_is_active=was_active,
+                after_is_active=project_row.is_active,
+            )
+        result = build_project_view(
+            project_row,
+            project_access.role,
+            project_access.can_manage,
+        )
+    logger.info(
+        "project_updated actor_id=%s project_id=%s fields=%s",
+        actor.id,
+        result.id,
+        ",".join(changed_fields),
+    )
+    return result
+
+
 def add_project_member(session, actor, project_key, payload: MemberCreate):
     """프로젝트 구성원 추가를 처리한다."""
     with project_operation_context(session, actor, "project_member_add", write_operation=True):
@@ -356,7 +432,7 @@ def update_project_member_role(
         conflict_message="참여자 정보가 변경되었습니다. 최신 목록을 다시 확인하세요.",
     ):
         project = require_project_administrator(session, actor, project_key)
-        repository.lock_project_membership_management(session, project.id)
+        repository.lock_project_management(session, project.id)
         result = repository.project_member(session, project.id, member_id)
         if result is None:
             raise AuthError("member_not_found", "프로젝트 참여자를 찾을 수 없습니다.", 404)
@@ -418,7 +494,7 @@ def remove_project_member(
         conflict_message="참여자 정보가 변경되었습니다. 최신 목록을 다시 확인하세요.",
     ):
         project = require_project_administrator(session, actor, project_key)
-        repository.lock_project_membership_management(session, project.id)
+        repository.lock_project_management(session, project.id)
         result = repository.project_member(session, project.id, member_id)
         if result is None:
             raise AuthError("member_not_found", "프로젝트 참여자를 찾을 수 없습니다.", 404)

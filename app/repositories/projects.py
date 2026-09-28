@@ -81,13 +81,12 @@ def duplicate_member(session: Session, project_id: int, user_id: int) -> bool:
     )
 
 
-def lock_project_membership_management(session: Session, project_id: int) -> None:
-    """프로젝트별 참여자 변경을 직렬화할 잠금 경계를 제공한다."""
-    if session.get_bind().dialect.name == "sqlite":
-        return
-    session.execute(
-        select(Project.id).where(Project.id == project_id).with_for_update()
-    ).scalar_one()
+def lock_project_management(session: Session, project_id: int) -> Project:
+    """프로젝트 기본 정보와 참여자 변경을 직렬화하고 최신 row를 반환한다."""
+    query = select(Project).where(Project.id == project_id)
+    if session.get_bind().dialect.name != "sqlite":
+        query = query.with_for_update()
+    return session.execute(query.execution_options(populate_existing=True)).scalar_one()
 
 
 def project_member(session: Session, project_id: int, member_id: int):
