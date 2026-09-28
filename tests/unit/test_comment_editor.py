@@ -27,6 +27,16 @@ def test_multiple_editors_resolve_their_nearest_form_and_field_payload():
     assert "document.querySelectorAll('[data-rich-text-editor]')" in editor_source
 
 
+def test_editor_persists_automatically_detected_links_as_tiptap_marks():
+    """editor가 입력 중 감지한 URL을 명시적인 link mark로 저장하도록 설정했는지 검증한다."""
+    editor_source = (repository_root() / "frontend" / "tiptap-editor.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert "autolink: true" in editor_source
+    assert "autolink: false" not in editor_source
+
+
 def test_ticket_and_comment_templates_set_context_specific_editor_labels():
     """설명·댓글 작성·댓글 수정 editor가 서로 다른 접근성 label을 지정하는지 검증한다."""
     template_directory = repository_root() / "app" / "web" / "templates"
