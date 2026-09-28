@@ -212,7 +212,10 @@ def test_create_list_detail_and_history(client, ticket_people, db_session):
     page = client.get("/api/projects/DEV/tickets?q=실제").json()
     assert page["total"] == 1 and page["tickets"][0]["key"] == "DEV-1"
     detail = client.get("/api/projects/DEV/tickets/DEV-1").json()
-    assert detail == ticket | {"relations": []}
+    assert detail == ticket | {
+        "relations": [],
+        "hierarchy": {"parent_task": None, "subtasks": []},
+    }
     assert "실제 티켓 생성" in client.get("/projects/DEV/tickets?selected=DEV-1").text
     assert "DB에 저장되는 설명" in client.get("/projects/DEV/tickets/DEV-1").text
 
@@ -661,6 +664,107 @@ def test_hierarchy_rules_and_cross_project_parent_are_enforced(client, ticket_pe
     assert create_ticket(client, parent_key="OPS-1").status_code == 400
     assert client.get("/api/projects/DEV/tickets/OPS-1").status_code == 404
     assert client.get("/api/projects/DEV/tickets").json()["total"] == 3
+
+
+def test_ticket_detail_exposes_task_subtask_hierarchy_navigation(client, ticket_people):
+    """Task와 Subtask 상세의 계층 탐색 정보와 화면 상태 표시를 검증한다."""
+    people, _ = ticket_people
+    task = create_ticket(
+        client,
+        title="계층 탐색 Task",
+        assignee_id=people["manager"].id,
+    ).json()
+    task = transition_ticket(client, task["key"], "IN_PROGRESS", task["version"]).json()
+    first_subtask = create_ticket(
+        client,
+        type="SUBTASK",
+        title="첫 번째 Subtask",
+        parent_key=task["key"],
+        assignee_id=people["member"].id,
+    ).json()
+    second_subtask = create_ticket(
+        client,
+        type="SUBTASK",
+        title="두 번째 Subtask",
+        parent_key=task["key"],
+        assignee_id=people["manager"].id,
+    ).json()
+    transition_ticket(
+        client,
+        second_subtask["key"],
+        "ON_HOLD",
+        second_subtask["version"],
+    )
+    other_task = create_ticket(client, title="다른 Task").json()
+    other_subtask = create_ticket(
+        client,
+        type="SUBTASK",
+        title="다른 Task의 Subtask",
+        parent_key=other_task["key"],
+    ).json()
+
+    task_detail = client.get(f"/api/projects/DEV/tickets/{task['key']}").json()
+    assert task_detail["hierarchy"]["parent_task"] is None
+    assert [item["key"] for item in task_detail["hierarchy"]["subtasks"]] == [
+        first_subtask["key"],
+        second_subtask["key"],
+    ]
+    assert [item["status"] for item in task_detail["hierarchy"]["subtasks"]] == [
+        "TODO",
+        "ON_HOLD",
+    ]
+    assert task_detail["hierarchy"]["subtasks"][0]["assignee"]["id"] == people["member"].id
+    assert other_subtask["key"] not in {
+        item["key"] for item in task_detail["hierarchy"]["subtasks"]
+    }
+
+    subtask_detail = client.get(
+        f"/api/projects/DEV/tickets/{first_subtask['key']}"
+    ).json()
+    assert subtask_detail["hierarchy"]["parent_task"] == {
+        "key": task["key"],
+        "type": "TASK",
+        "type_label": "Task",
+        "title": "계층 탐색 Task",
+        "status": "IN_PROGRESS",
+        "status_label": "진행중",
+        "status_code": "progress",
+        "assignee": {
+            "id": people["manager"].id,
+            "login_id": people["manager"].login_id,
+            "display_name": people["manager"].display_name,
+        },
+    }
+    assert [item["key"] for item in subtask_detail["hierarchy"]["subtasks"]] == [
+        first_subtask["key"],
+        second_subtask["key"],
+    ]
+
+    task_page = client.get(f"/projects/DEV/tickets/{task['key']}").text
+    assert "Subtask 목록" in task_page
+    assert "첫 번째 Subtask" in task_page and "두 번째 Subtask" in task_page
+    assert "보류" in task_page
+
+    subtask_page = client.get(f"/projects/DEV/tickets/{first_subtask['key']}").text
+    assert "상위 Task &amp; 같은 Task의 Subtask" in subtask_page
+    assert f'href="/projects/DEV/tickets/{task["key"]}"' in subtask_page
+    assert 'aria-current="page"' in subtask_page
+    assert "진행중" in subtask_page and "보류" in subtask_page
+
+    inline_page = client.get(
+        f"/projects/DEV/tickets?selected={first_subtask['key']}"
+    ).text
+    assert "상위 Task &amp; 같은 Task의 Subtask" in inline_page
+    assert 'aria-current="page"' in inline_page
+
+    moved = move_to_trash(client, second_subtask["key"], 2)
+    assert moved.status_code == 200
+    refreshed_task_detail = client.get(
+        f"/api/projects/DEV/tickets/{task['key']}"
+    ).json()
+    assert [item["key"] for item in refreshed_task_detail["hierarchy"]["subtasks"]] == [
+        first_subtask["key"]
+    ]
 
 
 def test_trash_hierarchy_lifecycle_records_history_and_hides_active_queries(

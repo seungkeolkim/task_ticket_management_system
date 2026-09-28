@@ -36,6 +36,8 @@ from app.schemas.tickets import (
     TicketCreateOptions,
     TicketDetailView,
     TicketEditOptions,
+    TicketHierarchyItemView,
+    TicketHierarchyView,
     TicketListItemView,
     TicketPage,
     TicketParentView,
@@ -249,7 +251,50 @@ def build_ticket_detail_view(
                 created_at=relation_row["created_at"],
             )
         )
-    return TicketDetailView(**build_ticket_view(ticket_row).model_dump(), relations=relations)
+    hierarchy_rows = repository.hierarchy_ticket_rows(
+        session,
+        ticket.project_id,
+        actor_id,
+        ticket,
+        override=override,
+    )
+    parent_task = None
+    subtasks: list[TicketHierarchyItemView] = []
+    for hierarchy_row in hierarchy_rows:
+        hierarchy_ticket = hierarchy_row[0]
+        hierarchy_item = _build_ticket_hierarchy_item_view(hierarchy_row)
+        if ticket.type == TicketType.SUBTASK and hierarchy_ticket.id == ticket.parent_id:
+            parent_task = hierarchy_item
+        elif hierarchy_ticket.type == TicketType.SUBTASK:
+            subtasks.append(hierarchy_item)
+    return TicketDetailView(
+        **build_ticket_view(ticket_row).model_dump(),
+        relations=relations,
+        hierarchy=TicketHierarchyView(parent_task=parent_task, subtasks=subtasks),
+    )
+
+
+def _build_ticket_hierarchy_item_view(ticket_row) -> TicketHierarchyItemView:
+    """계층 탐색 목록의 compact 티켓 항목을 구성한다."""
+    ticket = ticket_row[0]
+    mapping = ticket_row._mapping
+    ticket_type = TicketType(ticket.type)
+    status = TicketStatus(ticket.status)
+    status_label, status_code = STATUS_LABELS[status]
+    return TicketHierarchyItemView(
+        key=ticket.key,
+        type=ticket_type,
+        type_label=TYPE_LABELS[ticket_type],
+        title=ticket.title,
+        status=status,
+        status_label=status_label,
+        status_code=status_code,
+        assignee=_build_ticket_user_view(
+            mapping["assignee_id"],
+            mapping["assignee_login_id"],
+            mapping["assignee_display_name"],
+        ),
+    )
 
 
 def _build_board_card(

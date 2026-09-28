@@ -51,6 +51,7 @@
 | UI-015 | 2026-09-26 | DECIDED | 티켓 설명과 댓글은 self-hosted Tiptap editor를 사용한다. 초기 toolbar는 제목, 굵게·기울임·밑줄·취소선, 제한된 글자 크기·색상, 중첩 bullet·ordered list, task list, 인용, 코드, 링크와 표를 제공하고 내부 첨부파일 기능이 연결되면 image node를 추가한다. 글꼴, 표 셀 배경색과 inline comment는 초기 필수 범위에서 제외한다. | Confluence와 유사한 데스크톱 편집 경험을 제공하되 CNT-008의 제한된 문서 schema와 ARC-013의 자체 호스팅 배포를 따른다. headless editor의 toolbar·상태 표시·키보드 조작은 현재 Jinja2·Vanilla JavaScript 화면에 직접 구성한다. |
 | UI-016 | 2026-09-27 | DECIDED | 댓글·대댓글 등록, 댓글 수정과 삭제 HTML form은 실제 제출 전에 browser 확인 창을 한 번 표시한다. form의 `data-confirm-message`를 공용 JavaScript가 처리하며 취소 시 요청을 전송하지 않는다. | 되돌리기 어려운 삭제뿐 아니라 댓글 작성·수정에서도 사용자의 최종 의사를 확인한다. inline script 없이 기존 CSP와 공용 editor bundle을 유지하고 JSON API 호출자는 별도 확인 UX를 선택할 수 있다. |
 | UI-017 | 2026-09-27 | DECIDED | 티켓 목록·상세·칸반·대시보드 등 주요 업무 화면은 본문 14px, 보조 정보 13px, metadata 12px design token을 사용하고 badge와 입력 control은 12px 미만으로 축소하지 않는다. | 초기 목업의 8~10px 고정값이 `body` 14px 상속을 덮어 실제 업무 정보의 가독성을 낮추므로 정보 계층은 유지하면서 최소 크기를 높인다. |
+| UI-018 | 2026-09-28 | DECIDED | Task 상세는 `Subtask 목록`, Subtask 상세는 `상위 Task & 같은 Task의 Subtask` 계층 탐색 영역을 전체·인라인 상세에 제공한다. 각 항목은 키·제목·상태·담당자와 상세 링크를 제공하고 현재 Subtask를 포함해 강조한다. 진행률·완료 비율은 표시하지 않는다. | Task 범위와 Subtask 수가 계속 바뀌어도 별도 집계 의미를 만들지 않고 현재 계층과 개별 상태를 직접 탐색할 수 있게 한다. 완료·취소 티켓은 표시하고 휴지통 티켓만 일반 상세에서 제외한다. |
 
 ## Open decisions
 

@@ -220,6 +220,38 @@ def ticket_row_by_id(
     ).one_or_none()
 
 
+def hierarchy_ticket_rows(
+    session: Session,
+    project_id: int,
+    actor_id: int,
+    ticket: Ticket,
+    *,
+    override: bool,
+):
+    """Task·Subtask 상세에 필요한 활성 계층 티켓 row를 반환한다."""
+    query = ticket_query(project_id, actor_id, override=override)
+    if ticket.type == "TASK":
+        query = query.where(
+            Ticket.parent_id == ticket.id,
+            Ticket.type == "SUBTASK",
+        )
+    elif ticket.type == "SUBTASK" and ticket.parent_id is not None:
+        query = query.where(
+            or_(
+                Ticket.id == ticket.parent_id,
+                and_(
+                    Ticket.parent_id == ticket.parent_id,
+                    Ticket.type == "SUBTASK",
+                ),
+            )
+        )
+    else:
+        return []
+    return session.execute(
+        query.order_by(Ticket.sort_order, Ticket.number, Ticket.id)
+    ).all()
+
+
 def active_ticket_hierarchy(session: Session, project_id: int, root_ticket: Ticket) -> list[Ticket]:
     """휴지통으로 함께 이동할 활성 티켓 계층을 반환한다."""
     hierarchy_condition = Ticket.id == root_ticket.id

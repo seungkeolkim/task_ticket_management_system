@@ -57,6 +57,17 @@
       <div><dt>마감일</dt><dd>{{ selected_ticket.due_date or '없음' }}</dd></div>
       <div><dt>생성자</dt><dd>{{ selected_ticket.creator.display_name }}</dd></div>
     </dl></div>
+    {% if selected_ticket.type.value == 'TASK' %}
+    <div class="detail-section hierarchy-section"><div class="section-title"><h3>Subtask 목록</h3><span>{{ selected_ticket.hierarchy.subtasks|length }}개</span></div><div class="hierarchy-ticket-list compact">
+      {% for subtask in selected_ticket.hierarchy.subtasks %}{{ ui.hierarchy_ticket(project.key, subtask) }}
+      {% else %}<p class="detail-description">등록된 Subtask가 없습니다.</p>{% endfor %}
+    </div></div>
+    {% elif selected_ticket.type.value == 'SUBTASK' %}
+    <div class="detail-section hierarchy-section"><div class="section-title"><h3>상위 Task &amp; 같은 Task의 Subtask</h3><span>{{ selected_ticket.hierarchy.subtasks|length }}개</span></div>
+      {% if selected_ticket.hierarchy.parent_task %}<div class="hierarchy-parent"><small>상위 Task</small>{{ ui.hierarchy_ticket(project.key, selected_ticket.hierarchy.parent_task) }}</div>{% endif %}
+      <div class="hierarchy-ticket-list compact hierarchy-sibling-list">{% for subtask in selected_ticket.hierarchy.subtasks %}{{ ui.hierarchy_ticket(project.key, subtask, selected_ticket.key) }}{% endfor %}</div>
+    </div>
+    {% endif %}
     <div class="detail-section"><div class="section-title"><h3>티켓 관계</h3><span>{{ selected_ticket.relations|length }}개</span></div>
       <div class="relation-list">
         {% for relation in selected_ticket.relations %}<div class="relation-row"><span class="relation-kind">{{ relation.direction_label }}</span><a href="/projects/{{ project.key }}/tickets/{{ relation.ticket.key }}"><b>{{ relation.ticket.key }}</b></a><a href="/projects/{{ project.key }}/tickets/{{ relation.ticket.key }}">{{ relation.ticket.title }}</a>{{ ui.status_badge(relation.ticket.status_label, relation.ticket.status_code) }}</div>

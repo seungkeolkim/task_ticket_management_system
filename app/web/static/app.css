@@ -463,3 +463,57 @@ kbd { padding: 1px 6px; border: 1px solid var(--border-strong); border-radius: 5
 }
 
 .attachment-upload-form > span { color: var(--muted); font-size: var(--font-work-meta); }
+
+.hierarchy-ticket-list { margin-top: 10px; }
+
+.hierarchy-ticket {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto minmax(72px, 110px);
+  align-items: center;
+  gap: 10px;
+  min-height: 54px;
+  padding: 9px 10px;
+  border-top: 1px solid var(--border);
+}
+
+.hierarchy-ticket:first-child { border-top: 0; }
+.hierarchy-ticket:hover { background: var(--surface-soft); }
+
+.hierarchy-ticket.is-current {
+  border-left: 3px solid var(--primary);
+  background: var(--surface-tint);
+}
+
+.hierarchy-ticket-title { min-width: 0; }
+.hierarchy-ticket-title small, .hierarchy-ticket-title strong { display: block; }
+.hierarchy-ticket-title small { color: var(--muted); font-size: var(--font-work-meta); }
+.hierarchy-ticket-title strong { overflow: hidden; font-size: var(--font-work-body); text-overflow: ellipsis; white-space: nowrap; }
+.hierarchy-ticket-assignee { overflow: hidden; color: var(--text-soft); font-size: var(--font-work-secondary); text-overflow: ellipsis; white-space: nowrap; }
+
+.hierarchy-parent {
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+}
+
+.hierarchy-parent > small {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--muted);
+  font-size: var(--font-work-meta);
+  font-weight: 700;
+}
+
+.hierarchy-parent .hierarchy-ticket { padding-right: 0; padding-left: 0; }
+
+.hierarchy-ticket-list.compact .hierarchy-ticket,
+.inline-detail .hierarchy-parent .hierarchy-ticket {
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+}
+
+.hierarchy-ticket-list.compact .hierarchy-ticket-assignee,
+.inline-detail .hierarchy-parent .hierarchy-ticket-assignee {
+  grid-column: 2 / -1;
+}

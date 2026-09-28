@@ -16,6 +16,15 @@
 </span>
 {%- endmacro %}
 
+{% macro hierarchy_ticket(project_key, item, current_key=none) -%}
+<a class="hierarchy-ticket{% if item.key == current_key %} is-current{% endif %}" href="/projects/{{ project_key }}/tickets/{{ item.key }}"{% if item.key == current_key %} aria-current="page"{% endif %}>
+  {{ ticket_type(item.type_label) }}
+  <span class="hierarchy-ticket-title"><small>{{ item.key }}</small><strong>{{ item.title }}</strong></span>
+  {{ status_badge(item.status_label, item.status_code) }}
+  <span class="hierarchy-ticket-assignee">{{ item.assignee.display_name if item.assignee else '미지정' }}</span>
+</a>
+{%- endmacro %}
+
 {% macro project_mark(project, size='md') -%}
 <span class="project-mark project-mark-{{ size }} mark-{{ project.color|default('violet') }}">{{ project.key[:2] }}</span>
 {%- endmacro %}
