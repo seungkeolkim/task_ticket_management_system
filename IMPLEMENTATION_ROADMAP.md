@@ -384,6 +384,8 @@
 
 2026-09-29 link 편집·식별 개선: editor의 단일 link toolbar button에서 추가·URL 수정·명시적 삭제를 제공하는 dialog를 연결했다. editor와 viewer의 link text에 공통 blue 색상·밑줄을 적용하고 hover와 viewer keyboard focus를 강조했다. frontend bundle build, Windows Python 환경 전체 pytest 337개와 Ruff·JavaScript 문법 및 diff 검사를 통과했다.
 
+2026-09-29 프로젝트 업무 진입점 변경: 내 프로젝트 카드의 `프로젝트 열기`와 공통 내비게이션의 즐겨찾기 프로젝트를 해당 프로젝트의 티켓 목록에 연결했다. 시스템 관리자의 전체 프로젝트 관리 목록은 설정·구성원 관리 목적의 프로젝트 root 연결을 유지한다. Windows Python 환경 전체 pytest 337개와 Ruff 및 diff 검사를 통과했다.
+
 ## 11단계 — 운영 준비 및 최종 검증
 
 - [ ] 감사 로그·휴지통·첨부파일 정리용 전용 명령 구성
