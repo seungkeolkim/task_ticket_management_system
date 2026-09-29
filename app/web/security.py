@@ -67,6 +67,7 @@ def get_optional_identity(
     """optional identity 정보를 조회한다."""
     identity = get_current_identity(session, request.cookies.get(settings.session.cookie_name))
     request.state.current_user = identity
+    request.state.database_session = session
     return identity
 
 

@@ -8,7 +8,7 @@
 | 요구사항 | 테이블 | 주요 구조 |
 |---|---|---|
 | 사용자·조직·인증·감사 | 기존 organizations, users, user_sessions, audit_logs | 초기 revision 유지. 같은 위치 조직 이름 고유 인덱스 추가 |
-| 프로젝트·참여자 | projects, project_members | 변경하지 않는 project key, (project, user) 고유 제약, next_ticket_number, 게스트·사용자·관리자 역할 |
+| 프로젝트·참여자 | projects, project_members | 변경하지 않는 project key, (project, user) 고유 제약, next_ticket_number, 게스트·사용자·관리자 역할, 사용자별 즐겨찾기 |
 | 티켓·계층·일정 | tickets | project별 번호, 전역 표시 key, 유형·상태·중요도, 부모, 담당자, Tiptap JSON v2 설명, 날짜, 순서, version |
 | 관계·간트 선후행 | ticket_relations | 동일 project의 source/target, Related 정규형, Depends on 방향, dependency_kind, lag_days |
 | 휴지통·복구 | ticket_deletion_batches + tickets | root_ticket_key, 삭제자·시각·purge_after·복구자·시각, ticket의 batch FK |

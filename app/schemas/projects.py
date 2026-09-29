@@ -40,6 +40,14 @@ class ProjectUpdate(BaseModel):
         return self
 
 
+class ProjectFavoriteUpdate(BaseModel):
+    """사용자별 프로젝트 즐겨찾기 변경 입력을 검증한다."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    is_favorite: bool
+
+
 class MemberCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     user_id: int = Field(gt=0)
@@ -61,6 +69,7 @@ class ProjectView(BaseModel):
     is_active: bool
     role: str | None
     can_manage: bool
+    is_favorite: bool = False
 
 
 class MemberView(BaseModel):

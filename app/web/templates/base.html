@@ -28,6 +28,17 @@
         <a class="nav-item {% if active == 'projects' %}is-active{% endif %}" href="/projects">
           <span class="nav-glyph">◇</span><span>내 프로젝트</span>
         </a>
+        {% if favorite_projects %}
+        <div class="nav-favorite-projects" aria-label="즐겨찾기 프로젝트">
+          {% for favorite_project in favorite_projects %}
+          <a class="nav-favorite-project" href="/projects/{{ favorite_project.key }}" title="{{ favorite_project.name }}">
+            <span aria-hidden="true">★</span>
+            <span>{{ favorite_project.name }}</span>
+            <small>{{ favorite_project.key }}</small>
+          </a>
+          {% endfor %}
+        </div>
+        {% endif %}
 
         {% if project %}
         <div class="nav-project-head">

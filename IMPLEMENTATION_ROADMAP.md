@@ -356,6 +356,7 @@
 - [x] 서버에서 권한·FSM·의존성 재검증
 - [x] optimistic locking 충돌 시 보드 새로고침 안내
 - [x] 티켓 목록·상세·칸반·대시보드의 업무 정보 글꼴 가독성 기준 적용
+- [x] 내 프로젝트 즐겨찾기 별표와 공통 내비게이션 고정 목록 구현
 - [ ] 주요 사용자 흐름 브라우저 통합 테스트 작성
 
 완료 기준: 관리 기능과 티켓 업무 흐름을 웹 UI에서 수행할 수 있고 칸반 드래그가 API 규칙과 일치한다.
@@ -367,6 +368,8 @@
 2026-09-28 칸반 카드 상태 control 제거: 카드마다 표시하던 상태 select와 해당 JavaScript event 경로·CSS를 제거하고 상태 변경을 drag-and-drop으로 단일화했다. 카드의 FSM 허용 상태·의존성·version metadata와 서버 전이 API, 오류 feedback과 성공·stale 이후 보드 재조회는 유지한다. Windows Python 환경에서 전체 pytest 322개와 Ruff 및 diff 검사를 통과했다.
 
 2026-09-28 칸반 Subtask 카드 구분: 모든 Subtask 카드에 유형 전용 class를 부여하고 공통 design token 기반의 옅은 배경색과 8px 왼쪽 margin을 적용했다. 같은 상태 Task 아래와 다른 상태 열의 상위 Task 식별 group에서 동일하게 표시되며 카드 정보와 drag 동작은 변경하지 않았다. Windows Python 환경에서 전체 pytest 322개와 Ruff 및 diff 검사를 통과했다.
+
+2026-09-29 프로젝트 즐겨찾기: 내 프로젝트 카드의 회색·노란색 별표로 사용자별 즐겨찾기를 설정·해제하고, 선택한 프로젝트를 검색·페이지네이션과 무관하게 공통 내비게이션의 `내 프로젝트` 아래에 이름순으로 고정 표시한다. 즐겨찾기는 명시적 `ProjectMember`에 저장되어 비참여 시스템 관리자 override에는 허용하지 않고 참여 제거 시 함께 정리된다. Alembic `20260929_0006`에서 기존 참여 정보를 보존하며 기본값 false로 추가했다. Windows Python 환경 전체 pytest 329개와 Ruff 및 diff 검사를 통과했다.
 
 ## 11단계 — 운영 준비 및 최종 검증
 

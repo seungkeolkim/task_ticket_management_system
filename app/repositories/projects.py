@@ -16,7 +16,7 @@ def get_actor_status(session: Session, user_id: int):
 
 def build_project_access_query(actor_id: int, override: bool = False):
     """프로젝트 access query 구성한다."""
-    query = select(Project, ProjectMember.role).outerjoin(
+    query = select(Project, ProjectMember.role, ProjectMember.is_favorite).outerjoin(
         ProjectMember,
         (ProjectMember.project_id == Project.id) & (ProjectMember.user_id == actor_id),
     )
@@ -54,6 +54,39 @@ def list_projects(
         query.order_by(Project.name, Project.id).offset((page - 1) * page_size).limit(page_size)
     ).all()
     return rows, total
+
+
+def list_favorite_project_links(session: Session, actor_id: int):
+    """공통 내비게이션에 표시할 사용자의 즐겨찾기 프로젝트를 조회한다."""
+    return (
+        session.execute(
+            select(Project.key, Project.name)
+            .join(ProjectMember, ProjectMember.project_id == Project.id)
+            .where(
+                ProjectMember.user_id == actor_id,
+                ProjectMember.is_favorite.is_(True),
+            )
+            .order_by(Project.name, Project.id)
+        )
+        .mappings()
+        .all()
+    )
+
+
+def lock_project_membership(
+    session: Session,
+    project_key: str,
+    user_id: int,
+) -> ProjectMember | None:
+    """즐겨찾기 변경 대상 프로젝트 참여 정보를 잠그고 반환한다."""
+    query = (
+        select(ProjectMember)
+        .join(Project, Project.id == ProjectMember.project_id)
+        .where(Project.key == project_key, ProjectMember.user_id == user_id)
+    )
+    if session.get_bind().dialect.name != "sqlite":
+        query = query.with_for_update()
+    return session.execute(query.execution_options(populate_existing=True)).scalar_one_or_none()
 
 
 def active_user(session: Session, user_id: int) -> bool:
