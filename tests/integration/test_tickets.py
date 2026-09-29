@@ -284,6 +284,50 @@ def test_ticket_viewer_loads_styles_and_preserves_quote_and_code_blocks(
         assert "<pre><code># 주석\nprint(&#x27;test&#x27;)</code></pre>" in response.text
 
 
+def test_ticket_accepts_tiptap_link_title_and_stores_canonical_attributes(
+    client, ticket_people
+):
+    """Tiptap 기본 link 속성을 저장할 때 호환 title을 제거하는지 검증한다."""
+    link_document = {
+        "type": "doc",
+        "content": [
+            {
+                "type": "paragraph",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "공유 문서",
+                        "marks": [
+                            {
+                                "type": "link",
+                                "attrs": {
+                                    "href": "https://example.com/shared-document",
+                                    "target": "_blank",
+                                    "rel": "noopener noreferrer nofollow",
+                                    "class": None,
+                                    "title": None,
+                                },
+                            }
+                        ],
+                    }
+                ],
+            }
+        ],
+    }
+
+    response = create_ticket(client, description_document=link_document)
+
+    assert response.status_code == 201
+    saved_attributes = response.json()["description_document"]["content"][0]["content"][
+        0
+    ]["marks"][0]["attrs"]
+    assert saved_attributes == {
+        "href": "https://example.com/shared-document",
+        "target": "_blank",
+        "rel": "noopener noreferrer nofollow",
+    }
+
+
 def test_list_dashboard_and_board_skip_description_html_rendering(
     client, ticket_people, monkeypatch
 ):

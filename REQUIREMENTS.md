@@ -279,6 +279,7 @@ Jira를 사용하지 않는 조직에서 사용자, 프로젝트, 티켓 및 칸
 - 애플리케이션의 최초 rich-text 계약은 `body_schema_version=2`로 시작하고 Tiptap package 버전과 분리한다. package upgrade만으로 본문 계약 버전을 변경하지 않고 node·mark·attribute 구조가 바뀔 때만 새 계약과 converter를 추가한다.
 - 최소 지원 서식은 제목, 굵게, 기울임, 밑줄, 취소선, 제한된 글자 크기·색상, 글머리 기호·번호 목록과 중첩 들여쓰기, 체크박스 목록, 인용, 코드, 링크 및 표이다. 글꼴 선택과 표 셀 배경색은 초기 필수 범위에서 제외한다.
 - 저장 원본은 허용된 node·mark·attribute만 포함하는 Tiptap JSON이며 임의 HTML을 원본으로 저장하지 않는다. 서버는 JSON 구조·크기·깊이와 URL·내부 참조를 검증한다.
+- link mark는 Tiptap 호환을 위해 `title` 입력을 허용하지만 canonical 저장에서는 제거한다. 외부 URL은 명시적인 `http://` 또는 `https://` scheme을 요구하며, scheme 없는 주소를 임의로 보정하지 않고 editor에서 안내한다.
 - 읽기 화면용 sanitized HTML과 검색·목록·보고서용 plain text는 JSON 원본에서 만든 파생 데이터로 취급한다. 렌더링 결과에도 allowlist sanitizer를 적용한다.
 - Tiptap은 에디터와 문서 구조에만 사용한다. 티켓 댓글, 멘션, 첨부파일, optimistic locking, 변경 이력과 감사 로그는 애플리케이션 서비스가 직접 관리한다.
 - 본문 일부에 다는 inline comment, Tiptap Cloud·협업·댓글·version history 서비스는 사용하지 않는다.

@@ -380,6 +380,8 @@
 
 2026-09-29 티켓 변경 확인 확장: 댓글에만 적용하던 제출 확인을 공용 정적 script로 분리하고 티켓 생성·수정·상태 전이·관계 추가/삭제·첨부파일 등록·휴지통 이동/복구에 확대했다. form을 거치지 않는 본문 image 첨부와 칸반 drag 상태 변경도 요청 직전에 확인하며, 취소 시 서버 요청을 전송하지 않는다. frontend bundle build, Windows Python 환경 전체 pytest 331개와 Ruff·JavaScript 문법 및 diff 검사를 통과했다.
 
+2026-09-29 link mark 호환성 보정: Tiptap 3이 수동 link에도 생성하는 `title` 속성을 서버가 호환 입력으로 검증한 뒤 canonical document에서 제거하도록 editor와 저장 계약을 일치시켰다. 외부 주소는 명시적인 HTTP(S) scheme을 요구하며 scheme 없는 입력을 임의로 변경하지 않고 editor에서 안내한다. frontend bundle build, Windows Python 환경 전체 pytest 335개와 Ruff·JavaScript 문법 및 diff 검사를 통과했다.
+
 ## 11단계 — 운영 준비 및 최종 검증
 
 - [ ] 감사 로그·휴지통·첨부파일 정리용 전용 명령 구성

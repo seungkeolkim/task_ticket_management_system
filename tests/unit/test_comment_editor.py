@@ -37,6 +37,18 @@ def test_editor_persists_automatically_detected_links_as_tiptap_marks():
     assert "autolink: false" not in editor_source
 
 
+def test_editor_rejects_scheme_less_external_link_without_rewriting_it():
+    """link toolbar가 scheme 없는 외부 주소를 임의 변경하지 않고 안내하는지 검증한다."""
+    editor_source = (repository_root() / "frontend" / "tiptap-editor.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert "function isAllowedLinkUrl(linkUrl)" in editor_source
+    assert "['http:', 'https:'].includes(parsedUrl.protocol)" in editor_source
+    assert "입력한 주소는 자동으로 변경하지 않습니다." in editor_source
+    assert "setLink({ href: linkUrl })" in editor_source
+
+
 def test_ticket_and_comment_templates_set_context_specific_editor_labels():
     """설명·댓글 작성·댓글 수정 editor가 서로 다른 접근성 label을 지정하는지 검증한다."""
     template_directory = repository_root() / "app" / "web" / "templates"

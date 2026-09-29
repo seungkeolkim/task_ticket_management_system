@@ -125,6 +125,27 @@ function executeSelectCommand(editor, commandName, selectedValue) {
   }
 }
 
+/** 입력한 link URL이 서버 저장 계약에서 허용되는 명시적 주소인지 확인한다. */
+function isAllowedLinkUrl(linkUrl) {
+  if (!linkUrl || /[\s\\\u0000-\u001f\u007f]/.test(linkUrl) || linkUrl.startsWith('//')) {
+    return false
+  }
+  if (linkUrl.startsWith('/') || linkUrl.startsWith('#')) {
+    return true
+  }
+  try {
+    const parsedUrl = new URL(linkUrl)
+    return (
+      ['http:', 'https:'].includes(parsedUrl.protocol) &&
+      Boolean(parsedUrl.host) &&
+      !parsedUrl.username &&
+      !parsedUrl.password
+    )
+  } catch (_error) {
+    return false
+  }
+}
+
 /** button 기반 toolbar command를 실행한다. */
 function executeButtonCommand(editor, commandName) {
   const adjustListIndent = (direction) => {
@@ -170,7 +191,14 @@ function executeButtonCommand(editor, commandName) {
       editor.chain().focus().extendMarkRange('link').unsetLink().run()
       return
     }
-    editor.chain().focus().extendMarkRange('link').setLink({ href: requestedUrl.trim() }).run()
+    const linkUrl = requestedUrl.trim()
+    if (!isAllowedLinkUrl(linkUrl)) {
+      window.alert(
+        '외부 링크는 http:// 또는 https://로 시작해야 합니다. 입력한 주소는 자동으로 변경하지 않습니다.',
+      )
+      return
+    }
+    editor.chain().focus().extendMarkRange('link').setLink({ href: linkUrl }).run()
     return
   }
   commands[commandName]?.()
