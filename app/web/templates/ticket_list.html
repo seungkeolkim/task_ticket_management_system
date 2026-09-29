@@ -106,7 +106,10 @@
         {% else %}<p class="detail-description">등록된 관계가 없습니다.</p>{% endfor %}
       </div>
     </div>
-    <div class="inline-detail-actions"><a class="button primary" href="/projects/{{ project.key }}/tickets/{{ selected_ticket.key }}">전체 상세 보기</a></div>
+    <div class="inline-detail-actions">
+      {% if project.is_active and (project.role in ['PROJECT_USER', 'PROJECT_ADMIN'] or project.can_manage) and selected_ticket.type.value == 'EPIC' %}<a class="button primary" href="/projects/{{ project.key }}/tickets/new?type=TASK&amp;parent_key={{ selected_ticket.key }}">Task 만들기</a>{% elif project.is_active and (project.role in ['PROJECT_USER', 'PROJECT_ADMIN'] or project.can_manage) and selected_ticket.type.value == 'TASK' %}<a class="button primary" href="/projects/{{ project.key }}/tickets/new?type=SUBTASK&amp;parent_key={{ selected_ticket.key }}">Subtask 만들기</a>{% endif %}
+      <a class="button secondary" href="/projects/{{ project.key }}/tickets/{{ selected_ticket.key }}">전체 상세 보기</a>
+    </div>
   </aside>
   {% endif %}
 </div>

@@ -1128,6 +1128,12 @@ def test_guest_is_read_only_and_excluded_from_assignees(client, ticket_people):
     assert client.get("/api/projects/DEV/tickets/board").status_code == 200
     html = client.get("/projects/DEV/tickets")
     assert html.status_code == 200 and "새 티켓" not in html.text
+    detail_html = client.get(f"/projects/DEV/tickets/{ticket['key']}").text
+    inline_html = client.get(
+        f"/projects/DEV/tickets?selected={ticket['key']}"
+    ).text
+    assert "Subtask 만들기" not in detail_html
+    assert "Subtask 만들기" not in inline_html
     assert client.get("/projects/DEV/tickets/new").status_code == 403
 
     denied = create_ticket(client, title="게스트 생성 거부")
@@ -1193,6 +1199,72 @@ def test_html_create_filters_parent_options_by_selected_ticket_type(client, tick
     assert "parentTicketSelect.disabled" in script.text
     assert "parentTicketSelect.required" in script.text
     assert "parentOption.hidden" in script.text
+
+
+def test_epic_and_task_details_link_to_prefilled_child_ticket_forms(
+    client, ticket_people
+):
+    """Epic·Task 상세의 하위 생성 link와 유형·상위 티켓 prefill을 검증한다."""
+    epic = create_ticket(client, type="EPIC", title="빠른 생성 Epic").json()
+    task = create_ticket(
+        client,
+        title="빠른 생성 Task",
+        parent_key=epic["key"],
+    ).json()
+    subtask = create_ticket(
+        client,
+        type="SUBTASK",
+        title="빠른 생성 Subtask",
+        parent_key=task["key"],
+    ).json()
+    task_create_path = (
+        f'/projects/DEV/tickets/new?type=TASK&amp;parent_key={epic["key"]}'
+    )
+    subtask_create_path = (
+        f'/projects/DEV/tickets/new?type=SUBTASK&amp;parent_key={task["key"]}'
+    )
+
+    epic_page = client.get(f"/projects/DEV/tickets/{epic['key']}").text
+    task_page = client.get(f"/projects/DEV/tickets/{task['key']}").text
+    subtask_page = client.get(f"/projects/DEV/tickets/{subtask['key']}").text
+    assert f'href="{task_create_path}">Task 만들기</a>' in epic_page
+    assert f'href="{subtask_create_path}">Subtask 만들기</a>' in task_page
+    assert "Task 만들기" not in subtask_page
+    assert "Subtask 만들기" not in subtask_page
+
+    epic_inline_page = client.get(
+        f"/projects/DEV/tickets?selected={epic['key']}"
+    ).text
+    task_inline_page = client.get(
+        f"/projects/DEV/tickets?selected={task['key']}"
+    ).text
+    assert f'href="{task_create_path}">Task 만들기</a>' in epic_inline_page
+    assert f'href="{subtask_create_path}">Subtask 만들기</a>' in task_inline_page
+
+    task_form = client.get(
+        f"/projects/DEV/tickets/new?type=TASK&parent_key={epic['key']}"
+    )
+    assert task_form.status_code == 200
+    assert '<option value="TASK" selected>' in task_form.text
+    assert (
+        f'value="{epic["key"]}" data-parent-type="EPIC" selected'
+        in task_form.text
+    )
+
+    subtask_form = client.get(
+        f"/projects/DEV/tickets/new?type=SUBTASK&parent_key={task['key']}"
+    )
+    assert subtask_form.status_code == 200
+    assert '<option value="SUBTASK" selected>' in subtask_form.text
+    assert (
+        f'value="{task["key"]}" data-parent-type="TASK" selected'
+        in subtask_form.text
+    )
+
+    invalid_prefill = client.get(
+        f"/projects/DEV/tickets/new?type=SUBTASK&parent_key={epic['key']}"
+    )
+    assert invalid_prefill.status_code == 400
 
 
 def test_html_create_accepts_tiptap_code_block_default_attributes(

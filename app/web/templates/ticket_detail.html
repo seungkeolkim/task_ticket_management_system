@@ -7,6 +7,7 @@
 <div class="detail-page-head">
   <div class="breadcrumbs"><a href="/projects">프로젝트</a><span>›</span><a href="/projects/{{ project.key }}/tickets">{{ project.key }} 티켓</a><span>›</span><strong>{{ ticket.key }}</strong></div>
   <div class="page-actions">
+    {% if can_edit and project.is_active and ticket.type.value == 'EPIC' %}<a class="button primary" href="/projects/{{ project.key }}/tickets/new?type=TASK&amp;parent_key={{ ticket.key }}">Task 만들기</a>{% elif can_edit and project.is_active and ticket.type.value == 'TASK' %}<a class="button primary" href="/projects/{{ project.key }}/tickets/new?type=SUBTASK&amp;parent_key={{ ticket.key }}">Subtask 만들기</a>{% endif %}
     {% if can_edit and project.is_active and ticket.status.value not in ['DONE', 'CANCELLED'] %}<a class="button secondary" href="/projects/{{ project.key }}/tickets/{{ ticket.key }}/edit">편집</a>{% endif %}
     <a class="button secondary" href="/projects/{{ project.key }}/tickets?selected={{ ticket.key }}">목록에서 보기</a>
     {% if can_edit and project.is_active %}<form action="/projects/{{ project.key }}/tickets/{{ ticket.key }}/trash" method="post" data-confirm-message="티켓 계층을 휴지통으로 이동하시겠습니까?"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="expected_version" value="{{ ticket.version }}" data-ticket-expected-version><button class="button danger-outline" type="submit">휴지통으로 이동</button></form>{% endif %}
