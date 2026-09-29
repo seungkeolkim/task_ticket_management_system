@@ -218,6 +218,9 @@ def test_create_list_detail_and_history(client, ticket_people, db_session):
     }
     assert "실제 티켓 생성" in client.get("/projects/DEV/tickets?selected=DEV-1").text
     assert "DB에 저장되는 설명" in client.get("/projects/DEV/tickets/DEV-1").text
+    board_html = client.get("/projects/DEV/board").text
+    assert '<span class="kanban-ticket-key">DEV-1</span>' in board_html
+    assert '<span class="priority priority-critical">' in board_html
 
     history = db_session.scalar(select(TicketHistory))
     event = TicketEvent.model_validate(
@@ -1122,6 +1125,30 @@ def test_html_create_escapes_values_and_refreshes_from_database(client, ticket_p
     detail = client.get(response.headers["location"])
     assert "실제 화면 저장" in detail.text
     assert "&lt;script&gt;" in detail.text and '<script>alert("ticket")</script>' not in detail.text
+
+
+def test_html_create_filters_parent_options_by_selected_ticket_type(client, ticket_people):
+    """새 티켓 유형에 따라 상위 티켓 후보와 필수 상태를 갱신하는지 검증한다."""
+    epic = create_ticket(client, type="EPIC", title="상위 후보 Epic").json()
+    task = create_ticket(client, title="상위 후보 Task", parent_key=epic["key"]).json()
+
+    page = client.get("/projects/DEV/tickets/new")
+    assert page.status_code == 200
+    assert 'name="type" data-ticket-type-select' in page.text
+    assert 'name="parent_key" data-ticket-parent-select' in page.text
+    assert f'value="{epic["key"]}" data-parent-type="EPIC"' in page.text
+    assert (
+        f'value="{task["key"]}" data-parent-type="TASK" hidden disabled' in page.text
+    )
+    assert "/static/ticket-form.js" in page.text
+
+    script = client.get("/static/ticket-form.js")
+    assert script.status_code == 200
+    assert 'selectedTicketType === "EPIC"' in script.text
+    assert 'selectedTicketType === "SUBTASK"' in script.text
+    assert "parentTicketSelect.disabled" in script.text
+    assert "parentTicketSelect.required" in script.text
+    assert "parentOption.hidden" in script.text
 
 
 def test_html_create_accepts_tiptap_code_block_default_attributes(

@@ -5,7 +5,7 @@
 {% set allowed = ticket.allowed_statuses|map(attribute='value')|list %}
 <article class="kanban-card{% if nested %} nested-card{% endif %}{% if ticket.type.value == 'SUBTASK' %} subtask-card{% endif %}{% if not ticket.can_transition %} is-readonly{% endif %}" data-ticket-key="{{ ticket.key }}" data-version="{{ ticket.version }}" data-current-status="{{ ticket.status.value }}" data-allowed-statuses="{{ allowed|join(',') }}" data-completion-blocked="{{ 'true' if ticket.completion_blocked else 'false' }}" {% if ticket.can_transition %}draggable="true"{% endif %}>
   <a class="kanban-card-link" href="/projects/{{ project.key }}/tickets/{{ ticket.key }}">
-    <div class="kanban-card-top"><span>{{ ticket.key }}</span>{{ ui.priority_badge(ticket.priority_label, ticket.priority_code) }}</div>
+    <div class="kanban-card-top"><span class="kanban-ticket-key">{{ ticket.key }}</span>{{ ui.priority_badge(ticket.priority_label, ticket.priority_code) }}</div>
     <h3>{{ ticket.title }}</h3>
     <footer><span>◷ {{ ticket.due_date or '마감일 없음' }}</span><span>{{ ticket.assignee.display_name if ticket.assignee else '미지정' }}</span></footer>
   </a>

@@ -5,6 +5,8 @@
 
 {% block content %}
 {% set form = values|default({}) %}
+{% set selected_ticket_type = form.get('type', 'TASK') %}
+{% set selected_parent_type = 'EPIC' if selected_ticket_type == 'TASK' else ('TASK' if selected_ticket_type == 'SUBTASK' else '') %}
 <header class="page-header compact-header">
   <div>
     <div class="breadcrumbs"><a href="/projects/{{ project.key }}/tickets">티켓</a><span>›</span><strong>{{ '새 티켓' if mode == 'create' else ticket.key ~ ' 편집' }}</strong></div>
@@ -21,9 +23,9 @@
     <div class="form-section">
       <div class="form-section-head"><span>01</span><div><h2>기본 정보</h2><p>티켓의 유형과 핵심 내용을 입력합니다.</p></div></div>
       <div class="form-grid two">
-        {% if mode == 'create' %}<label class="field"><span>티켓 유형 <b>*</b></span><select name="type">
+        {% if mode == 'create' %}<label class="field"><span>티켓 유형 <b>*</b></span><select name="type" data-ticket-type-select>
           {% for code, label in [('EPIC', 'Epic'), ('TASK', 'Task'), ('SUBTASK', 'Subtask')] %}
-          <option value="{{ code }}" {% if form.get('type', 'TASK') == code %}selected{% endif %}>{{ label }}</option>
+          <option value="{{ code }}" {% if selected_ticket_type == code %}selected{% endif %}>{{ label }}</option>
           {% endfor %}
         </select></label>{% else %}<label class="field"><span>티켓 유형</span><input value="{{ ticket.type_label }}" disabled></label>{% endif %}
         <label class="field"><span>프로젝트</span><input value="{{ project.key }} · {{ project.name }}" disabled></label>
@@ -46,10 +48,10 @@
     <div class="form-section">
       <div class="form-section-head"><span>02</span><div><h2>업무 구조</h2><p>상위 티켓과 담당 범위를 지정합니다.</p></div></div>
       <div class="form-grid two">
-        <label class="field"><span>상위 티켓</span><select name="parent_key" {% if mode == 'edit' and ticket.type.value == 'EPIC' %}disabled{% endif %}>
-          <option value="">선택하지 않음</option>
-          {% for parent in options.parents %}<option value="{{ parent.key }}" {% if form.get('parent_key') == parent.key %}selected{% endif %}>{{ parent.key }} · {{ parent.type.value }} · {{ parent.title }}</option>{% endfor %}
-        </select><small>Task는 Epic을 선택할 수 있고 Subtask는 Task를 반드시 선택해야 합니다.</small></label>
+        <label class="field"><span>상위 티켓</span><select name="parent_key" {% if mode == 'create' %}data-ticket-parent-select {% if selected_ticket_type == 'EPIC' %}disabled{% elif selected_ticket_type == 'SUBTASK' %}required{% endif %}{% elif ticket.type.value == 'EPIC' %}disabled{% endif %}>
+          <option value="" data-parent-empty-option>{{ '상위 티켓 없음' if selected_ticket_type == 'EPIC' else ('Task를 선택하세요' if selected_ticket_type == 'SUBTASK' else '선택하지 않음') }}</option>
+          {% for parent in options.parents %}<option value="{{ parent.key }}" data-parent-type="{{ parent.type.value }}" {% if mode == 'create' and parent.type.value != selected_parent_type %}hidden disabled {% endif %}{% if form.get('parent_key') == parent.key %}selected{% endif %}>{{ parent.key }} · {{ parent.type.value }} · {{ parent.title }}</option>{% endfor %}
+        </select><small>Epic은 상위 티켓이 없고, Task는 Epic만 선택할 수 있으며, Subtask는 Task를 반드시 선택해야 합니다.</small></label>
         <label class="field"><span>담당자</span><select name="assignee_id">
           <option value="">미지정</option>
           {% for member in options.assignees %}<option value="{{ member.id }}" {% if form.get('assignee_id') == member.id|string %}selected{% endif %}>{{ member.display_name }} · {{ member.login_id }}</option>{% endfor %}
@@ -73,4 +75,4 @@
 </div>
 {% endblock %}
 
-{% block extra_scripts %}<script src="{{ url_for('static', path='tiptap-editor.js') }}" defer></script>{% endblock %}
+{% block extra_scripts %}<script src="{{ url_for('static', path='ticket-form.js') }}" defer></script><script src="{{ url_for('static', path='tiptap-editor.js') }}" defer></script>{% endblock %}
