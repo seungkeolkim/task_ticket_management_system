@@ -33,7 +33,7 @@
   <summary class="epic-group-head"><div><span class="epic-mark large">{{ '◆' if group.key else '◇' }}</span><div><small>{{ 'EPIC · ' ~ group.key if group.key else 'EPIC 없음' }}</small><strong>{{ group.title }}</strong></div></div><span>접기·펼치기</span></summary>
   <div class="kanban-board">
     {% for column in group.columns %}
-    <section class="kanban-column column-{{ column.code }}" data-board-column data-status="{{ column.status.value }}">
+    <section class="kanban-column column-{{ column.code }}" data-board-column data-status="{{ column.status.value }}" data-status-label="{{ column.label }}">
       <header><div><span class="column-dot"></span><strong>{{ column.label }}</strong><b>{{ column.card_count }}</b></div></header>
       <div class="kanban-stack">
         {% for task in column.tasks %}

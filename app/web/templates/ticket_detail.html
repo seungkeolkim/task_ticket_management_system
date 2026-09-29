@@ -9,7 +9,7 @@
   <div class="page-actions">
     {% if can_edit and project.is_active and ticket.status.value not in ['DONE', 'CANCELLED'] %}<a class="button secondary" href="/projects/{{ project.key }}/tickets/{{ ticket.key }}/edit">편집</a>{% endif %}
     <a class="button secondary" href="/projects/{{ project.key }}/tickets?selected={{ ticket.key }}">목록에서 보기</a>
-    {% if can_edit and project.is_active %}<form action="/projects/{{ project.key }}/tickets/{{ ticket.key }}/trash" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="expected_version" value="{{ ticket.version }}" data-ticket-expected-version><button class="button danger-outline" type="submit">휴지통으로 이동</button></form>{% endif %}
+    {% if can_edit and project.is_active %}<form action="/projects/{{ project.key }}/tickets/{{ ticket.key }}/trash" method="post" data-confirm-message="티켓 계층을 휴지통으로 이동하시겠습니까?"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="expected_version" value="{{ ticket.version }}" data-ticket-expected-version><button class="button danger-outline" type="submit">휴지통으로 이동</button></form>{% endif %}
   </div>
 </div>
 {% if created %}<div class="auth-message success" role="status">티켓을 생성하고 최초 변경 이력을 기록했습니다.</div>{% endif %}
@@ -22,7 +22,7 @@
 {% if comment_deleted %}<div class="auth-message success" role="status">댓글을 삭제했습니다.</div>{% endif %}
 {% if attachment_uploaded %}<div class="auth-message success" role="status">첨부파일을 등록했습니다.</div>{% endif %}
 {% if error %}<div class="auth-message error" role="alert">{{ error }}</div>{% endif %}
-{% if confirmation_status %}<form class="panel" action="/projects/{{ project.key }}/tickets/{{ ticket.key }}/transition" method="post">
+{% if confirmation_status %}<form class="panel" action="/projects/{{ project.key }}/tickets/{{ ticket.key }}/transition" method="post" data-confirm-message="미완료 하위 Task가 있습니다. Epic을 완료하시겠습니까?">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="target_status" value="{{ confirmation_status }}"><input type="hidden" name="expected_version" value="{{ ticket.version }}" data-ticket-expected-version><input type="hidden" name="confirm_incomplete_children" value="true">
   <p>하위 Task 상태는 변경되지 않습니다.</p><button class="button primary" type="submit">미완료 Task를 확인했으며 Epic 완료</button>
 </form>{% endif %}
@@ -64,7 +64,7 @@
           <a href="/projects/{{ project.key }}/tickets/{{ relation.ticket.key }}">{{ relation.ticket.title }}</a>
           {{ ui.status_badge(relation.ticket.status_label, relation.ticket.status_code) }}
           {% if can_edit and project.is_active and ticket.status.value not in ['DONE', 'CANCELLED'] and relation.ticket.status.value not in ['DONE', 'CANCELLED'] %}
-          <form action="/projects/{{ project.key }}/tickets/{{ ticket.key }}/relations/{{ relation.id }}/delete" method="post">
+          <form action="/projects/{{ project.key }}/tickets/{{ ticket.key }}/relations/{{ relation.id }}/delete" method="post" data-confirm-message="티켓 관계를 삭제하시겠습니까?">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="hidden" name="expected_version" value="{{ ticket.version }}" data-ticket-expected-version>
             <button class="button quiet" type="submit">삭제</button>
@@ -75,7 +75,7 @@
       </div>
       {% if can_edit and project.is_active and ticket.status.value not in ['DONE', 'CANCELLED'] %}
       {% set relation_form = relation_values|default({}) %}
-      <form class="relation-builder" action="/projects/{{ project.key }}/tickets/{{ ticket.key }}/relations" method="post">
+      <form class="relation-builder" action="/projects/{{ project.key }}/tickets/{{ ticket.key }}/relations" method="post" data-confirm-message="티켓 관계를 추가하시겠습니까?">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <input type="hidden" name="expected_version" value="{{ ticket.version }}" data-ticket-expected-version>
         <select name="relation_type" aria-label="관계 유형">
@@ -103,7 +103,7 @@
         {% else %}<p class="detail-description">등록된 첨부파일이 없습니다.</p>{% endfor %}
       </div>
       {% if can_manage_attachments %}
-      <form class="attachment-upload-form" action="/projects/{{ project.key }}/tickets/{{ ticket.key }}/attachments" method="post" enctype="multipart/form-data">
+      <form class="attachment-upload-form" action="/projects/{{ project.key }}/tickets/{{ ticket.key }}/attachments" method="post" enctype="multipart/form-data" data-confirm-message="첨부파일을 등록하시겠습니까?">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <input type="hidden" name="expected_version" value="{{ ticket.version }}" data-ticket-expected-version>
         <label>파일 선택<input type="file" name="file" accept="{{ attachment_accept }}" required></label>
@@ -190,7 +190,7 @@
 
   <aside class="ticket-properties">
     {% if can_edit and project.is_active %}<section class="property-card"><div class="section-title"><h3>상태 변경</h3></div><div class="page-actions">
-      {% for status, label in transitions %}<form action="/projects/{{ project.key }}/tickets/{{ ticket.key }}/transition" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="target_status" value="{{ status.value }}"><input type="hidden" name="expected_version" value="{{ ticket.version }}" data-ticket-expected-version><button class="button secondary" type="submit">{{ label }}</button></form>{% endfor %}
+      {% for status, label in transitions %}<form action="/projects/{{ project.key }}/tickets/{{ ticket.key }}/transition" method="post" data-confirm-message="티켓 상태를 '{{ label }}' 상태로 변경하시겠습니까?"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="target_status" value="{{ status.value }}"><input type="hidden" name="expected_version" value="{{ ticket.version }}" data-ticket-expected-version><button class="button secondary" type="submit">{{ label }}</button></form>{% endfor %}
     </div></section>{% endif %}
     <section class="property-card"><div class="section-title"><h3>세부 정보</h3></div><dl class="property-list roomy">
       <div><dt>담당자</dt><dd>{{ ticket.assignee.display_name if ticket.assignee else '미지정' }}</dd></div>

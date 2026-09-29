@@ -333,7 +333,10 @@ function initializeEditor(editorElement) {
     if (imageInput) {
       const [imageFile] = imageInput.files
       if (imageFile && imageStatusElement) {
-        uploadEditorImage(editor, editorElement, formElement, imageFile, imageStatusElement)
+        const shouldUploadImage = window.confirm('이미지를 첨부파일로 등록하시겠습니까?')
+        if (shouldUploadImage) {
+          uploadEditorImage(editor, editorElement, formElement, imageFile, imageStatusElement)
+        }
       }
       imageInput.value = ''
       return
@@ -355,20 +358,6 @@ function initializeEditor(editorElement) {
     synchronizePayload(editor, payloadElement)
   })
 }
-
-/** 확인 문구가 지정된 form의 제출 전에 사용자의 최종 의사를 확인한다. */
-function initializeFormConfirmations() {
-  document.addEventListener('submit', (event) => {
-    if (event.defaultPrevented) return
-    const formElement = event.target.closest('form[data-confirm-message]')
-    if (!formElement) return
-    if (!window.confirm(formElement.dataset.confirmMessage)) {
-      event.preventDefault()
-    }
-  })
-}
-
-initializeFormConfirmations()
 
 for (const editorElement of document.querySelectorAll('[data-rich-text-editor]')) {
   initializeEditor(editorElement)

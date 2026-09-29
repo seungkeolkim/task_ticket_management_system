@@ -268,6 +268,7 @@
 - [x] 프로젝트 사용자 이상의 프로젝트 내 전체 댓글 수정·soft delete 구현
 - [x] 한 단계 대댓글과 삭제 댓글 자리표시자 조회 구현
 - [x] 댓글 등록·수정·삭제 전 사용자 확인 적용
+- [x] 티켓 생성·수정·상태 변경·관계·첨부·휴지통 변경 전 사용자 확인 적용
 - [x] 설명과 댓글이 동일한 renderer를 사용하도록 구성
 - [ ] 현재 프로젝트 구성원 대상 멘션 후보 조회
 - [ ] 서버에서 멘션 대상의 프로젝트 접근 권한 재검증
@@ -376,6 +377,8 @@
 2026-09-29 새 티켓 상위 후보 제한: 새 티켓 유형을 바꾸면 Epic은 상위 선택을 비활성화하고, Task는 Epic만, Subtask는 Task만 표시하면서 필수 입력으로 전환한다. 초기 서버 렌더링도 같은 후보 제한을 적용하고 기존 서버 계층 검증을 최종 방어로 유지한다. Windows Python 환경 전체 pytest 330개와 Ruff·JavaScript 문법 및 diff 검사를 통과했다.
 
 2026-09-29 칸반 중요도 색상 보정: 칸반 카드 상단의 일반 span selector가 공용 중요도 badge 색상을 회색으로 덮던 specificity 충돌을 제거했다. 회색 metadata 규칙은 티켓 키 전용 class에만 적용하고 중요도는 목록과 같은 `priority-critical`·`priority-major` 등 공용 class 색상을 유지한다. Windows Python 환경 전체 pytest 330개와 Ruff 및 diff 검사를 통과했다.
+
+2026-09-29 티켓 변경 확인 확장: 댓글에만 적용하던 제출 확인을 공용 정적 script로 분리하고 티켓 생성·수정·상태 전이·관계 추가/삭제·첨부파일 등록·휴지통 이동/복구에 확대했다. form을 거치지 않는 본문 image 첨부와 칸반 drag 상태 변경도 요청 직전에 확인하며, 취소 시 서버 요청을 전송하지 않는다. frontend bundle build, Windows Python 환경 전체 pytest 331개와 Ruff·JavaScript 문법 및 diff 검사를 통과했다.
 
 ## 11단계 — 운영 준비 및 최종 검증
 

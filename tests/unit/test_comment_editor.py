@@ -54,14 +54,16 @@ def test_ticket_and_comment_templates_set_context_specific_editor_labels():
 def test_comment_forms_require_confirmation_before_submission():
     """댓글 작성·수정·삭제 form이 제출 전 확인 처리를 사용하는지 검증한다."""
     root = repository_root()
-    editor_source = (root / "frontend" / "tiptap-editor.js").read_text(encoding="utf-8")
+    confirmation_source = (
+        root / "app" / "web" / "static" / "form-confirmation.js"
+    ).read_text(encoding="utf-8")
     detail_template = (root / "app" / "web" / "templates" / "ticket_detail.html").read_text(
         encoding="utf-8"
     )
 
-    assert "form[data-confirm-message]" in editor_source
-    assert "window.confirm(formElement.dataset.confirmMessage)" in editor_source
-    assert "event.preventDefault()" in editor_source
+    assert "form[data-confirm-message]" in confirmation_source
+    assert "window.confirm(formElement.dataset.confirmMessage)" in confirmation_source
+    assert "event.preventDefault()" in confirmation_source
     for confirmation_message in (
         "댓글을 등록하시겠습니까?",
         "답글을 등록하시겠습니까?",
@@ -85,3 +87,37 @@ def test_editor_uploads_image_attachment_and_inserts_internal_node():
     assert "'X-CSRF-Token': csrfToken" in editor_source
     assert "attachmentId: responsePayload.attachment.id" in editor_source
     assert "updateTicketVersion(uploadUrl, responsePayload.ticket_version)" in editor_source
+    assert "window.confirm('이미지를 첨부파일로 등록하시겠습니까?')" in editor_source
+
+
+def test_ticket_mutations_require_confirmation_before_submission():
+    """티켓 생성·수정과 상세·칸반의 변경 동작이 실행 전 확인을 받는지 검증한다."""
+    root = repository_root()
+    template_directory = root / "app" / "web" / "templates"
+    base_template = (template_directory / "base.html").read_text(encoding="utf-8")
+    form_template = (template_directory / "ticket_form.html").read_text(encoding="utf-8")
+    detail_template = (template_directory / "ticket_detail.html").read_text(
+        encoding="utf-8"
+    )
+    trash_template = (template_directory / "trash.html").read_text(encoding="utf-8")
+    board_template = (template_directory / "board.html").read_text(encoding="utf-8")
+    board_source = (root / "app" / "web" / "static" / "board.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert "path='form-confirmation.js'" in base_template
+    assert "티켓을 생성하시겠습니까?" in form_template
+    assert "티켓 수정을 저장하시겠습니까?" in form_template
+    for confirmation_message in (
+        "티켓 계층을 휴지통으로 이동하시겠습니까?",
+        "미완료 하위 Task가 있습니다. Epic을 완료하시겠습니까?",
+        "티켓 관계를 삭제하시겠습니까?",
+        "티켓 관계를 추가하시겠습니까?",
+        "첨부파일을 등록하시겠습니까?",
+        "티켓 상태를 '{{ label }}' 상태로 변경하시겠습니까?",
+    ):
+        assert confirmation_message in detail_template
+    assert "티켓 계층을 복구하시겠습니까?" in trash_template
+    assert 'data-status-label="{{ column.label }}"' in board_template
+    assert "window.confirm(" in board_source
+    assert "column.dataset.statusLabel" in board_source

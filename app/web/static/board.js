@@ -49,9 +49,16 @@
     });
   };
 
-  const transition = async (card, targetStatus) => {
+  const transition = async (card, targetStatus, targetStatusLabel) => {
     if (!canMoveTo(card, targetStatus)) {
       showFeedback("현재 상태에서는 선택한 상태로 이동할 수 없습니다.", true);
+      return;
+    }
+    if (
+      !window.confirm(
+        `${card.dataset.ticketKey} 티켓 상태를 '${targetStatusLabel}' 상태로 변경하시겠습니까?`
+      )
+    ) {
       return;
     }
 
@@ -133,7 +140,7 @@
         draggedCard &&
         column.closest(".kanban-board") === draggedCard.closest(".kanban-board")
       ) {
-        transition(draggedCard, column.dataset.status);
+        transition(draggedCard, column.dataset.status, column.dataset.statusLabel);
       }
     });
   });

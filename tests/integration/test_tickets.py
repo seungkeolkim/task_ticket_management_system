@@ -2379,5 +2379,6 @@ def test_board_transition_metadata_dependency_permission_and_javascript(
     assert script.status_code == 200
     assert "expected_version" in script.text
     assert "X-CSRF-Token" in script.text
+    assert "window.confirm(" in script.text
     assert "window.location.reload()" in script.text
     assert "data-board-status" not in script.text

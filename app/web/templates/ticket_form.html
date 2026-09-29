@@ -17,7 +17,7 @@
 
 {% if error %}<div class="auth-message error" role="alert">{{ error }}{% if conflict %} <a href="/projects/{{ project.key }}/tickets/{{ ticket.key }}/edit">최신 내용 다시 불러오기</a>{% endif %}</div>{% endif %}
 <div class="form-page-layout">
-  <form class="panel form-card" action="{{ '/projects/' ~ project.key ~ '/tickets' if mode == 'create' else '/projects/' ~ project.key ~ '/tickets/' ~ ticket.key }}" method="post">
+  <form class="panel form-card" action="{{ '/projects/' ~ project.key ~ '/tickets' if mode == 'create' else '/projects/' ~ project.key ~ '/tickets/' ~ ticket.key }}" method="post" data-confirm-message="{{ '티켓을 생성하시겠습니까?' if mode == 'create' else '티켓 수정을 저장하시겠습니까?' }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     {% if mode == 'edit' %}<input type="hidden" name="expected_version" value="{{ form.get('expected_version', ticket.version) }}" data-ticket-expected-version>{% endif %}
     <div class="form-section">
