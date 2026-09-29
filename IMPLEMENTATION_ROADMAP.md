@@ -382,6 +382,8 @@
 
 2026-09-29 link mark 호환성 보정: Tiptap 3이 수동 link에도 생성하는 `title` 속성을 서버가 호환 입력으로 검증한 뒤 canonical document에서 제거하도록 editor와 저장 계약을 일치시켰다. 외부 주소는 명시적인 HTTP(S) scheme을 요구하며 scheme 없는 입력을 임의로 변경하지 않고 editor에서 안내한다. frontend bundle build, Windows Python 환경 전체 pytest 335개와 Ruff·JavaScript 문법 및 diff 검사를 통과했다.
 
+2026-09-29 link 편집·식별 개선: editor의 단일 link toolbar button에서 추가·URL 수정·명시적 삭제를 제공하는 dialog를 연결했다. editor와 viewer의 link text에 공통 blue 색상·밑줄을 적용하고 hover와 viewer keyboard focus를 강조했다. frontend bundle build, Windows Python 환경 전체 pytest 337개와 Ruff·JavaScript 문법 및 diff 검사를 통과했다.
+
 ## 11단계 — 운영 준비 및 최종 검증
 
 - [ ] 감사 로그·휴지통·첨부파일 정리용 전용 명령 구성

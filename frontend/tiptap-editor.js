@@ -146,6 +146,67 @@ function isAllowedLinkUrl(linkUrl) {
   }
 }
 
+/** editor별 link dialog를 연결하고 현재 selection의 link 편집 함수를 반환한다. */
+function initializeLinkDialog(editor, fieldElement) {
+  const dialogElement = fieldElement.querySelector('[data-rich-text-link-dialog]')
+  const inputElement = dialogElement?.querySelector('[data-rich-text-link-input]')
+  const errorElement = dialogElement?.querySelector('[data-rich-text-link-error]')
+  const cancelButton = dialogElement?.querySelector('[data-rich-text-link-cancel]')
+  const removeButton = dialogElement?.querySelector('[data-rich-text-link-remove]')
+  const saveButton = dialogElement?.querySelector('[data-rich-text-link-save]')
+  if (
+    !dialogElement ||
+    !inputElement ||
+    !errorElement ||
+    !cancelButton ||
+    !removeButton ||
+    !saveButton
+  ) {
+    return null
+  }
+
+  const hideError = () => {
+    errorElement.textContent = ''
+    errorElement.hidden = true
+  }
+  const closeDialog = () => {
+    hideError()
+    dialogElement.close()
+  }
+  cancelButton.addEventListener('click', closeDialog)
+  removeButton.addEventListener('click', () => {
+    editor.chain().focus().extendMarkRange('link').unsetLink().run()
+    closeDialog()
+  })
+  saveButton.addEventListener('click', () => {
+    const linkUrl = inputElement.value.trim()
+    if (!isAllowedLinkUrl(linkUrl)) {
+      errorElement.textContent =
+        '외부 링크는 http:// 또는 https://로 시작해야 합니다. 입력한 주소는 자동으로 변경하지 않습니다.'
+      errorElement.hidden = false
+      inputElement.focus()
+      return
+    }
+    editor.chain().focus().extendMarkRange('link').setLink({ href: linkUrl }).run()
+    closeDialog()
+  })
+  inputElement.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return
+    event.preventDefault()
+    saveButton.click()
+  })
+
+  return () => {
+    const currentUrl = editor.getAttributes('link').href || ''
+    inputElement.value = currentUrl
+    removeButton.disabled = !currentUrl
+    hideError()
+    dialogElement.showModal()
+    inputElement.focus()
+    inputElement.select()
+  }
+}
+
 /** button 기반 toolbar command를 실행한다. */
 function executeButtonCommand(editor, commandName) {
   const adjustListIndent = (direction) => {
@@ -182,24 +243,6 @@ function executeButtonCommand(editor, commandName) {
     deleteTable: () => editor.chain().focus().deleteTable().run(),
     undo: () => editor.chain().focus().undo().run(),
     redo: () => editor.chain().focus().redo().run(),
-  }
-  if (commandName === 'link') {
-    const currentUrl = editor.getAttributes('link').href || ''
-    const requestedUrl = window.prompt('연결할 http(s) 또는 내부 경로를 입력하세요.', currentUrl)
-    if (requestedUrl === null) return
-    if (!requestedUrl.trim()) {
-      editor.chain().focus().extendMarkRange('link').unsetLink().run()
-      return
-    }
-    const linkUrl = requestedUrl.trim()
-    if (!isAllowedLinkUrl(linkUrl)) {
-      window.alert(
-        '외부 링크는 http:// 또는 https://로 시작해야 합니다. 입력한 주소는 자동으로 변경하지 않습니다.',
-      )
-      return
-    }
-    editor.chain().focus().extendMarkRange('link').setLink({ href: linkUrl }).run()
-    return
   }
   commands[commandName]?.()
 }
@@ -346,12 +389,17 @@ function initializeEditor(editorElement) {
       updateToolbarState(currentEditor, toolbarElement)
     },
   })
+  const openLinkDialog = initializeLinkDialog(editor, fieldElement)
 
   fieldElement.addEventListener('click', (event) => {
     const button = event.target.closest('button[data-rich-text-command]')
     if (!button) return
     if (button.dataset.richTextCommand === 'uploadImage') {
       imageInputElement?.click()
+      return
+    }
+    if (button.dataset.richTextCommand === 'link') {
+      openLinkDialog?.()
       return
     }
     executeButtonCommand(editor, button.dataset.richTextCommand)

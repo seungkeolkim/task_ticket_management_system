@@ -153,6 +153,80 @@
   display: none;
 }
 
+.rich-text-link-dialog {
+  width: min(520px, calc(100vw - 32px));
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg, 0 20px 48px rgba(17, 24, 39, 0.2));
+  color: var(--text);
+}
+
+.rich-text-link-dialog::backdrop {
+  background: rgba(17, 24, 39, 0.42);
+}
+
+.rich-text-link-dialog-body {
+  display: grid;
+  gap: 14px;
+  padding: 20px;
+}
+
+.rich-text-link-dialog h3,
+.rich-text-link-dialog p {
+  margin: 0;
+}
+
+.rich-text-link-dialog h3 {
+  margin-bottom: 5px;
+  font-size: 16px;
+}
+
+.rich-text-link-dialog p,
+.rich-text-link-dialog small {
+  color: var(--muted);
+  font-size: var(--font-work-meta, 12px);
+  line-height: 1.5;
+}
+
+.rich-text-link-dialog label {
+  display: grid;
+  gap: 6px;
+  color: var(--text-soft);
+  font-size: var(--font-work-meta, 12px);
+  font-weight: 700;
+}
+
+.rich-text-link-dialog input {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.rich-text-link-dialog input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 14%, transparent);
+  outline: none;
+}
+
+.rich-text-link-dialog .rich-text-link-error {
+  color: var(--red);
+}
+
+.rich-text-link-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.rich-text-link-dialog-actions [data-rich-text-link-remove] {
+  margin-right: auto;
+}
+
 .tiptap-body {
   position: relative;
   min-height: 240px;
@@ -337,6 +411,27 @@
 .rich-text-viewer {
   overflow-wrap: anywhere;
   font-size: var(--font-work-body, 14px);
+}
+
+.tiptap-body a,
+.rich-text-viewer a {
+  color: var(--blue);
+  font-weight: 650;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.tiptap-body a:hover,
+.rich-text-viewer a:hover {
+  color: var(--primary-dark);
+  text-decoration-thickness: 2px;
+}
+
+.rich-text-viewer a:focus-visible {
+  border-radius: 2px;
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 .tiptap-body img,

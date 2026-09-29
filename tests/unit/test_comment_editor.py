@@ -49,6 +49,37 @@ def test_editor_rejects_scheme_less_external_link_without_rewriting_it():
     assert "setLink({ href: linkUrl })" in editor_source
 
 
+def test_link_toolbar_opens_dialog_for_editing_and_removing_links():
+    """link toolbar가 현재 link를 수정하거나 명시적으로 삭제하는 dialog를 제공하는지 검증한다."""
+    root = repository_root()
+    editor_source = (root / "frontend" / "tiptap-editor.js").read_text(encoding="utf-8")
+    macro_template = (root / "app" / "web" / "templates" / "_macros.html").read_text(
+        encoding="utf-8"
+    )
+
+    assert "링크 추가·수정·삭제" in macro_template
+    assert "data-rich-text-link-dialog" in macro_template
+    assert "data-rich-text-link-remove" in macro_template
+    assert "function initializeLinkDialog(editor, fieldElement)" in editor_source
+    assert "extendMarkRange('link').unsetLink().run()" in editor_source
+    assert "removeButton.disabled = !currentUrl" in editor_source
+    assert "dialogElement.showModal()" in editor_source
+
+
+def test_editor_and_viewer_make_link_text_visually_distinct():
+    """editor와 viewer의 link가 공통 색상·밑줄·상호작용 표시를 사용하는지 검증한다."""
+    editor_styles = (repository_root() / "frontend" / "tiptap-editor.css").read_text(
+        encoding="utf-8"
+    )
+
+    assert ".tiptap-body a," in editor_styles
+    assert ".rich-text-viewer a {" in editor_styles
+    assert "color: var(--blue);" in editor_styles
+    assert "text-decoration: underline;" in editor_styles
+    assert ".rich-text-viewer a:hover" in editor_styles
+    assert ".rich-text-viewer a:focus-visible" in editor_styles
+
+
 def test_ticket_and_comment_templates_set_context_specific_editor_labels():
     """설명·댓글 작성·댓글 수정 editor가 서로 다른 접근성 label을 지정하는지 검증한다."""
     template_directory = repository_root() / "app" / "web" / "templates"

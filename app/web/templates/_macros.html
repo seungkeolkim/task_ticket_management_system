@@ -84,7 +84,7 @@
       {{ rich_text_editor_button('blockquote', '인용', 'quote') }}
       {{ rich_text_editor_button('code', '인라인 코드', 'code') }}
       {{ rich_text_editor_button('codeBlock', '코드 블록', 'code-block') }}
-      {{ rich_text_editor_button('link', '링크', 'link') }}
+      {{ rich_text_editor_button('link', '링크 추가·수정·삭제', 'link') }}
       {{ rich_text_editor_button('insertTable', '표 삽입', 'table', '3×3 표 삽입') }}
       {% if image_upload_url %}{{ rich_text_editor_button('uploadImage', '이미지 업로드', 'image') }}{% endif %}
     </div>
@@ -103,6 +103,19 @@
   </div>
   <div class="rich-text-editor" data-rich-text-editor data-rich-text-label="{{ editor_label }}"{% if placeholder %} data-rich-text-placeholder="{{ placeholder }}"{% endif %}{% if image_upload_url %} data-rich-text-image-upload-url="{{ image_upload_url }}" data-rich-text-image-ticket-version="{{ image_ticket_version }}"{% endif %}></div>
   <textarea name="{{ payload_name }}" data-rich-text-payload hidden>{{ document_json }}</textarea>
+  <dialog class="rich-text-link-dialog" data-rich-text-link-dialog aria-label="링크 편집">
+    <div class="rich-text-link-dialog-body">
+      <div><h3>링크 편집</h3><p>링크 주소를 수정하거나 선택한 텍스트에서 링크를 삭제할 수 있습니다.</p></div>
+      <label><span>링크 주소</span><input type="text" data-rich-text-link-input autocomplete="off" spellcheck="false" placeholder="https://example.com 또는 /내부/경로"></label>
+      <small>외부 링크는 http:// 또는 https://로 시작해야 하며 입력값을 자동으로 변경하지 않습니다.</small>
+      <p class="rich-text-link-error" data-rich-text-link-error role="alert" hidden></p>
+      <div class="rich-text-link-dialog-actions">
+        <button class="button secondary" type="button" data-rich-text-link-cancel>취소</button>
+        <button class="button danger-outline" type="button" data-rich-text-link-remove>링크 삭제</button>
+        <button class="button primary" type="button" data-rich-text-link-save>저장</button>
+      </div>
+    </div>
+  </dialog>
   {% if image_upload_url %}
   <input type="file" data-rich-text-image-input accept="{{ image_accept }}" hidden>
   <small class="rich-text-image-status" data-rich-text-image-status role="status" aria-live="polite"></small>
