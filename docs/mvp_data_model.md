@@ -1,7 +1,7 @@
 # MVP 데이터 구조
 
 이 문서는 ORM·DB 제약·입출력 계약·migration을 중심으로 설명한다. 현재 인증, 사용자·조직 기본 관리, 프로젝트 권한, 티켓 생성·조회·편집·상태 전이, 대시보드·칸반 이동, 관계, 계층 단위 휴지통·복구, 댓글, 일반 첨부파일과 본문 이미지는 서비스·API·화면까지 연결되어 있고 티켓 쓰기는 변경 이력을 같은 transaction에 기록한다. 휴지통·첨부파일 삭제와 영구 정리, 멘션 쓰기·저장 필터와 간트·보고서 실행은 아직 연결하지 않았다.
-원본은 `app/models/`, 데이터 계약은 `app/schemas/`, 최신 추가 revision은 `20260927_0005`다.
+원본은 `app/models/`, 데이터 계약은 `app/schemas/`, 최신 추가 revision은 `20260929_0006`이다.
 
 ## 요구사항과 저장 구조
 
@@ -71,6 +71,7 @@
 - SQLite DDL 전체의 원자성을 가정하지 않는다. 실제 적용 전 백업하고 다른 실패 시 revision·생성된 구조를 확인해 복구한다.
 - `20260926_0004` downgrade는 v2 JSON을 Markdown으로 변환하지 않고 ticket·comment·history와 종속 데이터를 제거한 뒤 v1 컬럼을 복원한다. 운영 rollback 전에 DB와 첨부파일을 함께 백업한다.
 - `20260927_0005`는 같은 project·ticket의 원댓글을 참조하는 nullable self-reference를 추가한다. downgrade는 댓글과 외부 멘션·첨부 참조를 보존하고 부모 관계만 제거한다.
+- `20260929_0006`은 기존 참여 정보를 보존하면서 `project_members.is_favorite` 사용자별 선호를 non-null·기본값 false로 추가한다. downgrade는 참여 정보를 유지하고 즐겨찾기 필드만 제거한다.
 - `20260917_0002` downgrade는 신규 테이블과 데이터를 제거하고 기존 identity 및 이전 revision으로 되돌린다. populated hierarchy의 self-FK를 해제한 뒤 테이블을 제거한다.
 - `20260923_0003` downgrade는 이전 schema에 읽기 전용 역할이 없으므로 게스트 membership을 제거한다. 쓰기 가능한 사용자로 자동 승격하지 않는다.
 - downgrade는 blob 파일을 삭제하지 않는다. 파일과 DB를 동일 시점 백업으로 복구해야 하며 운영에서 downgrade를 데이터 보존 수단으로 사용하지 않는다.

@@ -338,7 +338,7 @@
 ## 10단계 — 칸반 및 웹 UI 완성
 
 - [x] 화면 인벤토리 기반 탐색 가능한 비동작 UI 목업 구성
-- [ ] 공통 레이아웃과 디자인 토큰 구성
+- [x] 공통 레이아웃과 디자인 토큰 구성
 - [x] 로그인 및 비밀번호 변경 화면 구현
 - [ ] 사용자·조직·프로젝트 관리 화면 구현
 - [x] 티켓 목록과 인라인 상세 패널 구현
@@ -390,6 +390,8 @@
 2026-09-29 하위 티켓 빠른 생성: Epic·Task의 전체 상세와 티켓 목록 inline 상세에 각각 `Task 만들기`·`Subtask 만들기`를 추가했다. 새 티켓 화면은 검증된 query parameter로 티켓 유형과 상위 티켓을 자동 선택하며, 계층이 맞지 않는 조작된 요청은 거부한다. guest와 비활성 프로젝트에는 생성 동작을 노출하지 않는다. Windows Python 환경 전체 pytest 338개와 Ruff 및 diff 검사를 통과했다.
 
 2026-10-02 공통 navigation 접기·펼치기: topbar의 항상 접근 가능한 toggle button으로 왼쪽 sidebar를 완전히 숨기고 main workspace와 page content가 확보된 전체 너비를 사용하게 했다. 선택 상태를 browser `localStorage`에 유지하고 숨겨진 navigation을 `inert`와 `aria-hidden`으로 keyboard focus 및 접근성 tree에서 제외한다. reduced motion 환경에서는 transition을 제거한다. Windows Python 환경 전체 pytest 339개와 Ruff·JavaScript 문법 및 diff 검사를 통과했다.
+
+2026-10-02 사용성 개선 브랜치 문서 정합성 점검: 현재 Alembic head `20260929_0006`을 인증·관리·MVP 데이터 문서에 동기화하고 migration 목록에 프로젝트 즐겨찾기 revision을 보완했다. Tiptap 본문 계약에 link `title` 호환 입력과 canonical 제거 규칙을 명시하고, 프로젝트 전문 문서에 일반 사용자·관리자별 진입 경로와 접이식 navigation을 반영했으며 README에 주요 데이터 계약 문서를 연결했다. 실제 공통 app shell과 design token 적용 상태에 맞춰 10단계 checklist도 완료 처리했다. 과거 roadmap의 당시 test 수와 migration head는 시점별 검증 이력으로 유지했다. decision ID와 로컬 Markdown link 검사를 통과했으며 Windows Python 환경 전체 pytest 339개와 Ruff 및 diff 검사를 다시 통과했다.
 
 ## 11단계 — 운영 준비 및 최종 검증
 

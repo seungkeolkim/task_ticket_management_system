@@ -10,6 +10,7 @@
 - 전체 JSON은 256,000 bytes, node는 2,000개, 중첩은 20단계, 전체 text는 100,000자로 제한한다.
 - 알 수 없는 node·mark·attribute와 임의 HTML·CSS·data attribute는 거부한다.
 - 링크는 `http`, `https`, `/`로 시작하는 내부 경로와 `#` anchor만 허용한다. protocol-relative URL, 인증정보가 포함된 URL과 `javascript:` 등은 거부한다.
+- Tiptap 3이 link mark에 생성하는 선택적 `title`은 호환 입력으로 길이를 검증한 뒤 canonical JSON에서 제거한다. `href`를 임의 보정하거나 `title`을 저장 데이터로 유지하지 않는다.
 - image는 `attachmentId` 양의 정수만 원본 참조로 저장한다. `src`, base64와 외부 URL은 받지 않으며 저장 시 프로젝트 범위와 삭제 상태를 다시 확인한다.
 
 ## Node
@@ -34,7 +35,7 @@
 ## Mark
 
 - `bold`, `italic`, `underline`, `strike`, `code`
-- `link`: 검증된 `href`, 선택적 `_blank` target
+- `link`: 검증된 `href`, 선택적 `_blank` target. 입력의 호환용 `title`·빈 `class`·정해진 `rel`은 검증하지만 canonical mark에는 필요한 `href`·`target`·`rel`만 남긴다.
 - `textStyle`: allowlist의 `color`와 `fontSize`
 
 허용 색상과 글자 크기의 실제 목록 및 구조 검증의 단일 구현 기준은 `app/domain/rich_text.py`다. `docs/contracts/tiptap-body.v2.schema.json`은 외부 교환 형식의 기본 구조를, `docs/contracts/tiptap-body.v2.example.ko.json`은 한국어 round-trip 예시를 제공한다.
