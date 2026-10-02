@@ -61,6 +61,7 @@
 | UI-025 | 2026-09-29 | DECIDED | editor의 단일 link toolbar button은 dialog에서 link 추가·URL 수정·명시적 삭제를 제공한다. editor와 viewer의 link text에는 공통 blue 색상과 밑줄을 적용하고 hover 시 강조하며 viewer의 keyboard focus를 표시한다. | 빈 URL 입력처럼 발견하기 어려운 삭제 동작을 명시적인 control로 제공하고 작성 중과 저장 후 모두 일반 text와 link를 빠르게 구분하게 한다. |
 | UI-026 | 2026-09-29 | DECIDED | 내 프로젝트 카드의 `프로젝트 열기`와 공통 내비게이션의 즐겨찾기 프로젝트는 해당 프로젝트의 티켓 목록으로 이동한다. 시스템 관리자의 전체 프로젝트 관리 목록은 프로젝트 관리 root로 이동한다. | 일반 사용자의 주 진입 목적은 프로젝트 설정보다 티켓 업무이므로 추가 탐색 단계를 줄이되 관리 화면의 명시적 목적은 유지한다. |
 | UI-027 | 2026-09-29 | DECIDED | 쓰기 가능한 활성 프로젝트의 Epic 상세에는 현재 Epic을 parent로 미리 선택한 `Task 만들기`, Task 상세에는 현재 Task를 parent로 미리 선택한 `Subtask 만들기`를 제공한다. 전체 상세와 목록 inline 상세에서 동일하게 제공하고 서버가 query의 유형·parent 조합과 현재 프로젝트 후보를 검증한다. | 계층을 탐색한 맥락에서 티켓 유형과 상위를 다시 찾는 입력을 줄이면서 변조된 prefill query가 다른 프로젝트나 잘못된 계층을 선택하지 못하게 한다. |
+| UI-028 | 2026-10-02 | DECIDED | 공통 왼쪽 navigation sidebar는 topbar의 button으로 완전히 접고 펼친다. 접힌 동안 main workspace가 전체 너비를 사용하고, 상태는 browser `localStorage`에 유지하며 숨겨진 navigation은 keyboard focus와 접근성 tree에서 제외한다. | 티켓 목록·칸반처럼 너비가 중요한 화면의 작업 공간을 넓히면서 page 이동 후에도 사용자의 표시 선호를 유지한다. toggle은 sidebar 밖에 두어 접힌 상태에서도 항상 복원할 수 있게 한다. |
 
 ## Open decisions
 

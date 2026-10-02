@@ -10,8 +10,8 @@
   {% block extra_head %}{% endblock %}
 </head>
 <body>
-  <div class="app-shell">
-    <aside class="sidebar">
+  <div class="app-shell" data-sidebar-layout>
+    <aside class="sidebar" id="app-sidebar" data-sidebar>
       <div class="sidebar-top">
         <a class="brand" href="/" aria-label="Taskflow 홈">
           <span class="brand-symbol"><span></span><span></span><span></span></span>
@@ -90,13 +90,18 @@
 
     <section class="workspace">
       <header class="topbar">
-        <div class="topbar-context">
-          {% if project %}
-          <a href="/projects" class="context-back">프로젝트</a><span>/</span>
-          <strong>{{ project.name }}</strong>
-          {% else %}
-          <strong>사내 업무 워크스페이스</strong>
-          {% endif %}
+        <div class="topbar-leading">
+          <button class="sidebar-toggle" type="button" aria-controls="app-sidebar" aria-expanded="true" aria-label="네비게이션 접기" title="네비게이션 접기" data-sidebar-toggle>
+            <span aria-hidden="true" data-sidebar-toggle-icon>‹</span>
+          </button>
+          <div class="topbar-context">
+            {% if project %}
+            <a href="/projects" class="context-back">프로젝트</a><span>/</span>
+            <strong>{{ project.name }}</strong>
+            {% else %}
+            <strong>사내 업무 워크스페이스</strong>
+            {% endif %}
+          </div>
         </div>
         <div class="topbar-actions">
           <form class="global-search" action="{% if project and active == 'tickets' %}/projects/{{ project.key }}/tickets{% elif active == 'tickets' %}/tickets{% else %}/projects{% endif %}" method="get">
@@ -120,6 +125,7 @@
       </main>
     </section>
   </div>
+  <script src="{{ url_for('static', path='sidebar.js') }}" defer></script>
   <script src="{{ url_for('static', path='form-confirmation.js') }}" defer></script>
   {% block extra_scripts %}{% endblock %}
 </body>

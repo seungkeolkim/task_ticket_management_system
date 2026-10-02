@@ -360,6 +360,7 @@
 - [x] 내 프로젝트 즐겨찾기 별표와 공통 내비게이션 고정 목록 구현
 - [x] 새 티켓 유형별 상위 티켓 후보 동적 제한 구현
 - [x] 칸반 카드 중요도 색상을 티켓 목록과 동일하게 표시
+- [x] 공통 왼쪽 navigation sidebar 접기·펼치기와 상태 유지 구현
 - [ ] 주요 사용자 흐름 브라우저 통합 테스트 작성
 
 완료 기준: 관리 기능과 티켓 업무 흐름을 웹 UI에서 수행할 수 있고 칸반 드래그가 API 규칙과 일치한다.
@@ -387,6 +388,8 @@
 2026-09-29 프로젝트 업무 진입점 변경: 내 프로젝트 카드의 `프로젝트 열기`와 공통 내비게이션의 즐겨찾기 프로젝트를 해당 프로젝트의 티켓 목록에 연결했다. 시스템 관리자의 전체 프로젝트 관리 목록은 설정·구성원 관리 목적의 프로젝트 root 연결을 유지한다. Windows Python 환경 전체 pytest 337개와 Ruff 및 diff 검사를 통과했다.
 
 2026-09-29 하위 티켓 빠른 생성: Epic·Task의 전체 상세와 티켓 목록 inline 상세에 각각 `Task 만들기`·`Subtask 만들기`를 추가했다. 새 티켓 화면은 검증된 query parameter로 티켓 유형과 상위 티켓을 자동 선택하며, 계층이 맞지 않는 조작된 요청은 거부한다. guest와 비활성 프로젝트에는 생성 동작을 노출하지 않는다. Windows Python 환경 전체 pytest 338개와 Ruff 및 diff 검사를 통과했다.
+
+2026-10-02 공통 navigation 접기·펼치기: topbar의 항상 접근 가능한 toggle button으로 왼쪽 sidebar를 완전히 숨기고 main workspace와 page content가 확보된 전체 너비를 사용하게 했다. 선택 상태를 browser `localStorage`에 유지하고 숨겨진 navigation을 `inert`와 `aria-hidden`으로 keyboard focus 및 접근성 tree에서 제외한다. reduced motion 환경에서는 transition을 제거한다. Windows Python 환경 전체 pytest 339개와 Ruff·JavaScript 문법 및 diff 검사를 통과했다.
 
 ## 11단계 — 운영 준비 및 최종 검증
 

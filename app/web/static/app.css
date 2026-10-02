@@ -537,3 +537,57 @@ kbd { padding: 1px 6px; border: 1px solid var(--border-strong); border-radius: 5
 .inline-detail .hierarchy-parent .hierarchy-ticket-assignee {
   grid-column: 2 / -1;
 }
+
+/* Collapsible primary navigation */
+.app-shell,
+.sidebar {
+  transition: 180ms ease;
+  transition-property: grid-template-columns, transform;
+}
+
+.app-shell.is-sidebar-collapsed {
+  grid-template-columns: 0 minmax(0, 1fr);
+}
+
+.app-shell.is-sidebar-collapsed .sidebar {
+  transform: translateX(-100%);
+}
+
+.app-shell.is-sidebar-collapsed .page-content {
+  max-width: none;
+}
+
+.topbar-leading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+}
+
+.sidebar-toggle {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text-soft);
+  font-size: 23px;
+  line-height: 1;
+}
+
+.sidebar-toggle:hover,
+.sidebar-toggle:focus-visible {
+  border-color: #c7bfed;
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell,
+  .sidebar {
+    transition: none;
+  }
+}
