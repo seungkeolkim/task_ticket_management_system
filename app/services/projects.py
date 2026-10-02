@@ -19,6 +19,7 @@ from app.schemas.projects import (
     MemberView,
     ProjectCreate,
     ProjectDetail,
+    ProjectFavoriteUpdate,
     ProjectPage,
     ProjectUpdate,
     ProjectView,
@@ -62,7 +63,12 @@ def require_system_administrator(session, actor):
         raise AuthError("admin_required", "시스템 관리자 권한이 필요합니다.", 403)
 
 
-def build_project_view(project_row, project_role, is_system_administrator):
+def build_project_view(
+    project_row,
+    project_role,
+    is_system_administrator,
+    is_favorite=False,
+):
     """프로젝트 view 구성한다."""
     return ProjectView(
         id=project_row.id,
@@ -72,6 +78,7 @@ def build_project_view(project_row, project_role, is_system_administrator):
         is_active=project_row.is_active,
         role=project_role,
         can_manage=is_system_administrator or project_role == "PROJECT_ADMIN",
+        is_favorite=bool(is_favorite),
     )
 
 
@@ -88,7 +95,7 @@ def require_project_member(
     result = repository.accessible_project(session, project_key, actor.id, is_administrator)
     if result is None:
         raise AuthError("project_not_found", "프로젝트를 찾을 수 없습니다.", 404)
-    project_row, project_role = result
+    project_row, project_role, is_favorite = result
     if require_management_access and not is_administrator and project_role != "PROJECT_ADMIN":
         raise AuthError("project_admin_required", "프로젝트 관리자 권한이 필요합니다.", 403)
     if require_write_access and not is_administrator and project_role not in {
@@ -115,7 +122,7 @@ def require_project_member(
                 else ("write" if require_write_access else "read")
             ),
         )
-    return build_project_view(project_row, project_role, is_administrator)
+    return build_project_view(project_row, project_role, is_administrator, is_favorite)
 
 
 def require_project_administrator(session: Session, actor: Identity, project_key: str):
@@ -179,7 +186,7 @@ def list_projects(
             session, actor.id, include_all_projects, search_query.strip(), page, size
         )
         if include_all_projects:
-            for project_row, project_role in project_rows:
+            for project_row, project_role, _ in project_rows:
                 if project_role is None:
                     record_project_audit_event(
                         session,
@@ -190,13 +197,41 @@ def list_projects(
                     )
         return ProjectPage(
             projects=[
-                build_project_view(project_row, project_role, is_administrator)
-                for project_row, project_role in project_rows
+                build_project_view(
+                    project_row,
+                    project_role,
+                    is_administrator,
+                    is_favorite,
+                )
+                for project_row, project_role, is_favorite in project_rows
             ],
             total=total,
             page=page,
             page_size=size,
         )
+
+
+def set_project_favorite(
+    session: Session,
+    actor: Identity,
+    project_key: str,
+    payload: ProjectFavoriteUpdate,
+) -> bool:
+    """현재 사용자의 프로젝트 즐겨찾기 상태를 멱등적으로 변경한다."""
+    with project_operation_context(
+        session,
+        actor,
+        "project_favorite_update",
+        write_operation=True,
+    ):
+        membership = repository.lock_project_membership(session, project_key, actor.id)
+        if membership is None:
+            raise AuthError("project_not_found", "프로젝트를 찾을 수 없습니다.", 404)
+        if membership.is_favorite == payload.is_favorite:
+            return membership.is_favorite
+        membership.is_favorite = payload.is_favorite
+        session.flush()
+        return membership.is_favorite
 
 
 def get_project_detail(session, actor, project_key):
@@ -302,6 +337,7 @@ def update_project(
                 project_row,
                 project_access.role,
                 project_access.can_manage,
+                project_access.is_favorite,
             )
 
         was_active = project_row.is_active
@@ -333,6 +369,7 @@ def update_project(
             project_row,
             project_access.role,
             project_access.can_manage,
+            project_access.is_favorite,
         )
     logger.info(
         "project_updated actor_id=%s project_id=%s fields=%s",

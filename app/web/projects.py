@@ -9,12 +9,23 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.db.session import get_db_session
 from app.domain.auth import AuthError, Identity
-from app.schemas.projects import MemberCreate, MemberRoleUpdate, ProjectCreate, ProjectUpdate
+from app.schemas.projects import (
+    MemberCreate,
+    MemberRoleUpdate,
+    ProjectCreate,
+    ProjectFavoriteUpdate,
+    ProjectUpdate,
+)
 from app.schemas.tickets import TicketTrashRestore
 from app.services import projects as service
 from app.services import tickets as ticket_service
 from app.web.rendering import render
-from app.web.security import require_web_admin, require_web_user, verify_csrf
+from app.web.security import (
+    normalize_return_path,
+    require_web_admin,
+    require_web_user,
+    verify_csrf,
+)
 
 router = APIRouter(include_in_schema=False)
 Database = Annotated[Session, Depends(get_db_session)]
@@ -86,6 +97,27 @@ def my_projects_page(
         page_size=page_size,
         membership_removed=membership_removed,
     )
+
+
+@router.post("/projects/{project_key}/favorite")
+def update_project_favorite(
+    project_key: str,
+    request: Request,
+    session: Database,
+    actor: Actor,
+    is_favorite: Annotated[bool, Form()],
+    csrf_token: Annotated[str, Form()] = "",
+    return_to: Annotated[str, Form()] = "/projects",
+):
+    """내 프로젝트 목록에서 사용자별 즐겨찾기 상태를 변경한다."""
+    verify_csrf(request, csrf_token, actor, get_settings())
+    service.set_project_favorite(
+        session,
+        actor,
+        project_key,
+        ProjectFavoriteUpdate(is_favorite=is_favorite),
+    )
+    return RedirectResponse(normalize_return_path(return_to), status_code=303)
 
 
 @router.get("/admin/projects")

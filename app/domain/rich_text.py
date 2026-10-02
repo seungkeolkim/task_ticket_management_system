@@ -18,6 +18,7 @@ MAX_DOCUMENT_BYTES = 256_000
 MAX_DOCUMENT_DEPTH = 20
 MAX_DOCUMENT_NODES = 2_000
 MAX_DOCUMENT_TEXT_LENGTH = 100_000
+MAX_LINK_TITLE_LENGTH = 512
 
 ALLOWED_COLORS = frozenset(
     {
@@ -309,7 +310,7 @@ def _normalize_mark(mark: object) -> dict[str, Any]:
 
 def _normalize_link_attributes(attributes: dict[str, Any]) -> dict[str, Any]:
     """link mark의 URL과 제한된 속성을 검증한다."""
-    if set(attributes) - {"href", "target", "rel", "class"}:
+    if set(attributes) - {"href", "target", "rel", "class", "title"}:
         raise ValueError("link mark에 허용되지 않은 속성이 있습니다.")
     href = attributes.get("href")
     if not isinstance(href, str) or not _is_allowed_link(href):
@@ -322,6 +323,11 @@ def _normalize_link_attributes(attributes: dict[str, Any]) -> dict[str, Any]:
     rel = attributes.get("rel")
     if rel not in (None, "noopener noreferrer nofollow"):
         raise ValueError("link rel 값이 허용 범위를 벗어났습니다.")
+    title = attributes.get("title")
+    if title is not None and (
+        not isinstance(title, str) or len(title) > MAX_LINK_TITLE_LENGTH
+    ):
+        raise ValueError("link title 값이 허용 범위를 벗어났습니다.")
     normalized = {"href": href}
     if target == "_blank":
         normalized.update({"target": "_blank", "rel": "noopener noreferrer nofollow"})

@@ -89,10 +89,15 @@ def test_create_register_and_my_projects_flow(client, people, db_session):
     assert created.json()["key"] == "DEV"
     assert client.get("/api/projects").json()["total"] == 0
     assert client.get("/api/admin/projects").json()["total"] == 1
+    assert 'href="/projects/DEV">프로젝트 열기 →</a>' in client.get(
+        "/admin/projects"
+    ).text
     login(client, "manager")
     mine = client.get("/api/projects").json()
     assert mine["total"] == 1 and mine["projects"][0]["role"] == "PROJECT_ADMIN"
-    assert "실제 개발 프로젝트" in client.get("/projects").text
+    my_projects_page = client.get("/projects").text
+    assert "실제 개발 프로젝트" in my_projects_page
+    assert 'href="/projects/DEV/tickets">프로젝트 열기 →</a>' in my_projects_page
     assert (
         post(
             client,
@@ -339,6 +344,7 @@ def test_project_update_deactivate_reactivate_and_noop(client, people, db_sessio
         "is_active": True,
         "role": "PROJECT_ADMIN",
         "can_manage": True,
+        "is_favorite": False,
     }
     project = db_session.scalar(select(Project).where(Project.key == "DEV"))
     before_noop_updated_at = project.updated_at
@@ -566,6 +572,70 @@ def test_html_forms_escape_input_and_refresh_from_database(client, people):
     )
     login(client, "member")
     assert client.get("/api/projects/WEB").json()["project"]["can_manage"]
+
+
+def test_project_favorite_toggle_and_sidebar_navigation(client, people, db_session):
+    """즐겨찾기 토글과 공통 내비게이션 고정 목록을 검증한다."""
+    assert create(client, people).status_code == 201
+    login(client, "manager")
+
+    project_page = client.get("/projects")
+    assert project_page.status_code == 200
+    assert 'class="project-favorite-toggle"' in project_page.text
+    assert 'aria-pressed="false"' in project_page.text
+    assert 'class="nav-favorite-project"' not in project_page.text
+
+    favorite_response = client.post(
+        "/projects/DEV/favorite",
+        data={
+            "csrf_token": token(client),
+            "is_favorite": "true",
+            "return_to": "/projects?q=개발&page_size=10",
+        },
+        headers=ORIGIN,
+        follow_redirects=False,
+    )
+    assert favorite_response.status_code == 303
+    assert favorite_response.headers["location"] == "/projects?q=%EA%B0%9C%EB%B0%9C&page_size=10"
+
+    membership = db_session.scalar(
+        select(ProjectMember)
+        .join(Project, Project.id == ProjectMember.project_id)
+        .where(Project.key == "DEV", ProjectMember.user_id == people["manager"].id)
+    )
+    assert membership is not None and membership.is_favorite is True
+    db_session.rollback()
+
+    favorite_page = client.get("/projects")
+    assert 'class="project-favorite-toggle is-favorite"' in favorite_page.text
+    assert 'aria-pressed="true"' in favorite_page.text
+    assert 'class="nav-favorite-project" href="/projects/DEV/tickets"' in favorite_page.text
+    assert 'class="nav-favorite-project" href="/projects/DEV/tickets"' in client.get("/").text
+
+    unfavorite_response = client.post(
+        "/projects/DEV/favorite",
+        data={
+            "csrf_token": token(client),
+            "is_favorite": "false",
+            "return_to": "/projects",
+        },
+        headers=ORIGIN,
+        follow_redirects=False,
+    )
+    assert unfavorite_response.status_code == 303
+    assert 'class="nav-favorite-project"' not in client.get("/projects").text
+
+    login(client, "outsider")
+    inaccessible_response = client.post(
+        "/projects/DEV/favorite",
+        data={
+            "csrf_token": token(client),
+            "is_favorite": "true",
+            "return_to": "/projects",
+        },
+        headers=ORIGIN,
+    )
+    assert inaccessible_response.status_code == 404
 
 
 def test_filters_pagination_and_candidate_data(client, people, db_session):

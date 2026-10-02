@@ -215,6 +215,48 @@ def test_document_validation_accepts_each_allowed_mark(mark: dict[str, object]) 
     assert normalized_document["content"][0]["content"][0]["marks"] == [mark]
 
 
+@pytest.mark.parametrize("title", [None, "Office에서 전달한 링크 제목"])
+def test_link_validation_discards_tiptap_compatibility_title(title: str | None) -> None:
+    """Tiptap이 생성한 link title을 허용하되 canonical document에서는 제거한다."""
+    document = {
+        "type": "doc",
+        "content": [
+            {
+                "type": "paragraph",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "외부 문서",
+                        "marks": [
+                            {
+                                "type": "link",
+                                "attrs": {
+                                    "href": "https://example.com/docs",
+                                    "target": "_blank",
+                                    "rel": "noopener noreferrer nofollow",
+                                    "class": None,
+                                    "title": title,
+                                },
+                            }
+                        ],
+                    }
+                ],
+            }
+        ],
+    }
+
+    normalized_document = validate_body_document(document)
+
+    link_attributes = normalized_document["content"][0]["content"][0]["marks"][0][
+        "attrs"
+    ]
+    assert link_attributes == {
+        "href": "https://example.com/docs",
+        "target": "_blank",
+        "rel": "noopener noreferrer nofollow",
+    }
+
+
 def test_document_renderer_escapes_html_and_attribute_xss_payloads() -> None:
     """본문 text와 image 속성의 HTML·XSS payload를 markup으로 해석하지 않는지 검증한다."""
     document = {

@@ -65,6 +65,9 @@ class ProjectMember(IntegerPrimaryKeyMixin, TimestampMixin, Base):
     role: Mapped[str] = mapped_column(
         String(32), default=ProjectRole.USER, server_default=ProjectRole.USER
     )
+    is_favorite: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false()
+    )
 
 
 class TicketDeletionBatch(IntegerPrimaryKeyMixin, Base):

@@ -218,6 +218,9 @@ def test_create_list_detail_and_history(client, ticket_people, db_session):
     }
     assert "실제 티켓 생성" in client.get("/projects/DEV/tickets?selected=DEV-1").text
     assert "DB에 저장되는 설명" in client.get("/projects/DEV/tickets/DEV-1").text
+    board_html = client.get("/projects/DEV/board").text
+    assert '<span class="kanban-ticket-key">DEV-1</span>' in board_html
+    assert '<span class="priority priority-critical">' in board_html
 
     history = db_session.scalar(select(TicketHistory))
     event = TicketEvent.model_validate(
@@ -279,6 +282,50 @@ def test_ticket_viewer_loads_styles_and_preserves_quote_and_code_blocks(
         assert 'href="http://testserver/static/tiptap-editor.css"' in response.text
         assert "<blockquote><p>검토할 인용문</p></blockquote>" in response.text
         assert "<pre><code># 주석\nprint(&#x27;test&#x27;)</code></pre>" in response.text
+
+
+def test_ticket_accepts_tiptap_link_title_and_stores_canonical_attributes(
+    client, ticket_people
+):
+    """Tiptap 기본 link 속성을 저장할 때 호환 title을 제거하는지 검증한다."""
+    link_document = {
+        "type": "doc",
+        "content": [
+            {
+                "type": "paragraph",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "공유 문서",
+                        "marks": [
+                            {
+                                "type": "link",
+                                "attrs": {
+                                    "href": "https://example.com/shared-document",
+                                    "target": "_blank",
+                                    "rel": "noopener noreferrer nofollow",
+                                    "class": None,
+                                    "title": None,
+                                },
+                            }
+                        ],
+                    }
+                ],
+            }
+        ],
+    }
+
+    response = create_ticket(client, description_document=link_document)
+
+    assert response.status_code == 201
+    saved_attributes = response.json()["description_document"]["content"][0]["content"][
+        0
+    ]["marks"][0]["attrs"]
+    assert saved_attributes == {
+        "href": "https://example.com/shared-document",
+        "target": "_blank",
+        "rel": "noopener noreferrer nofollow",
+    }
 
 
 def test_list_dashboard_and_board_skip_description_html_rendering(
@@ -1081,6 +1128,12 @@ def test_guest_is_read_only_and_excluded_from_assignees(client, ticket_people):
     assert client.get("/api/projects/DEV/tickets/board").status_code == 200
     html = client.get("/projects/DEV/tickets")
     assert html.status_code == 200 and "새 티켓" not in html.text
+    detail_html = client.get(f"/projects/DEV/tickets/{ticket['key']}").text
+    inline_html = client.get(
+        f"/projects/DEV/tickets?selected={ticket['key']}"
+    ).text
+    assert "Subtask 만들기" not in detail_html
+    assert "Subtask 만들기" not in inline_html
     assert client.get("/projects/DEV/tickets/new").status_code == 403
 
     denied = create_ticket(client, title="게스트 생성 거부")
@@ -1122,6 +1175,96 @@ def test_html_create_escapes_values_and_refreshes_from_database(client, ticket_p
     detail = client.get(response.headers["location"])
     assert "실제 화면 저장" in detail.text
     assert "&lt;script&gt;" in detail.text and '<script>alert("ticket")</script>' not in detail.text
+
+
+def test_html_create_filters_parent_options_by_selected_ticket_type(client, ticket_people):
+    """새 티켓 유형에 따라 상위 티켓 후보와 필수 상태를 갱신하는지 검증한다."""
+    epic = create_ticket(client, type="EPIC", title="상위 후보 Epic").json()
+    task = create_ticket(client, title="상위 후보 Task", parent_key=epic["key"]).json()
+
+    page = client.get("/projects/DEV/tickets/new")
+    assert page.status_code == 200
+    assert 'name="type" data-ticket-type-select' in page.text
+    assert 'name="parent_key" data-ticket-parent-select' in page.text
+    assert f'value="{epic["key"]}" data-parent-type="EPIC"' in page.text
+    assert (
+        f'value="{task["key"]}" data-parent-type="TASK" hidden disabled' in page.text
+    )
+    assert "/static/ticket-form.js" in page.text
+
+    script = client.get("/static/ticket-form.js")
+    assert script.status_code == 200
+    assert 'selectedTicketType === "EPIC"' in script.text
+    assert 'selectedTicketType === "SUBTASK"' in script.text
+    assert "parentTicketSelect.disabled" in script.text
+    assert "parentTicketSelect.required" in script.text
+    assert "parentOption.hidden" in script.text
+
+
+def test_epic_and_task_details_link_to_prefilled_child_ticket_forms(
+    client, ticket_people
+):
+    """Epic·Task 상세의 하위 생성 link와 유형·상위 티켓 prefill을 검증한다."""
+    epic = create_ticket(client, type="EPIC", title="빠른 생성 Epic").json()
+    task = create_ticket(
+        client,
+        title="빠른 생성 Task",
+        parent_key=epic["key"],
+    ).json()
+    subtask = create_ticket(
+        client,
+        type="SUBTASK",
+        title="빠른 생성 Subtask",
+        parent_key=task["key"],
+    ).json()
+    task_create_path = (
+        f'/projects/DEV/tickets/new?type=TASK&amp;parent_key={epic["key"]}'
+    )
+    subtask_create_path = (
+        f'/projects/DEV/tickets/new?type=SUBTASK&amp;parent_key={task["key"]}'
+    )
+
+    epic_page = client.get(f"/projects/DEV/tickets/{epic['key']}").text
+    task_page = client.get(f"/projects/DEV/tickets/{task['key']}").text
+    subtask_page = client.get(f"/projects/DEV/tickets/{subtask['key']}").text
+    assert f'href="{task_create_path}">Task 만들기</a>' in epic_page
+    assert f'href="{subtask_create_path}">Subtask 만들기</a>' in task_page
+    assert "Task 만들기" not in subtask_page
+    assert "Subtask 만들기" not in subtask_page
+
+    epic_inline_page = client.get(
+        f"/projects/DEV/tickets?selected={epic['key']}"
+    ).text
+    task_inline_page = client.get(
+        f"/projects/DEV/tickets?selected={task['key']}"
+    ).text
+    assert f'href="{task_create_path}">Task 만들기</a>' in epic_inline_page
+    assert f'href="{subtask_create_path}">Subtask 만들기</a>' in task_inline_page
+
+    task_form = client.get(
+        f"/projects/DEV/tickets/new?type=TASK&parent_key={epic['key']}"
+    )
+    assert task_form.status_code == 200
+    assert '<option value="TASK" selected>' in task_form.text
+    assert (
+        f'value="{epic["key"]}" data-parent-type="EPIC" selected'
+        in task_form.text
+    )
+
+    subtask_form = client.get(
+        f"/projects/DEV/tickets/new?type=SUBTASK&parent_key={task['key']}"
+    )
+    assert subtask_form.status_code == 200
+    assert '<option value="SUBTASK" selected>' in subtask_form.text
+    assert (
+        f'value="{task["key"]}" data-parent-type="TASK" selected'
+        in subtask_form.text
+    )
+
+    invalid_prefill = client.get(
+        f"/projects/DEV/tickets/new?type=SUBTASK&parent_key={epic['key']}"
+    )
+    assert invalid_prefill.status_code == 400
 
 
 def test_html_create_accepts_tiptap_code_block_default_attributes(
@@ -2352,5 +2495,6 @@ def test_board_transition_metadata_dependency_permission_and_javascript(
     assert script.status_code == 200
     assert "expected_version" in script.text
     assert "X-CSRF-Token" in script.text
+    assert "window.confirm(" in script.text
     assert "window.location.reload()" in script.text
     assert "data-board-status" not in script.text

@@ -12,11 +12,13 @@ from app.core.config import get_settings
 from app.db.session import get_db_session
 from app.domain.attachments import is_inline_image_media_type
 from app.domain.auth import AuthError, Identity
+from app.domain.codes import TicketType
 from app.domain.rich_text import MAX_DOCUMENT_BYTES, empty_body_document
 from app.schemas.comments import CommentCreate, CommentDelete, CommentUpdate
 from app.schemas.contracts import TicketFilter
 from app.schemas.tickets import (
     TicketCreate,
+    TicketCreateOptions,
     TicketRelationCreate,
     TicketRelationDelete,
     TicketTransition,
@@ -241,9 +243,63 @@ def project_ticket_board_page(project_key: str, request: Request, session: Datab
     )
 
 
-def _render_ticket_create_page(request, session, actor, project_key, **context):
+def _ticket_create_prefill_values(
+    ticket_type: str,
+    parent_key: str,
+    options: TicketCreateOptions,
+) -> dict[str, str]:
+    """검증된 query 값으로 새 티켓 form의 유형과 상위 티켓 초기값을 구성한다."""
+    if not ticket_type and not parent_key:
+        return {}
+    try:
+        selected_ticket_type = TicketType(ticket_type)
+    except ValueError as error:
+        raise AuthError(
+            "invalid_ticket_prefill",
+            "새 티켓의 유형과 상위 티켓을 확인하세요.",
+            400,
+        ) from error
+
+    selected_parent = next(
+        (candidate for candidate in options.parents if candidate.key == parent_key),
+        None,
+    )
+    expected_parent_type = {
+        TicketType.EPIC: None,
+        TicketType.TASK: TicketType.EPIC,
+        TicketType.SUBTASK: TicketType.TASK,
+    }[selected_ticket_type]
+    if (
+        (selected_ticket_type == TicketType.EPIC and parent_key)
+        or (selected_ticket_type == TicketType.SUBTASK and not parent_key)
+        or (parent_key and selected_parent is None)
+        or (selected_parent is not None and selected_parent.type != expected_parent_type)
+    ):
+        raise AuthError(
+            "invalid_ticket_prefill",
+            "새 티켓의 유형과 상위 티켓을 확인하세요.",
+            400,
+        )
+    return {"type": selected_ticket_type.value, "parent_key": parent_key}
+
+
+def _render_ticket_create_page(
+    request,
+    session,
+    actor,
+    project_key,
+    prefill_ticket_type: str = "",
+    prefill_parent_key: str = "",
+    **context,
+):
     """티켓 create 화면 렌더링한다."""
     project, options = service.get_ticket_creation_options(session, actor, project_key)
+    if "values" not in context:
+        context["values"] = _ticket_create_prefill_values(
+            prefill_ticket_type,
+            prefill_parent_key,
+            options,
+        )
     return render(
         request,
         "ticket_form.html",
@@ -496,9 +552,23 @@ def project_ticket_list_page(
 
 
 @router.get("/projects/{project_key}/tickets/new")
-def new_ticket_page(project_key: str, request: Request, session: Database, actor: Actor):
+def new_ticket_page(
+    project_key: str,
+    request: Request,
+    session: Database,
+    actor: Actor,
+    ticket_type: Annotated[str, Query(alias="type", max_length=16)] = "",
+    parent_key: Annotated[str, Query(max_length=64)] = "",
+):
     """티켓 화면 새 값을 생성한다."""
-    return _render_ticket_create_page(request, session, actor, project_key)
+    return _render_ticket_create_page(
+        request,
+        session,
+        actor,
+        project_key,
+        prefill_ticket_type=ticket_type,
+        prefill_parent_key=parent_key,
+    )
 
 
 @router.get("/projects/{project_key}/tickets/{ticket_key}/edit")

@@ -308,6 +308,56 @@ def test_comment_reply_migration_preserves_existing_comment_references(
         engine.dispose()
 
 
+def test_project_favorite_migration_preserves_memberships(
+    alembic_config: Config,
+    database_url: str,
+) -> None:
+    """즐겨찾기 migration 왕복이 기존 프로젝트 참여 정보를 보존하는지 검증한다."""
+    command.upgrade(alembic_config, "20260927_0005")
+    engine = create_database_engine(database_url)
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text("INSERT INTO organizations (key, name) VALUES ('org', '조직')")
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO users "
+                    "(login_id, display_name, password_hash, organization_id) "
+                    "VALUES ('owner', '담당자', 'hash', 1)"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO projects (key, name, created_by_id) "
+                    "VALUES ('DEV', '개발', 1)"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO project_members (project_id, user_id, role) "
+                    "VALUES (1, 1, 'PROJECT_ADMIN')"
+                )
+            )
+
+        command.upgrade(alembic_config, "head")
+        with engine.begin() as connection:
+            assert connection.scalar(
+                text("SELECT is_favorite FROM project_members WHERE id = 1")
+            ) == 0
+            connection.execute(text("UPDATE project_members SET is_favorite = 1 WHERE id = 1"))
+
+        command.downgrade(alembic_config, "20260927_0005")
+        with engine.connect() as connection:
+            assert "is_favorite" not in {
+                column["name"] for column in inspect(connection).get_columns("project_members")
+            }
+            assert connection.scalar(text("SELECT count(*) FROM project_members")) == 1
+            assert connection.exec_driver_sql("PRAGMA foreign_key_check").all() == []
+    finally:
+        engine.dispose()
+
+
 def test_duplicate_organizations_fail_before_schema_changes(
     alembic_config: Config, database_url: str
 ) -> None:

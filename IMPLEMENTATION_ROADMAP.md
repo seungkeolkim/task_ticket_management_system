@@ -268,6 +268,7 @@
 - [x] 프로젝트 사용자 이상의 프로젝트 내 전체 댓글 수정·soft delete 구현
 - [x] 한 단계 대댓글과 삭제 댓글 자리표시자 조회 구현
 - [x] 댓글 등록·수정·삭제 전 사용자 확인 적용
+- [x] 티켓 생성·수정·상태 변경·관계·첨부·휴지통 변경 전 사용자 확인 적용
 - [x] 설명과 댓글이 동일한 renderer를 사용하도록 구성
 - [ ] 현재 프로젝트 구성원 대상 멘션 후보 조회
 - [ ] 서버에서 멘션 대상의 프로젝트 접근 권한 재검증
@@ -337,7 +338,7 @@
 ## 10단계 — 칸반 및 웹 UI 완성
 
 - [x] 화면 인벤토리 기반 탐색 가능한 비동작 UI 목업 구성
-- [ ] 공통 레이아웃과 디자인 토큰 구성
+- [x] 공통 레이아웃과 디자인 토큰 구성
 - [x] 로그인 및 비밀번호 변경 화면 구현
 - [ ] 사용자·조직·프로젝트 관리 화면 구현
 - [x] 티켓 목록과 인라인 상세 패널 구현
@@ -356,6 +357,10 @@
 - [x] 서버에서 권한·FSM·의존성 재검증
 - [x] optimistic locking 충돌 시 보드 새로고침 안내
 - [x] 티켓 목록·상세·칸반·대시보드의 업무 정보 글꼴 가독성 기준 적용
+- [x] 내 프로젝트 즐겨찾기 별표와 공통 내비게이션 고정 목록 구현
+- [x] 새 티켓 유형별 상위 티켓 후보 동적 제한 구현
+- [x] 칸반 카드 중요도 색상을 티켓 목록과 동일하게 표시
+- [x] 공통 왼쪽 navigation sidebar 접기·펼치기와 상태 유지 구현
 - [ ] 주요 사용자 흐름 브라우저 통합 테스트 작성
 
 완료 기준: 관리 기능과 티켓 업무 흐름을 웹 UI에서 수행할 수 있고 칸반 드래그가 API 규칙과 일치한다.
@@ -367,6 +372,26 @@
 2026-09-28 칸반 카드 상태 control 제거: 카드마다 표시하던 상태 select와 해당 JavaScript event 경로·CSS를 제거하고 상태 변경을 drag-and-drop으로 단일화했다. 카드의 FSM 허용 상태·의존성·version metadata와 서버 전이 API, 오류 feedback과 성공·stale 이후 보드 재조회는 유지한다. Windows Python 환경에서 전체 pytest 322개와 Ruff 및 diff 검사를 통과했다.
 
 2026-09-28 칸반 Subtask 카드 구분: 모든 Subtask 카드에 유형 전용 class를 부여하고 공통 design token 기반의 옅은 배경색과 8px 왼쪽 margin을 적용했다. 같은 상태 Task 아래와 다른 상태 열의 상위 Task 식별 group에서 동일하게 표시되며 카드 정보와 drag 동작은 변경하지 않았다. Windows Python 환경에서 전체 pytest 322개와 Ruff 및 diff 검사를 통과했다.
+
+2026-09-29 프로젝트 즐겨찾기: 내 프로젝트 카드의 회색·노란색 별표로 사용자별 즐겨찾기를 설정·해제하고, 선택한 프로젝트를 검색·페이지네이션과 무관하게 공통 내비게이션의 `내 프로젝트` 아래에 이름순으로 고정 표시한다. 즐겨찾기는 명시적 `ProjectMember`에 저장되어 비참여 시스템 관리자 override에는 허용하지 않고 참여 제거 시 함께 정리된다. Alembic `20260929_0006`에서 기존 참여 정보를 보존하며 기본값 false로 추가했다. Windows Python 환경 전체 pytest 329개와 Ruff 및 diff 검사를 통과했다.
+
+2026-09-29 새 티켓 상위 후보 제한: 새 티켓 유형을 바꾸면 Epic은 상위 선택을 비활성화하고, Task는 Epic만, Subtask는 Task만 표시하면서 필수 입력으로 전환한다. 초기 서버 렌더링도 같은 후보 제한을 적용하고 기존 서버 계층 검증을 최종 방어로 유지한다. Windows Python 환경 전체 pytest 330개와 Ruff·JavaScript 문법 및 diff 검사를 통과했다.
+
+2026-09-29 칸반 중요도 색상 보정: 칸반 카드 상단의 일반 span selector가 공용 중요도 badge 색상을 회색으로 덮던 specificity 충돌을 제거했다. 회색 metadata 규칙은 티켓 키 전용 class에만 적용하고 중요도는 목록과 같은 `priority-critical`·`priority-major` 등 공용 class 색상을 유지한다. Windows Python 환경 전체 pytest 330개와 Ruff 및 diff 검사를 통과했다.
+
+2026-09-29 티켓 변경 확인 확장: 댓글에만 적용하던 제출 확인을 공용 정적 script로 분리하고 티켓 생성·수정·상태 전이·관계 추가/삭제·첨부파일 등록·휴지통 이동/복구에 확대했다. form을 거치지 않는 본문 image 첨부와 칸반 drag 상태 변경도 요청 직전에 확인하며, 취소 시 서버 요청을 전송하지 않는다. frontend bundle build, Windows Python 환경 전체 pytest 331개와 Ruff·JavaScript 문법 및 diff 검사를 통과했다.
+
+2026-09-29 link mark 호환성 보정: Tiptap 3이 수동 link에도 생성하는 `title` 속성을 서버가 호환 입력으로 검증한 뒤 canonical document에서 제거하도록 editor와 저장 계약을 일치시켰다. 외부 주소는 명시적인 HTTP(S) scheme을 요구하며 scheme 없는 입력을 임의로 변경하지 않고 editor에서 안내한다. frontend bundle build, Windows Python 환경 전체 pytest 335개와 Ruff·JavaScript 문법 및 diff 검사를 통과했다.
+
+2026-09-29 link 편집·식별 개선: editor의 단일 link toolbar button에서 추가·URL 수정·명시적 삭제를 제공하는 dialog를 연결했다. editor와 viewer의 link text에 공통 blue 색상·밑줄을 적용하고 hover와 viewer keyboard focus를 강조했다. frontend bundle build, Windows Python 환경 전체 pytest 337개와 Ruff·JavaScript 문법 및 diff 검사를 통과했다.
+
+2026-09-29 프로젝트 업무 진입점 변경: 내 프로젝트 카드의 `프로젝트 열기`와 공통 내비게이션의 즐겨찾기 프로젝트를 해당 프로젝트의 티켓 목록에 연결했다. 시스템 관리자의 전체 프로젝트 관리 목록은 설정·구성원 관리 목적의 프로젝트 root 연결을 유지한다. Windows Python 환경 전체 pytest 337개와 Ruff 및 diff 검사를 통과했다.
+
+2026-09-29 하위 티켓 빠른 생성: Epic·Task의 전체 상세와 티켓 목록 inline 상세에 각각 `Task 만들기`·`Subtask 만들기`를 추가했다. 새 티켓 화면은 검증된 query parameter로 티켓 유형과 상위 티켓을 자동 선택하며, 계층이 맞지 않는 조작된 요청은 거부한다. guest와 비활성 프로젝트에는 생성 동작을 노출하지 않는다. Windows Python 환경 전체 pytest 338개와 Ruff 및 diff 검사를 통과했다.
+
+2026-10-02 공통 navigation 접기·펼치기: topbar의 항상 접근 가능한 toggle button으로 왼쪽 sidebar를 완전히 숨기고 main workspace와 page content가 확보된 전체 너비를 사용하게 했다. 선택 상태를 browser `localStorage`에 유지하고 숨겨진 navigation을 `inert`와 `aria-hidden`으로 keyboard focus 및 접근성 tree에서 제외한다. reduced motion 환경에서는 transition을 제거한다. Windows Python 환경 전체 pytest 339개와 Ruff·JavaScript 문법 및 diff 검사를 통과했다.
+
+2026-10-02 사용성 개선 브랜치 문서 정합성 점검: 현재 Alembic head `20260929_0006`을 인증·관리·MVP 데이터 문서에 동기화하고 migration 목록에 프로젝트 즐겨찾기 revision을 보완했다. Tiptap 본문 계약에 link `title` 호환 입력과 canonical 제거 규칙을 명시하고, 프로젝트 전문 문서에 일반 사용자·관리자별 진입 경로와 접이식 navigation을 반영했으며 README에 주요 데이터 계약 문서를 연결했다. 실제 공통 app shell과 design token 적용 상태에 맞춰 10단계 checklist도 완료 처리했다. 과거 roadmap의 당시 test 수와 migration head는 시점별 검증 이력으로 유지했다. decision ID와 로컬 Markdown link 검사를 통과했으며 Windows Python 환경 전체 pytest 339개와 Ruff 및 diff 검사를 다시 통과했다.
 
 ## 11단계 — 운영 준비 및 최종 검증
 

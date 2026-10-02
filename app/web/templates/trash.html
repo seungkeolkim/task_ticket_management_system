@@ -22,7 +22,7 @@
     <div class="data-table-row">
       <span class="ticket-title-cell">{{ ui.ticket_type(batch.root_ticket_type_label) }}<span><small>{{ batch.root_ticket_key }}</small><strong>{{ batch.root_ticket_title }}</strong>{% if batch.child_count %}<em>하위 티켓 {{ batch.child_count }}개 포함</em>{% endif %}</span></span>
       <span>{{ batch.root_ticket_type_label }}</span><span>{{ batch.deleted_by.display_name }}</span><span>{{ batch.deleted_at }}</span><span class="due-danger">{{ batch.purge_after }}</span>
-      <span class="row-actions">{% if batch.can_restore %}<form action="/projects/{{ project.key }}/trash/{{ batch.id }}/restore" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="expected_version" value="{{ batch.root_ticket_version }}"><button class="button secondary small-button" type="submit">복구</button></form>{% elif batch.is_expired %}<span class="danger-text">보존 만료</span>{% else %}<span>읽기 전용</span>{% endif %}</span>
+      <span class="row-actions">{% if batch.can_restore %}<form action="/projects/{{ project.key }}/trash/{{ batch.id }}/restore" method="post" data-confirm-message="티켓 계층을 복구하시겠습니까?"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="expected_version" value="{{ batch.root_ticket_version }}"><button class="button secondary small-button" type="submit">복구</button></form>{% elif batch.is_expired %}<span class="danger-text">보존 만료</span>{% else %}<span>읽기 전용</span>{% endif %}</span>
     </div>
     {% else %}<div class="empty-state"><strong>휴지통이 비어 있습니다.</strong><p>검색 조건에 맞는 삭제된 티켓 계층이 없습니다.</p></div>{% endfor %}
   </div>

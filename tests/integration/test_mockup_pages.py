@@ -99,3 +99,24 @@ def test_mockup_static_styles_are_served(client: TestClient) -> None:
 
     assert response.status_code == 200
     assert "--primary:" in response.text
+
+
+def test_sidebar_can_collapse_and_persist_its_browser_state(
+    authenticated_client: TestClient,
+) -> None:
+    """공통 sidebar toggle의 markup, style과 상태 저장 script 연결을 검증한다."""
+    page = authenticated_client.get("/")
+    script = authenticated_client.get("/static/sidebar.js")
+    stylesheet = authenticated_client.get("/static/app.css")
+
+    assert "data-sidebar-layout" in page.text
+    assert "data-sidebar-toggle" in page.text
+    assert 'aria-controls="app-sidebar"' in page.text
+    assert "/static/sidebar.js" in page.text
+    assert script.status_code == 200
+    assert 'SIDEBAR_STATE_KEY = "taskflow.sidebar.collapsed"' in script.text
+    assert 'sidebar.toggleAttribute("inert", isCollapsed)' in script.text
+    assert stylesheet.status_code == 200
+    assert ".app-shell.is-sidebar-collapsed" in stylesheet.text
+    assert "grid-template-columns: 0 minmax(0, 1fr);" in stylesheet.text
+    assert ".app-shell.is-sidebar-collapsed .page-content" in stylesheet.text
