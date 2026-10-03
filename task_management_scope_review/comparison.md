@@ -2,7 +2,7 @@
 
 - 조사일: 2026-10-03
 - 저장소 기준: `main`, `4523def`
-- 상태: 범위 검토 중. 58개 항목 중 A01은 **방향 확정**, A02는 **복수 Label 지원 포함**, A03은 **후속**, A04는 **최하위 Backlog**, A05는 **제외**다. A01·A02의 세부 정책·구현 시점과 나머지 53개 항목은 **미결정**이다.
+- 상태: 범위 검토 중. 58개 항목 중 A01은 **방향 확정**, A02는 **복수 Label 지원 포함**, A03은 **후속**, A04는 **최하위 Backlog**, A05·A06은 **제외**다. A01·A02의 세부 정책·구현 시점과 나머지 52개 항목은 **미결정**이다.
 - 목적: 기능을 추가하기 전에 ticket 속성과 업무 흐름을 비교하고, 항목별로 `이번 범위 포함 / 후속 / 최하위 Backlog / 제외 / 현행 유지`를 결정한다. 최하위 Backlog는 일반 후속 계획과 달리 구현 의무나 일정 없이 아이디어로만 보관한다.
 - 이 문서는 별도 브랜치의 범위 검토 자료다. 결정은 이 폴더의 `decisions.md`에만 기록하며 기존 요구사항·decision·로드맵은 변경하지 않는다. 공식 문서 반영은 범위 검토 후 별도 합의한다.
 
@@ -68,7 +68,7 @@ Notion은 task database, Projects·Tasks·Sprints, 업무에 적용하는 proper
 | A03 | Component·업무 영역 | project별 component, owner·자동 할당; company-managed [J03] | Select 또는 Relation으로 구성 [N01][N04] | 없음 / 확장 후보 | 2026-10-03: 사용 빈도가 낮아 후속으로 연기. [결정 기록](decisions.md) |
 | A04 | 목표 Release·Fix version | release와 Fix version [J04] | Release database relation으로 구성 [N04] | 없음 / 기존 범위 미정 | 2026-10-03: 일정·구현 의무 없는 최하위 Backlog. 다른 할 일이 없을 때 선택적으로 재검토. [결정 기록](decisions.md) |
 | A05 | 영향받는 Version | Affects version [J01] | Select·Relation으로 구성 [N01][N04] | 없음 / 기존 범위 미정 | 2026-10-03: 전용 속성 제외. [결정 기록](decisions.md) |
-| A06 | 재현 환경·재현 절차·Acceptance criteria | Environment와 본문·custom field로 구성 [J05][J06] | 본문·property·template으로 구성 [N01][N06] | 본문에 수동 기재 가능, 독립 필드·template 없음 / 미정 | 미결정 |
+| A06 | 재현 환경·재현 절차·Acceptance criteria | Environment와 본문·custom field로 구성 [J05][J06] | 본문·property·template으로 구성 [N01][N06] | 본문에 수동 기재 가능, 독립 필드·template 없음 | 2026-10-03: 별도 필드·전용 Template 제외, 본문 자유 작성 유지. 범용 Template(B16)은 별도 검토. [결정 기록](decisions.md) |
 | A07 | Severity — Priority와 별도 관리 | custom Select로 구성 가능; 모든 Jira의 기본 필드로 간주하지 않음 [J06] | Select로 구성 [N01] | Priority만 있음 / 미정 | 미결정 |
 | A08 | Reporter·요청자 — 생성자와 분리 | Reporter 및 변경 권한 [J01][J07] | Created by 외 Person으로 구성 [N01] | creator만 자동 기록 / 미정 | 미결정 |
 | A09 | 복수 담당자·협업자·Reviewer | 추가 multi-user field로 구성 가능 [J06] | Person에 여러 사용자 지정 [N01] | 단일 assignee만 있음 / 미정 | 미결정 |
@@ -157,7 +157,7 @@ B03은 앱 내 Inbox 확대와 email·push를 별도 선택할 수 있다. B08�
 5. 필드 추가를 포함하면 입력뿐 아니라 목록 표시·필터·정렬·이력·권한·기존 데이터 기본값까지 구현 범위에 포함할지 확인한다.
 6. 속성 다음에 B의 사용 흐름, 마지막에 C의 정책을 점검한다. 선행 정책이 필요한 항목은 해당 C 항목을 앞당겨 논의한다.
 
-A01은 2026-10-03에 **계층을 유지하고 업무 분류 property를 분리**하는 방향으로 확정했다. 예시로 제시한 개발·오류·운영·검토 또는 Bug·Story를 실제 분류 값으로 확정한 것은 아니다. A02는 **복수 Label 지원 포함**, A03은 **사용 빈도가 낮아 후속**, A04는 **일정 없는 최하위 Backlog**, A05는 **제외**로 결정했다. 세부 미정 사항은 [검토 결정 기록](decisions.md)에 유지한다. 다음 검토 항목은 **A06 — 재현 환경·재현 절차·Acceptance criteria**다.
+A01은 2026-10-03에 **계층을 유지하고 업무 분류 property를 분리**하는 방향으로 확정했다. 예시로 제시한 개발·오류·운영·검토 또는 Bug·Story를 실제 분류 값으로 확정한 것은 아니다. A02는 **복수 Label 지원 포함**, A03은 **사용 빈도가 낮아 후속**, A04는 **일정 없는 최하위 Backlog**, A05·A06은 **제외**로 결정했다. 세부 미정 사항은 [검토 결정 기록](decisions.md)에 유지한다. 다음 검토 항목은 **A07 — Severity**다.
 
 ## 9. 코드 확인 위치
 
