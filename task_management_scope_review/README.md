@@ -4,6 +4,7 @@
 - 기존 구현 비교 기준: `main`의 `4523def`
 - [기능 비교 및 58개 검토 항목](comparison.md)
 - [합의된 방향과 미정 사항](decisions.md)
+- [합의된 MVP 남은 작업 순서](mvp_work_sequence.md)
 
 ## 기록 원칙
 
