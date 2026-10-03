@@ -1,6 +1,8 @@
 # Task management 기능 범위 재검토
 
 - 전용 브랜치: `scope/task-management-review`
+- 검토 내용은 main에 merge했으며, Label·Custom fields 상세 설계는 `feature/ticket-labels-custom-fields`에서 이어간다.
+- 개발 요청에 따라 A02·A20의 코드와 공식 문서를 반영했다. 구현 범위·검증은 [Label·Ad-hoc 계약](../docs/ticket_properties.md)과 공식 로드맵을 따른다.
 - 기존 구현 비교 기준: `main`의 `4523def`
 - [기능 비교 및 58개 검토 항목](comparison.md)
 - [합의된 방향과 미정 사항](decisions.md)

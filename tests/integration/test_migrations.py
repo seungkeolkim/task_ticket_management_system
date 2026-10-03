@@ -1,3 +1,5 @@
+import json
+
 import pytest
 from alembic import command
 from alembic.config import Config
@@ -26,6 +28,51 @@ MVP_TABLES = {
     "report_run_projects",
     "report_attempts",
 }
+
+
+def test_ticket_properties_populated_upgrade_and_downgrade(alembic_config, database_url):
+    """기존 ticket·이력을 보존하며 속성 컬럼 upgrade/downgrade를 검증한다."""
+    command.upgrade(alembic_config, "20260929_0006")
+    engine = create_database_engine(database_url)
+    try:
+        with engine.begin() as connection:
+            connection.execute(text("INSERT INTO organizations (key, name) VALUES ('org', '조직')"))
+            connection.execute(text(
+                "INSERT INTO users (login_id, display_name, password_hash, organization_id) "
+                "VALUES ('member', '사용자', 'hash', 1)"
+            ))
+            connection.execute(text(
+                "INSERT INTO projects (key, name, created_by_id) VALUES ('DEV', '개발', 1)"
+            ))
+            connection.execute(text(
+                "INSERT INTO tickets (project_id, number, key, title, creator_id) "
+                "VALUES (1, 1, 'DEV-1', '기존 업무', 1)"
+            ))
+            connection.execute(text(
+                "INSERT INTO ticket_history "
+                "(project_id, ticket_id, event_key, operation_id, ticket_version, "
+                "event_type, actor_id, occurred_at, after_state, changes) "
+                "VALUES (1, 1, 'legacy-event', 'legacy-operation', 1, 'CREATED', 1, "
+                "'2026-10-03 00:00:00', '{}', '[]')"
+            ))
+        command.upgrade(alembic_config, "head")
+        command.check(alembic_config)
+        with engine.begin() as connection:
+            row = connection.execute(text("SELECT labels, custom_fields FROM tickets")).one()
+            assert json.loads(row.labels) == [] and json.loads(row.custom_fields) == []
+            connection.execute(text("UPDATE tickets SET labels = :labels"), {"labels": '["보안"]'})
+        command.downgrade(alembic_config, "20260929_0006")
+        with engine.connect() as connection:
+            assert connection.scalar(text("SELECT title FROM tickets")) == "기존 업무"
+            assert connection.scalar(text("SELECT after_state FROM ticket_history")) == "{}"
+            assert "labels" not in {
+                column["name"] for column in inspect(connection).get_columns("tickets")
+            }
+            assert connection.exec_driver_sql("PRAGMA foreign_key_check").all() == []
+        command.upgrade(alembic_config, "head")
+        command.check(alembic_config)
+    finally:
+        engine.dispose()
 
 
 def test_upgrade_creates_identity_schema(

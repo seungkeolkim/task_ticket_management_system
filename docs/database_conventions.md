@@ -52,6 +52,8 @@ alembic downgrade base
 
 ## MVP and reporting schema
 
+- Revision `20261003_0007` adds ticket-local label and typed ad-hoc field JSON arrays, defaulting to empty arrays for existing tickets. DTOs validate entries and writes replace whole arrays within the ticket transaction. Downgrade discards current property values, not ticket rows or history; use a backup for recovery. See [ticket_properties.md](ticket_properties.md).
+
 - See [mvp_data_model.md](mvp_data_model.md) for the requirement/table mapping and service boundaries.
 - Revision `20260917_0002` adds 15 work/reporting tables without rewriting the identity baseline.
 - Revision `20260923_0003` adds `PROJECT_GUEST` to the project-member role constraint. Its downgrade removes guest memberships instead of promoting them to a writable role.

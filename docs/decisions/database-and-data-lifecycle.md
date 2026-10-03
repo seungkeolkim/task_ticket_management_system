@@ -24,6 +24,7 @@
 | DB-020 | 2026-09-28 | DECIDED | 프로젝트 참여자 역할 변경·제거는 DB-013의 SQLite 쓰기 잠금을 먼저 확보한 뒤 actor·프로젝트·대상 참여자 상태, 마지막 관리자 수와 활성 티켓 담당자 제약을 다시 검사한다. membership 변경과 감사 기록은 한 transaction으로 commit한다. | 동시에 발생한 역할 변경·제거가 마지막 관리자를 없애거나 활성 티켓 담당자 제약을 우회하지 못하게 한다. PostgreSQL 전환 시에는 프로젝트 단위 row lock을 포함한 동등한 직렬화 전략과 경합 테스트가 필요하다. |
 | DB-021 | 2026-09-28 | DECIDED | 프로젝트 기본 정보·활성 상태 변경은 DB-013의 SQLite 쓰기 잠금 이후 actor의 현재 관리 권한과 프로젝트 row를 다시 읽고, 변경과 감사 기록을 한 transaction으로 commit한다. 향후 비 SQLite backend 전환을 위해 프로젝트 row lock 경계를 둔다. | 동시 관리 요청을 직렬화하고 감사 실패 시 이름·설명·활성 상태 변경도 함께 rollback한다. 기존 `projects` 컬럼을 사용하므로 migration은 추가하지 않으며 backend 전환 시 row lock 동작을 별도로 검증한다. |
 | DB-022 | 2026-09-28 | DECIDED | 사용자 수정·비활성화·재활성화와 관리자 비밀번호 초기화는 DB-013의 SQLite 쓰기 잠금 이후 actor·대상 사용자·활성 관리자 수·조직 상태를 다시 확인한다. 사용자 변경, session 폐기와 감사 기록은 한 transaction으로 commit한다. | 동시 관리자 변경으로 활성 시스템 관리자가 0명이 되는 상황을 막고 감사 실패 시 계정과 session 상태를 함께 rollback한다. 기존 identity 테이블만 사용하므로 migration은 추가하지 않으며 backend 전환 시 사용자 row와 활성 관리자 집합에 대한 동등한 잠금 전략을 검증한다. |
+| DB-023 | 2026-10-03 | DECIDED | `20261003_0007`에서 ticket-local `labels`·`custom_fields` JSON 배열을 빈 목록 기본값으로 추가한다. DTO로 타입·크기·중복을 검증하고 전체 값을 교체하며 ticket version·이력·감사와 한 transaction으로 저장한다. | 재사용하지 않는 작은 속성 목록을 별도 카탈로그 없이 보존한다. `field_id`·`field_type`으로 향후 타입 확장 기반을 둔다. 상태 snapshot v2에 선택 필드로 추가하여 과거 이력은 수정하지 않고 누락값을 빈 목록으로 읽는다. downgrade는 현재 속성 값을 잃으므로 백업이 필요하며 새 이력은 구 reader와의 호환을 보장하지 않는다. |
 
 ## Open decisions
 

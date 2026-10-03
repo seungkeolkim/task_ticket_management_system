@@ -33,9 +33,11 @@
     <header class="ticket-detail-title">
       <div class="ticket-identity">{{ ui.ticket_type(ticket.type_label) }}<span>{{ ticket.key }}</span><span>·</span><span>{{ ticket.type_label }}</span></div>
       <h1>{{ ticket.title }}</h1>
+      {{ ui.ticket_labels(ticket.labels) }}
       <div class="ticket-state-row">{{ ui.status_badge(ticket.status_label, ticket.status_code) }}{{ ui.priority_badge(ticket.priority_label, ticket.priority_code) }}<span class="version-note">버전 {{ ticket.version }} · {{ ticket.updated_at }} 수정</span></div>
     </header>
     <section class="content-section"><div class="section-title"><h2>설명</h2></div>{% if ticket.description_has_content %}<div class="detail-description rich-text-viewer">{{ ticket.description_html|safe }}</div>{% else %}<p class="detail-description">등록된 설명이 없습니다.</p>{% endif %}</section>
+    {{ ui.ticket_custom_fields(ticket.custom_fields) }}
     {% if ticket.type.value == 'TASK' %}
     <section class="content-section hierarchy-section">
       <div class="section-title"><h2>Subtask 목록</h2><span>{{ ticket.hierarchy.subtasks|length }}개</span></div>

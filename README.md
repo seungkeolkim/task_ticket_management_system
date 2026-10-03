@@ -11,6 +11,7 @@ FastAPI, SQLAlchemy, Alembic, and SQLite를 사용하는 사내용 태스크·�
 - [기존 프로젝트 참조 및 차용 가이드](REFERENCE_IMPLEMENTATION.md)
 - [DB 설계 규칙](docs/database_conventions.md)
 - [MVP 데이터 구조](docs/mvp_data_model.md)
+- [자유 Label·Ad-hoc Text 필드](docs/ticket_properties.md)
 - [Tiptap 본문 저장 계약](docs/tiptap_body_contract.md)
 - [보고서 데이터 계약](docs/reporting_contracts.md)
 - [시스템 로깅 규약](docs/logging_conventions.md)

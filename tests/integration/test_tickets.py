@@ -21,7 +21,7 @@ from app.models import (
     User,
 )
 from app.repositories import tickets as ticket_repository
-from app.schemas.contracts import TicketEvent
+from app.schemas.contracts import TicketEvent, TicketState
 from app.schemas.tickets import (
     TicketCreate,
     TicketRelationCreate,
@@ -129,6 +129,175 @@ def ticket_people(client, db_session):
     db_session.commit()
     login(client, "member")
     return people, project
+
+
+def test_ticket_properties_roundtrip_history_and_legacy_update(client, db_session, ticket_people):
+    """추가 속성의 생성·수정·삭제·no-op 및 구 API 값 보존을 검증한다."""
+    created_response = create_ticket(
+        client, labels=[" 보안 ", "보안", "고객 요청"],
+        custom_fields=[{"name": "방문 장소", "value": "판교\n3층"}],
+    )
+    assert created_response.status_code == 201
+    created = created_response.json()
+    assert created["labels"] == ["보안", "고객 요청"]
+    custom_fields = created["custom_fields"]
+    assert custom_fields[0]["field_type"] == "TEXT"
+    field_identifier = custom_fields[0]["field_id"]
+
+    legacy = update_ticket(client, created["key"], 1).json()
+    assert legacy["labels"] == created["labels"]
+    assert legacy["custom_fields"] == custom_fields
+    custom_fields[0]["name"] = "현장 위치"
+    custom_fields[0]["value"] = "서울"
+    updated = update_ticket(
+        client, created["key"], legacy["version"], labels=["운영"], custom_fields=custom_fields
+    ).json()
+    assert updated["custom_fields"][0]["field_id"] == field_identifier
+    assert updated["version"] == legacy["version"] + 1
+    unchanged = update_ticket(
+        client, created["key"], updated["version"], labels=["운영"], custom_fields=custom_fields
+    ).json()
+    assert unchanged["version"] == updated["version"]
+    stale = update_ticket(client, created["key"], 1, labels=[], custom_fields=[])
+    assert stale.status_code == 409
+    removed = update_ticket(
+        client, created["key"], updated["version"], labels=[], custom_fields=[]
+    ).json()
+    assert removed["labels"] == [] and removed["custom_fields"] == []
+    history = db_session.scalars(
+        select(TicketHistory).where(TicketHistory.ticket_id == created["id"])
+        .order_by(TicketHistory.ticket_version)
+    ).all()
+    assert len(history) == 4
+    assert history[0].after_state["custom_fields"][0]["field_id"] == field_identifier
+    assert {change["field"] for change in history[-1].changes} == {"labels", "custom_fields"}
+    assert history[-1].before_state["custom_fields"][0]["value"] == "서울"
+    assert history[-1].after_state["custom_fields"] == []
+
+
+def test_ticket_properties_are_escaped_and_visible_in_forms_and_views(client, ticket_people):
+    """자유 문자열이 HTML로 실행되지 않고 상세·목록·칸반에 표시되는지 검증한다."""
+    malicious_name = "<script>alert('field')</script>"
+    created = create_ticket(
+        client, labels=["<script>alert('label')</script>"],
+        custom_fields=[{"name": malicious_name, "value": "</textarea><script>alert(1)</script>"}],
+    ).json()
+    paths = [
+        f"/projects/DEV/tickets/{created['key']}",
+        f"/projects/DEV/tickets?selected={created['key']}",
+        f"/projects/DEV/tickets/{created['key']}/edit",
+        "/projects/DEV/board",
+        "/tickets",
+    ]
+    for path in paths:
+        response = client.get(path)
+        assert response.status_code == 200, path
+        assert "<script>alert(" not in response.text
+        assert "&lt;script&gt;" in response.text, path
+    detail = client.get(f"/api/projects/DEV/tickets/{created['key']}").json()
+    assert detail["custom_fields"][0]["name"] == malicious_name
+    listing = client.get("/api/projects/DEV/tickets").json()
+    assert listing["tickets"][0]["labels"] == created["labels"]
+    assert "custom_fields" not in listing["tickets"][0]
+
+
+def test_ticket_properties_html_form_creation_error_and_clear(client, ticket_people):
+    """HTML form 저장·오류 재표시·명시적 전체 제거를 검증한다."""
+    values = {
+        "csrf_token": token(client), "title": "추가 정보 폼", "type": "TASK",
+        "description_document": description_document_json(), "priority": "MAJOR",
+        "labels": "방문\n 고객 요청 ",
+        "properties_present": "true",
+        "custom_fields": json.dumps([{"name": "위치", "value": "판교"}], ensure_ascii=False),
+    }
+    response = client.post(
+        "/projects/DEV/tickets", data=values, headers=ORIGIN, follow_redirects=False
+    )
+    assert response.status_code == 303
+    ticket_key = response.headers["location"].split("/")[-1].split("?")[0]
+    ticket_path = f"/api/projects/DEV/tickets/{ticket_key}"
+    created = client.get(ticket_path).json()
+    assert created["labels"] == ["방문", "고객 요청"]
+    edit_values = values | {"expected_version": str(created["version"]), "title": ""}
+    response = client.post(
+        f"/projects/DEV/tickets/{ticket_key}", data=edit_values, headers=ORIGIN
+    )
+    assert response.status_code == 422
+    assert "판교" in response.text and "고객 요청" in response.text
+    edit_values.update(title="다시 저장", labels="", custom_fields="[]")
+    response = client.post(
+        f"/projects/DEV/tickets/{ticket_key}", data=edit_values,
+        headers=ORIGIN, follow_redirects=False,
+    )
+    assert response.status_code == 303
+    cleared = client.get(ticket_path).json()
+    assert cleared["labels"] == [] and cleared["custom_fields"] == []
+
+
+@pytest.mark.parametrize("login_id, expected_status", [("guest", 403), ("outsider", 404)])
+def test_ticket_properties_keep_project_write_permissions(
+    client, ticket_people, login_id, expected_status
+):
+    """추가 속성도 기존 프로젝트 쓰기 권한과 격리 정책을 적용한다."""
+    created = create_ticket(client, labels=["내부용"]).json()
+    login(client, login_id)
+    response = update_ticket(client, created["key"], 1, labels=["변조"])
+    assert response.status_code == expected_status
+
+
+def test_ticket_properties_reject_unsupported_types_and_terminal_edits(client, ticket_people):
+    """Date 미지원과 종료 ticket 잠금이 추가 속성에서도 유지된다."""
+    invalid = create_ticket(
+        client, custom_fields=[{"name": "날짜", "field_type": "DATE", "value": "2026-10-03"}]
+    )
+    assert invalid.status_code == 422
+    created = create_ticket(client, labels=["유지"]).json()
+    transition_ticket(client, created["key"], "IN_PROGRESS", 1)
+    transition_ticket(client, created["key"], "DONE", 2)
+    response = update_ticket(client, created["key"], 3, labels=[], custom_fields=[])
+    assert response.status_code == 409
+    assert response.json()["code"] == "terminal_ticket_locked"
+
+
+def test_ticket_properties_survive_trash_restore_and_legacy_history(
+    client, ticket_people, db_session
+):
+    """휴지통 왕복에서 값을 보존하고 과거 v2 snapshot의 누락 속성을 읽는다."""
+    created = create_ticket(
+        client, labels=["보존"], custom_fields=[{"name": "특이사항", "value": "복구 대상"}]
+    ).json()
+    history = db_session.scalar(
+        select(TicketHistory).where(TicketHistory.ticket_id == created["id"])
+    )
+    legacy_state = dict(history.after_state)
+    legacy_state.pop("labels")
+    legacy_state.pop("custom_fields")
+    parsed = TicketState.model_validate(legacy_state)
+    assert parsed.labels == [] and parsed.custom_fields == []
+    assert move_to_trash(client, created["key"], 1).status_code == 200
+    db_session.expire_all()
+    saved_ticket = db_session.get(Ticket, created["id"])
+    restored = restore_trash_batch(
+        client, saved_ticket.deletion_batch_id, saved_ticket.version
+    )
+    assert restored.status_code == 200
+    detail = client.get(f"/api/projects/DEV/tickets/{created['key']}").json()
+    assert detail["labels"] == created["labels"]
+    assert detail["custom_fields"] == created["custom_fields"]
+
+
+def test_legacy_html_error_does_not_drop_existing_properties(client, ticket_people):
+    """속성을 보내지 않은 구 form의 오류 재표시에서도 기존 값을 유지한다."""
+    created = create_ticket(
+        client, labels=["기존 Label"], custom_fields=[{"name": "기존 필드", "value": "기존 값"}]
+    ).json()
+    response = client.post(
+        f"/projects/DEV/tickets/{created['key']}",
+        data={"csrf_token": token(client), "title": "", "expected_version": "1"},
+        headers=ORIGIN,
+    )
+    assert response.status_code == 422
+    assert "기존 Label" in response.text and "기존 값" in response.text
 
 
 def create_ticket(client, **overrides):
@@ -1967,7 +2136,10 @@ def test_update_audit_failure_rolls_back_ticket_and_history(
     client, ticket_people, db_session_factory, monkeypatch
 ):
     """티켓·감사 로그·이력 관련 동작을 검증한다."""
-    ticket = create_ticket(client, title="수정 롤백 티켓").json()
+    ticket = create_ticket(
+        client, title="수정 롤백 티켓", labels=["원래"],
+        custom_fields=[{"name": "원래 필드", "value": "보존"}],
+    ).json()
     raw_token = client.cookies.get(get_settings().session.cookie_name)
 
     def fail(*args, **kwargs):
@@ -1985,6 +2157,8 @@ def test_update_audit_failure_rolls_back_ticket_and_history(
                 ticket["key"],
                 TicketUpdate(
                     title="반영되면 안 됨",
+                    labels=["반영 금지"],
+                    custom_fields=[],
                     description_document=description_document(),
                     priority="MAJOR",
                     expected_version=1,
@@ -2001,6 +2175,8 @@ def test_update_audit_failure_rolls_back_ticket_and_history(
     with db_session_factory() as session:
         saved = session.scalar(select(Ticket).where(Ticket.key == ticket["key"]))
         assert saved.title == "수정 롤백 티켓" and saved.version == 1
+        assert saved.labels == ["원래"]
+        assert saved.custom_fields == ticket["custom_fields"]
         assert saved.status == "TODO" and saved.actual_started_at is None
         assert (
             session.scalar(

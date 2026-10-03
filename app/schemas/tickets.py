@@ -5,10 +5,14 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from app.domain.codes import Priority, RelationType, TicketStatus, TicketType
 from app.domain.rich_text import empty_body_document, validate_body_document
+from app.schemas.ticket_properties import TicketCustomFields, TicketLabels
 
 
 class TicketCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+    labels: TicketLabels = Field(default_factory=list)
+    custom_fields: TicketCustomFields = Field(default_factory=list)
 
     type: TicketType = TicketType.TASK
     title: str = Field(min_length=1, max_length=200)
@@ -54,6 +58,9 @@ class TicketCreate(BaseModel):
 
 class TicketUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+    labels: TicketLabels = Field(default_factory=list)
+    custom_fields: TicketCustomFields = Field(default_factory=list)
 
     title: str = Field(min_length=1, max_length=200)
     description_document: dict[str, Any] = Field(default_factory=empty_body_document)
@@ -144,6 +151,7 @@ class TicketParentView(BaseModel):
 
 
 class TicketListItemView(BaseModel):
+    labels: TicketLabels = Field(default_factory=list)
     id: int
     project_id: int
     project_key: str
@@ -173,6 +181,7 @@ class TicketListItemView(BaseModel):
 
 
 class TicketView(TicketListItemView):
+    custom_fields: TicketCustomFields = Field(default_factory=list)
     description_document: dict[str, Any]
     description_html: str
     description_has_content: bool
@@ -270,6 +279,7 @@ class TicketEditOptions(BaseModel):
 
 
 class BoardCard(BaseModel):
+    labels: TicketLabels = Field(default_factory=list)
     key: str
     version: int
     type: TicketType

@@ -82,7 +82,7 @@ Notion은 task database, Projects·Tasks·Sprints, 업무에 적용하는 proper
 | A17 | Sprint 소속 | Sprint 필드 [J10] | task와 Sprint relation [N02] | Sprint 모델·기능 없음 / 후속 | 2026-10-03: 후속. [결정 기록](decisions.md) |
 | A18 | Resolution·종료 사유 | 상태와 별도 Resolution [J11] | Select·Text로 구성 [N01] | 완료·취소만 구분 / 미정 | 2026-10-03: 후속. [결정 기록](decisions.md) |
 | A19 | Blocked flag·막힘 사유 | Flag와 dependency link [J12][J13] | Checkbox·Status·dependency로 구성 [N01][N03] | ON_HOLD·Depends on은 있으나 독립 flag·사유 없음 / 미정 | 2026-10-03: 후속. [결정 기록](decisions.md) |
-| A20 | 사용자 정의 필드 | Text·Number·Select·Date·User 등 [J06] | database property 추가 [N01] | 없음 / 후속 | 2026-10-03: 포함(MVP), 세부 정책 미정. [결정 기록](decisions.md) |
+| A20 | 사용자 정의 필드 | Text·Number·Select·Date·User 등 [J06] | database property 추가 [N01] | 없음 / 후속 | MVP: ticket별 Ad-hoc 이름·타입·값 구조, Text만 지원. 타입 확장 DB 기반 준비. 선택형 확장 필드는 후속. [상세 결정](decisions.md) |
 | A21 | 계산 필드·관계 집계 | Formula field 및 Plans roll-up [J14][J08] | Formula·Rollup [N04][N05] | 고정 dashboard 집계만 구현 / 범용 계산은 미정 | 2026-10-03: 백로그. [결정 기록](decisions.md) |
 | A22 | 외부 참고 자료 URL 목록 | Web link [J13] | URL·Relation·본문 link [N01][N04] | 본문 link 구현, 별도 자료 목록 없음 / 미정 | 2026-10-03: 후속. [결정 기록](decisions.md) |
 | A23 | 담당 Team·조직 | Team 필드 [J10] | Team database Relation 등으로 구성 [N04] | 사용자 소속 조직은 있지만 ticket 담당 조직 속성은 없음 / 미정 | 2026-10-03: 백로그. [결정 기록](decisions.md) |

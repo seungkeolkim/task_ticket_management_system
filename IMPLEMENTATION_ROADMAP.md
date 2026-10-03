@@ -2,7 +2,7 @@
 
 이 문서는 태스크·티켓 관리 시스템의 권장 구현 순서와 현재 진척도를 관리한다.
 
-- 마지막 갱신일: 2026-09-28
+- 마지막 갱신일: 2026-10-03
 - 상세 요구사항: [REQUIREMENTS.md](REQUIREMENTS.md)
 - 기존 구현 차용 기준: [REFERENCE_IMPLEMENTATION.md](REFERENCE_IMPLEMENTATION.md)
 
@@ -233,6 +233,26 @@
 
 완료 기준: API에서 티켓을 생성하고 계층과 권한을 지키며 상태를 변경할 수 있고 모든 주요 변경이 추적된다.
 
+## MVP 확장 — 자유 Label·Ad-hoc Text 필드
+
+범위 검토 A02·A20과 TKT-014·DB-023을 구현한다. 기존 5단계의 계층·권한 정책은 유지하며, [상세 계약](docs/ticket_properties.md)을 따른다.
+
+- [x] 자유 입력 복수 Label 및 ticket-local 이름·타입·값 계약
+- [x] 타입 확장 가능한 JSON 저장 구조와 기존 데이터 보존 migration
+- [x] Text 필드 생성·수정·제거 및 전체·인라인 상세 표시
+- [x] Label 생성·편집 및 목록·칸반 chip 표시
+- [x] 생략된 속성 보존, 명시적 제거, no-op·version 충돌·변경 이력 연결
+- [x] 입력 검증·XSS·프로젝트 권한·종료 잠금·감사 실패 rollback·휴지통 복구 검증
+- [x] 기존 데이터가 있는 migration upgrade·downgrade·re-upgrade 검증
+- [x] 실제 Browser에서 Text 필드 추가·수정·제거 component 검증
+- [x] 최종 전체 회귀 검증 결과 기록
+
+2026-10-03 구현 검증: Windows Python 환경의 전체 pytest 364개가 통과했다. 이후 Unicode 정규화 후 길이 초과 회귀 2개를 추가하고 속성·계약 검증 21개를 재실행해 통과했다. 실제 Edge의 편집 component 테스트 2개, Ruff·JavaScript 문법·diff 검사도 통과했다. 검증은 임시 SQLite DB를 사용했으며 기존 업무 DB에는 migration을 실행하지 않았다. 기존 FastAPI/Starlette dependency deprecation 경고 2개는 남아 있다. 전체 배포 E2E·macOS·PostgreSQL 검증은 이 완료 범위에 포함하지 않는다.
+
+별도 후속: Text 이외 타입과 전용 입력 도구, 시스템 제공 선택형 확장 필드. Label·추가 필드의 필터 연계는 다음 칸반·저장 필터 작업에서 논의한다.
+
+2026-10-03 사용자 요청에 따른 로컬 DB 적용: SQLite online backup 후 `20260929_0006`에서 `20261003_0007`로 upgrade했다. `alembic check`, DB integrity·FK 검사와 백업 대비 기존 테이블의 모든 기존 컬럼 값 보존을 확인했다. 업무 DB·백업 파일은 Git에 포함하지 않는다.
+
 ## 6단계 — 티켓 관계·의존성·휴지통
 
 - [x] `Related` 대칭 관계 구현
@@ -426,7 +446,8 @@
 - [ ] 한국어 전문 검색
 - [ ] 관리자용 DB·첨부파일 백업 ZIP
 - [ ] 사용자 정의 상태와 workflow
-- [ ] 사용자 정의 필드
+- [ ] Text 이외 Ad-hoc 필드 타입·입력 도구(시점 별도 확정)
+- [ ] 시스템 제공 선택형 확장 필드
 - [ ] 프로젝트 및 업무 통계
 - [ ] 외부 인증 연동
 - [ ] 오브젝트 스토리지 첨부파일 adapter

@@ -1,7 +1,7 @@
 # MVP 데이터 구조
 
 이 문서는 ORM·DB 제약·입출력 계약·migration을 중심으로 설명한다. 현재 인증, 사용자·조직 기본 관리, 프로젝트 권한, 티켓 생성·조회·편집·상태 전이, 대시보드·칸반 이동, 관계, 계층 단위 휴지통·복구, 댓글, 일반 첨부파일과 본문 이미지는 서비스·API·화면까지 연결되어 있고 티켓 쓰기는 변경 이력을 같은 transaction에 기록한다. 휴지통·첨부파일 삭제와 영구 정리, 멘션 쓰기·저장 필터와 간트·보고서 실행은 아직 연결하지 않았다.
-원본은 `app/models/`, 데이터 계약은 `app/schemas/`, 최신 추가 revision은 `20260929_0006`이다.
+원본은 `app/models/`, 데이터 계약은 `app/schemas/`, 최신 추가 revision은 `20261003_0007`이다.
 
 ## 요구사항과 저장 구조
 
@@ -65,6 +65,8 @@
 - 원본을 지운 batch에는 purged_at을 남긴다. 이미 복구한 batch를 purge 상태로 바꿀 수 없다. watermark와 purge 기록은 티켓 삭제와 같은 transaction으로 저장한다.
 
 ## Migration 및 검증
+
+- `20261003_0007`은 기존 ticket에 빈 배열 기본값의 `labels`·`custom_fields` JSON 컬럼을 추가한다. 타입·ID가 포함된 ticket-local 속성은 [Label·Ad-hoc 계약](ticket_properties.md)을 따른다. downgrade는 현재 속성 값을 제거하고 기존 ticket·이력은 보존한다.
 
 - 기존 `20260916_0001`을 수정하지 않는다. 신규 revision은 기존 identity row를 변환·삭제하지 않는다.
 - 같은 위치의 조직 이름 중복은 **DDL 전에** 검사하여 명확히 실패한다. 자동 이름 변경이나 데이터 삭제는 하지 않는다.

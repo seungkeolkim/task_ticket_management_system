@@ -186,6 +186,40 @@
       "title": "ReportTicketEvidence",
       "type": "object"
     },
+    "TicketCustomField": {
+      "additionalProperties": false,
+      "description": "재사용 정의 없이 하나의 ticket에 속하는 타입 구분 가능한 값이다.",
+      "properties": {
+        "field_id": {
+          "format": "uuid",
+          "title": "Field Id",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "field_type": {
+          "const": "TEXT",
+          "default": "TEXT",
+          "title": "Field Type",
+          "type": "string"
+        },
+        "value": {
+          "default": "",
+          "maxLength": 10000,
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "TicketCustomField",
+      "type": "object"
+    },
     "TicketEvent": {
       "additionalProperties": false,
       "properties": {
@@ -468,6 +502,24 @@
     "TicketState": {
       "additionalProperties": false,
       "properties": {
+        "labels": {
+          "items": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 30,
+          "title": "Labels",
+          "type": "array"
+        },
+        "custom_fields": {
+          "items": {
+            "$ref": "#/$defs/TicketCustomField"
+          },
+          "maxItems": 30,
+          "title": "Custom Fields",
+          "type": "array"
+        },
         "schema_version": {
           "const": 2,
           "default": 2,
