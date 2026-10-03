@@ -2,7 +2,7 @@
 
 - 조사일: 2026-10-03
 - 저장소 기준: `main`, `4523def`
-- 상태: A01은 방향 확정·시점 미정, A02는 포함, A03·A09·A10·A12·A14·A15는 후속, A04·A08·A11은 백로그, A05·A06·A07·A13은 제외다. 나머지 43개는 미결정이다.
+- 상태: A01은 방향 확정·시점 미정, A02·A20은 포함, A03·A09·A10·A12·A14–A19·A22는 후속, A04·A08·A11·A21·A23은 백로그, A05·A06·A07·A13은 제외다. 나머지 35개는 미결정이다.
 - 목적: 기능을 추가하기 전에 ticket 속성과 업무 흐름을 비교한다. 분류 기준은 포함 = MVP에 포함, 후속 = MVP 바로 뒤, 백로그 = 시간 나면 선택적으로 검토, 제외 = 구현하지 않음이다. 기존 최하위 Backlog 표기는 백로그와 같다.
 - 이 문서는 별도 브랜치의 범위 검토 자료다. 결정은 이 폴더의 `decisions.md`에만 기록하며 기존 요구사항·decision·로드맵은 변경하지 않는다. 공식 문서 반영은 범위 검토 후 별도 합의한다.
 
@@ -78,14 +78,14 @@ Notion은 task database, Projects·Tasks·Sprints, 업무에 적용하는 proper
 | A13 | 예상 공수·남은 공수 | Original·Remaining estimate [J09] | Number property로 구성; 전용 추적과 구분 [N01] | 없음 / 예상 작업량은 확장 후보 | 2026-10-03: 제외. [결정 기록](decisions.md) |
 | A14 | 실제 작업 시간·Work log | 작업별 시간 기록 [J07][J09] | 시간 기록 database와 Relation·Rollup으로 구성 [N04] | 없음; 최초 착수 시각은 작업 시간 합계가 아님 / 미정 | 2026-10-03: 후속. [결정 기록](decisions.md) |
 | A15 | 진행률 % | 개수·estimate 기반 진행 집계, custom numeric field [J08][J06] | Number·Formula·Rollup [N01][N04] | `progress_percent` 기반만 / 후속 | 2026-10-03: 후속. [결정 기록](decisions.md) |
-| A16 | Milestone 표시 | timeline의 일정 관리와 custom field로 구성; 동일한 범용 Boolean은 미확인 [J08][J06] | Date·Checkbox 등으로 구성 [N01] | `is_milestone` 기반만 / 후속 | 미결정 |
-| A17 | Sprint 소속 | Sprint 필드 [J10] | task와 Sprint relation [N02] | Sprint 모델·기능 없음 / 후속 | 미결정 |
-| A18 | Resolution·종료 사유 | 상태와 별도 Resolution [J11] | Select·Text로 구성 [N01] | 완료·취소만 구분 / 미정 | 미결정 |
-| A19 | Blocked flag·막힘 사유 | Flag와 dependency link [J12][J13] | Checkbox·Status·dependency로 구성 [N01][N03] | ON_HOLD·Depends on은 있으나 독립 flag·사유 없음 / 미정 | 미결정 |
-| A20 | 사용자 정의 필드 | Text·Number·Select·Date·User 등 [J06] | database property 추가 [N01] | 없음 / 후속 | 미결정 |
-| A21 | 계산 필드·관계 집계 | Formula field 및 Plans roll-up [J14][J08] | Formula·Rollup [N04][N05] | 고정 dashboard 집계만 구현 / 범용 계산은 미정 | 미결정 |
-| A22 | 외부 참고 자료 URL 목록 | Web link [J13] | URL·Relation·본문 link [N01][N04] | 본문 link 구현, 별도 자료 목록 없음 / 미정 | 미결정 |
-| A23 | 담당 Team·조직 | Team 필드 [J10] | Team database Relation 등으로 구성 [N04] | 사용자 소속 조직은 있지만 ticket 담당 조직 속성은 없음 / 미정 | 미결정 |
+| A16 | Milestone 표시 | timeline의 일정 관리와 custom field로 구성; 동일한 범용 Boolean은 미확인 [J08][J06] | Date·Checkbox 등으로 구성 [N01] | `is_milestone` 기반만 / 후속 | 2026-10-03: 후속. [결정 기록](decisions.md) |
+| A17 | Sprint 소속 | Sprint 필드 [J10] | task와 Sprint relation [N02] | Sprint 모델·기능 없음 / 후속 | 2026-10-03: 후속. [결정 기록](decisions.md) |
+| A18 | Resolution·종료 사유 | 상태와 별도 Resolution [J11] | Select·Text로 구성 [N01] | 완료·취소만 구분 / 미정 | 2026-10-03: 후속. [결정 기록](decisions.md) |
+| A19 | Blocked flag·막힘 사유 | Flag와 dependency link [J12][J13] | Checkbox·Status·dependency로 구성 [N01][N03] | ON_HOLD·Depends on은 있으나 독립 flag·사유 없음 / 미정 | 2026-10-03: 후속. [결정 기록](decisions.md) |
+| A20 | 사용자 정의 필드 | Text·Number·Select·Date·User 등 [J06] | database property 추가 [N01] | 없음 / 후속 | 2026-10-03: 포함(MVP), 세부 정책 미정. [결정 기록](decisions.md) |
+| A21 | 계산 필드·관계 집계 | Formula field 및 Plans roll-up [J14][J08] | Formula·Rollup [N04][N05] | 고정 dashboard 집계만 구현 / 범용 계산은 미정 | 2026-10-03: 백로그. [결정 기록](decisions.md) |
+| A22 | 외부 참고 자료 URL 목록 | Web link [J13] | URL·Relation·본문 link [N01][N04] | 본문 link 구현, 별도 자료 목록 없음 / 미정 | 2026-10-03: 후속. [결정 기록](decisions.md) |
+| A23 | 담당 Team·조직 | Team 필드 [J10] | Team database Relation 등으로 구성 [N04] | 사용자 소속 조직은 있지만 ticket 담당 조직 속성은 없음 / 미정 | 2026-10-03: 백로그. [결정 기록](decisions.md) |
 | A24 | 목표·OKR 연결 | Goal 연결 [J35] | 목표 database Relation으로 구성 [N04] | 없음 / 미정; 목표 관리 시스템 전체 도입과 구분 | 미결정 |
 
 A06은 ‘별도 속성’과 ‘본문 template’ 중 선택할 수 있다. A09는 ‘책임자 1명 + 협업자 여러 명’과 ‘복수 책임자’를 분리해 결정한다. A12·A13·A14는 상대 크기·시간 예상·실제 투입량이므로 서로 대신하는 필드가 아니다. A15의 직접 입력 진행률과 하위 완료율 집계도 별개다.
@@ -157,7 +157,7 @@ B03은 앱 내 Inbox 확대와 email·push를 별도 선택할 수 있다. B08�
 5. 필드 추가를 포함하면 입력뿐 아니라 목록 표시·필터·정렬·이력·권한·기존 데이터 기본값까지 구현 범위에 포함할지 확인한다.
 6. 속성 다음에 B의 사용 흐름, 마지막에 C의 정책을 점검한다. 선행 정책이 필요한 항목은 해당 C 항목을 앞당겨 논의한다.
 
-A01–A15의 결정과 남은 세부 정책은 [검토 결정 기록](decisions.md)에 유지한다. A01의 예시 분류 값은 확정한 것이 아니며, A09 상세는 후속 착수 시 논의한다. 다음 검토 묶음은 **A16–A23**이다.
+A01–A23의 결정과 남은 세부 정책은 [검토 결정 기록](decisions.md)에 유지한다. A01의 예시 분류 값은 확정한 것이 아니며, A09 상세는 후속 착수 시 논의한다. A20은 MVP 포함이며 계산·집계(A21)는 백로그로 별도 분리한다. 다음 검토 묶음은 **A24와 B01–B07**이다.
 
 ## 9. 코드 확인 위치
 
