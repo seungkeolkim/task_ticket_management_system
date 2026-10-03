@@ -2,7 +2,7 @@
 
 - 조사일: 2026-10-03
 - 저장소 기준: `main`, `4523def`
-- 상태: 범위 검토 중. 58개 항목 중 A01은 **방향 확정**, A02는 **복수 Label 지원 포함**이다. 두 항목의 세부 정책·구현 시점과 나머지 56개 항목은 **미결정**이다.
+- 상태: 범위 검토 중. 58개 항목 중 A01은 **방향 확정**, A02는 **복수 Label 지원 포함**, A03은 **후속**이다. A01·A02의 세부 정책·구현 시점과 나머지 55개 항목은 **미결정**이다.
 - 목적: 기능을 추가하기 전에 ticket 속성과 업무 흐름을 비교하고, 항목별로 `이번 범위 포함 / 후속 / 제외 / 현행 유지`를 결정한다.
 - 이 문서는 별도 브랜치의 범위 검토 자료다. 결정은 이 폴더의 `decisions.md`에만 기록하며 기존 요구사항·decision·로드맵은 변경하지 않는다. 공식 문서 반영은 범위 검토 후 별도 합의한다.
 
@@ -65,7 +65,7 @@ Notion은 task database, Projects·Tasks·Sprints, 업무에 적용하는 proper
 |---|---|---|---|---|---|
 | A01 | Bug·Story 등 업무 유형 | 표준 유형과 custom work type [J02] | Select로 구성 [N01] | Epic·Task·Subtask만 구현 / 별도 업무 분류 도입 방향 확정, 미구현 | 2026-10-03: 계층 유지 + 업무 분류 속성 분리. 세부 범위·구현 시점 미정. [결정 기록](decisions.md) |
 | A02 | Labels·Tags | Labels [J01] | Multi-select [N01] | 없음 / 기존 확장 후보에서 검토 범위 포함으로 결정, 미구현 | 2026-10-03: 복수 Label 지원 포함. 세부 정책·구현 시점 미정. [결정 기록](decisions.md) |
-| A03 | Component·업무 영역 | project별 component, owner·자동 할당; company-managed [J03] | Select 또는 Relation으로 구성 [N01][N04] | 없음 / 확장 후보 | 미결정 |
+| A03 | Component·업무 영역 | project별 component, owner·자동 할당; company-managed [J03] | Select 또는 Relation으로 구성 [N01][N04] | 없음 / 확장 후보 | 2026-10-03: 사용 빈도가 낮아 후속으로 연기. [결정 기록](decisions.md) |
 | A04 | 목표 Release·Fix version | release와 Fix version [J04] | Release database relation으로 구성 [N04] | 없음 / 미정 | 미결정 |
 | A05 | 영향받는 Version | Affects version [J01] | Select·Relation으로 구성 [N01][N04] | 없음 / 미정 | 미결정 |
 | A06 | 재현 환경·재현 절차·Acceptance criteria | Environment와 본문·custom field로 구성 [J05][J06] | 본문·property·template으로 구성 [N01][N06] | 본문에 수동 기재 가능, 독립 필드·template 없음 / 미정 | 미결정 |
@@ -157,7 +157,7 @@ B03은 앱 내 Inbox 확대와 email·push를 별도 선택할 수 있다. B08�
 5. 필드 추가를 포함하면 입력뿐 아니라 목록 표시·필터·정렬·이력·권한·기존 데이터 기본값까지 구현 범위에 포함할지 확인한다.
 6. 속성 다음에 B의 사용 흐름, 마지막에 C의 정책을 점검한다. 선행 정책이 필요한 항목은 해당 C 항목을 앞당겨 논의한다.
 
-A01은 2026-10-03에 **계층을 유지하고 업무 분류 property를 분리**하는 방향으로 확정했다. 예시로 제시한 개발·오류·운영·검토 또는 Bug·Story를 실제 분류 값으로 확정한 것은 아니다. A02는 **복수 Label 지원 포함**으로 결정했다. 세부 미정 사항은 [검토 결정 기록](decisions.md)에 유지한다. 다음 검토 항목은 **A03 — Component·업무 영역**이다.
+A01은 2026-10-03에 **계층을 유지하고 업무 분류 property를 분리**하는 방향으로 확정했다. 예시로 제시한 개발·오류·운영·검토 또는 Bug·Story를 실제 분류 값으로 확정한 것은 아니다. A02는 **복수 Label 지원 포함**, A03은 **사용 빈도가 낮아 후속**으로 결정했다. 세부 미정 사항은 [검토 결정 기록](decisions.md)에 유지한다. 다음 검토 항목은 **A04 — 목표 Release·Fix version**이다.
 
 ## 9. 코드 확인 위치
 
