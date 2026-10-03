@@ -2,7 +2,7 @@
 
 - 조사일: 2026-10-03
 - 저장소 기준: `main`, `4523def`
-- 상태: A01은 방향 확정·시점 미정이다. 포함 5개, 후속 19개, 백로그 16개, 제외 5개이며 B12는 응답 중복으로 확인 필요하다. 나머지 11개는 미결정이다. 항목별 분류는 아래 표와 결정 기록을 따른다.
+- 상태: A01은 방향 확정·시점 미정이다. 포함 7개, 후속 22개, 조건부 후속 1개(C01), 백로그 18개, 제외 6개이며 마지막 3개(C05–C07)는 미결정이다. 항목별 분류는 아래 표와 결정 기록을 따른다.
 - 목적: 기능을 추가하기 전에 ticket 속성과 업무 흐름을 비교한다. 분류 기준은 포함 = MVP에 포함, 후속 = MVP 바로 뒤, 백로그 = 시간 나면 선택적으로 검토, 제외 = 구현하지 않음이다. 기존 최하위 Backlog 표기는 백로그와 같다.
 - 이 문서는 별도 브랜치의 범위 검토 자료다. 결정은 이 폴더의 `decisions.md`에만 기록하며 기존 요구사항·decision·로드맵은 변경하지 않는다. 공식 문서 반영은 범위 검토 후 별도 합의한다.
 
@@ -105,7 +105,7 @@ A06은 ‘별도 속성’과 ‘본문 template’ 중 선택할 수 있다. A0
 | B09 | 목록에서 바로 값 편집 | 지원되는 필드의 inline edit [J20] | table cell 편집 [N01] | 별도 편집 form만 / 미정 | 2026-10-03: 백로그. [결정 기록](decisions.md) |
 | B10 | Drag로 수동 순위 정렬 | Rank [J12] | row drag 정렬 [N10] | `sort_order` 조회만, 순위 변경 없음 / 후속 기록은 있으나 독립 checklist 없음 | 2026-10-03: 제외, 기존 Drag 상태 변경 유지. [결정 기록](decisions.md) |
 | B11 | Timeline·Gantt·의존 일정 조정 | timeline·Plans; 고급 Plans는 Premium/Enterprise [J08][J21] | timeline·dependency date shifting [N03][N09] | 일정·관계 필드 기반만 / 후속 | 2026-10-03: 백로그. [결정 기록](decisions.md) |
-| B12 | Calendar 업무 보기 | calendar 일정 편집 [J22] | Calendar view [N09] | 없음 / 미정 | 2026-10-03: 미결정 — 백로그·후속 중복 응답으로 확인 필요. [결정 기록](decisions.md) |
+| B12 | Calendar 업무 보기 | calendar 일정 편집 [J22] | Calendar view [N09] | 없음 / 미정 | 2026-10-03: 후속 — 중복 응답 확인 완료. [결정 기록](decisions.md) |
 | B13 | Backlog·Sprint 계획·종료·이월 | Scrum/backlog·Sprint 종료와 미완료 이월 [J36] | Sprint planning·backlog·완료 시 이월 [N02] | 없음 / 후속 | 2026-10-03: 후속. [결정 기록](decisions.md) |
 | B14 | WIP 제한 | column constraint 초과 표시 [J24] | 동등한 native 제한은 미확인; 집계 구성은 가능 [N04] | 없음 / 미정 | 2026-10-03: 백로그. [결정 기록](decisions.md) |
 | B15 | 팀 통계·Workload·진척 report | Sprint·Velocity·Burndown·Cycle time 등 [J23] | task 집계·chart·Sprint 완료율; Jira report와 동일하지 않음 [N11][N20] | 개인 dashboard만 / 프로젝트·업무 통계 후속 | 2026-10-03: 백로그. [결정 기록](decisions.md) |
@@ -117,10 +117,10 @@ A06은 ‘별도 속성’과 ‘본문 template’ 중 선택할 수 있다. A0
 | B21 | CSV 가져오기·내보내기 | CSV import·검색 결과 export [J28][J17] | CSV import·database export, relation 왕복 제한 [N15][N04] | 없음 / 명시적 제외; 조직 JSON과 별개 | 2026-10-03: 백로그(기존 제외에서 조정). [결정 기록](decisions.md) |
 | B22 | 본문·댓글 검색·고급 조건 | text 검색·JQL [J05] | workspace는 본문 검색, database는 제목/property; 댓글 검색 제외 [N16] | key·제목 검색만 / 한국어 전문 검색 후속, JQL 제외 | 2026-10-03: 후속, 고급 조건은 별도 결정. [결정 기록](decisions.md) |
 | B23 | 사용자 정의 상태·Workflow·Review 단계 | status·transition·rule 편집 [J29] | Status·automation으로 구성; 서버 FSM과 동등하다고 보지 않음 [N01][N14] | 고정 5상태·FSM / 후속 | 2026-10-03: 백로그. [결정 기록](decisions.md) |
-| B24 | 첨부파일 삭제·본문 참조 처리 | 첨부 삭제 권한 [J07] | 파일 property 삭제 [N01] | 등록·조회·다운로드만 / 8단계 후순위 | 미결정 |
-| B25 | 휴지통·첨부파일 보존 만료 정리 | 이번 조사에서 동일한 30일 cascade 정책 비교는 하지 않음 | 동일 정책으로 간주하지 않음 | 휴지통·복구 구현, purge·scheduler 없음 / 기존 MVP 6·8·11단계 | 미결정 |
-| B26 | 요청 접수 Form | Form 제출로 work item 생성 [J37] | Form 응답을 database property로 저장 [N19] | 일반 ticket 생성 form만 있음 / 별도 접수 form은 미정 | 미결정 |
-| B27 | Git commit·PR 연결 | 개발 도구 연동 [J34] | GitHub PR 연결·동기화; plan·연동 전환 상태에 따라 다름 [N21][N22] | 본문 URL 외 전용 연동 없음 / 미정 | 미결정 |
+| B24 | 첨부파일 삭제·본문 참조 처리 | 첨부 삭제 권한 [J07] | 파일 property 삭제 [N01] | 등록·조회·다운로드만 / 8단계 후순위 | 2026-10-03: 포함(MVP). [결정 기록](decisions.md) |
+| B25 | 휴지통·첨부파일 보존 만료 정리 | 이번 조사에서 동일한 30일 cascade 정책 비교는 하지 않음 | 동일 정책으로 간주하지 않음 | 휴지통·복구 구현, purge·scheduler 없음 / 기존 MVP 6·8·11단계 | 2026-10-03: 포함(MVP). [결정 기록](decisions.md) |
+| B26 | 요청 접수 Form | Form 제출로 work item 생성 [J37] | Form 응답을 database property로 저장 [N19] | 일반 ticket 생성 form만 있음 / 별도 접수 form은 미정 | 2026-10-03: 백로그. [결정 기록](decisions.md) |
+| B27 | Git commit·PR 연결 | 개발 도구 연동 [J34] | GitHub PR 연결·동기화; plan·연동 전환 상태에 따라 다름 [N21][N22] | 본문 URL 외 전용 연동 없음 / 미정 | 2026-10-03: 제외. [결정 기록](decisions.md) |
 
 B03은 앱 내 Inbox 확대와 email·push를 별도 선택할 수 있다. B08은 목록 열 선택부터 시작하고 임의 view designer는 후속으로 둘 수 있다. B11은 일정 수동 편집·timeline 표시·자동 재계획을 따로 결정한다. B15도 단순 상태별 통계와 공수 기반 workload, Agile report를 한 번에 포함할 필요는 없다. B22에서 본문 검색 추가가 JQL 또는 별도 검색 서버 도입을 자동으로 뜻하지 않는다.
 
@@ -128,10 +128,10 @@ B03은 앱 내 Inbox 확대와 email·push를 별도 선택할 수 있다. B08�
 
 | ID | 검토할 정책 | Jira·Notion과의 차이 | 현재 정책 / 영향 | 결정 |
 |---|---|---|---|---|
-| C01 | 관계 유형 확장 | Jira는 blocks·duplicates·clones·relates to 등을 구분 [J28]. Notion은 Relation을 구성 [N04] | Related·Depends on 두 종류. duplicate·원본/파생 등을 추가할지 선택 | 미결정 |
-| C02 | 프로젝트 간 티켓 관계 | Jira는 권한이 있는 다른 space와 link 가능 [J07]. Notion은 DB 간 Relation [N04] | 동일 프로젝트만 허용. 양쪽 조회 권한·정보 은폐·DB 제약 재설계 필요 | 미결정 |
-| C03 | 티켓의 프로젝트 간 이동 | Jira는 field/status 매핑을 거치는 move [J30]. Notion은 다른 DB로 page 이동 [N03] | 금지. key·계층·첨부 경로·이력·권한·이전 URL 정책을 함께 결정해야 함 | 미결정 |
-| C04 | 생성 후 Type 변환·계층 유연화 | Jira는 work type 변경 [J31]. Notion은 Select와 sub-items를 각각 변경 [N01][N03] | Type은 수정 불가. Task↔Subtask 등의 전환과 Bug 분류 추가는 별도 문제 | 미결정 |
+| C01 | 관계 유형 확장 | Jira는 blocks·duplicates·clones·relates to 등을 구분 [J28]. Notion은 Relation을 구성 [N04] | Related·Depends on 두 종류. duplicate·원본/파생 등을 추가할지 선택 | 2026-10-03: 조건부 후속 — 필요성이 확인될 때만 진행. [결정 기록](decisions.md) |
+| C02 | 프로젝트 간 티켓 관계 | Jira는 권한이 있는 다른 space와 link 가능 [J07]. Notion은 DB 간 Relation [N04] | 동일 프로젝트만 허용. 양쪽 조회 권한·정보 은폐·DB 제약 재설계 필요 | 2026-10-03: 백로그. [결정 기록](decisions.md) |
+| C03 | 티켓의 프로젝트 간 이동 | Jira는 field/status 매핑을 거치는 move [J30]. Notion은 다른 DB로 page 이동 [N03] | 금지. key·계층·첨부 경로·이력·권한·이전 URL 정책을 함께 결정해야 함 | 2026-10-03: 후속. [결정 기록](decisions.md) |
+| C04 | 생성 후 Type 변환·계층 유연화 | Jira는 work type 변경 [J31]. Notion은 Select와 sub-items를 각각 변경 [N01][N03] | Type은 수정 불가. Task↔Subtask 등의 전환과 Bug 분류 추가는 별도 문제 | 2026-10-03: 후속. [결정 기록](decisions.md) |
 | C05 | Ticket별·Field별 권한 | Jira의 work-item security [J32]. Notion의 page sharing 및 Business/Enterprise의 page/property access [N17][N18] | project role 기준. creator·assignee와 무관한 전체 업무 수정 정책을 유지할지 검토 | 미결정 |
 | C06 | 종료 티켓 잠금·의존 완료 차단 | Jira는 Workflow rule로 제어 [J29][J33]. Notion의 dependency는 날짜 조정 기능이며 같은 완료 차단은 확인되지 않음 [N03] | 종료 티켓 편집 금지·의존 대상 미완료 시 완료 금지. 편의성 때문에 완화할지, 현행 유지할지 선택 | 미결정 |
 | C07 | 하위 상태·진척의 상위 집계 | Jira Plans roll-up [J08], Notion Relation·Rollup·프로젝트 완료율 [N04][N12] | 상위 상태 자동 연동 없음, 상세에 완료율도 표시하지 않는 확정 정책. 표시용 집계와 자동 상태 변경은 따로 결정 | 미결정 |
@@ -157,7 +157,7 @@ B03은 앱 내 Inbox 확대와 email·push를 별도 선택할 수 있다. B08�
 5. 필드 추가를 포함하면 입력뿐 아니라 목록 표시·필터·정렬·이력·권한·기존 데이터 기본값까지 구현 범위에 포함할지 확인한다.
 6. 속성 다음에 B의 사용 흐름, 마지막에 C의 정책을 점검한다. 선행 정책이 필요한 항목은 해당 C 항목을 앞당겨 논의한다.
 
-A01–A24와 B01–B23의 결정 및 남은 세부 정책은 [검토 결정 기록](decisions.md)에 유지한다. B12는 백로그·후속 중복 응답으로 확인이 필요하다. 다음 신규 검토 묶음은 **B24–B27과 C01–C04**다.
+A01–A24, B01–B27, C01–C04의 결정 및 남은 세부 정책은 [검토 결정 기록](decisions.md)에 유지한다. B12는 후속으로 확인 완료했으며 C01은 필요성이 확인될 때만 후속 진행한다. 마지막 신규 검토 항목은 **C05–C07**이며 **A01 구현 시점**도 미정이다.
 
 ## 9. 코드 확인 위치
 
