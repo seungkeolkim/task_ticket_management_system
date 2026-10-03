@@ -156,25 +156,47 @@ def filtered_ticket_rows(
     return rows, total
 
 
-def board_rows(session: Session, project_id: int, actor_id: int, *, override: bool):
-    """보드에 표시할 티켓 row를 조회한다."""
-    return session.execute(
-        ticket_query(project_id, actor_id, override=override).order_by(
-            Ticket.sort_order, Ticket.number, Ticket.id
-        )
-    ).all()
-
-
-def ticket_rows(
+def board_rows(
     session: Session,
     project_id: int,
     actor_id: int,
     *,
     override: bool,
     ticket_filter: TicketFilter,
-    page: int = 1,
 ):
-    """프로젝트 티켓 목록 row를 filter·sort·page 조건으로 조회한다."""
+    """필터 일치 티켓과 계층 식별에 필요한 상위 티켓을 한 번에 조회한다."""
+    matching_query = filtered_project_ticket_query(
+        project_id, actor_id, override=override, ticket_filter=ticket_filter
+    )
+    matching_tickets = matching_query.with_only_columns(Ticket.id, Ticket.parent_id).cte(
+        "matching_board_tickets"
+    )
+    matching_identifiers = select(matching_tickets.c.id)
+    matching_parents = select(matching_tickets.c.parent_id)
+    ancestor_identifiers = select(Ticket.parent_id).where(
+        Ticket.project_id == project_id,
+        Ticket.deleted_at.is_(None),
+        Ticket.id.in_(matching_parents),
+    )
+    matches_filter = Ticket.id.in_(matching_identifiers)
+    query = ticket_query(project_id, actor_id, override=override)
+    return session.execute(
+        query.add_columns(matches_filter.label("matches_filter"))
+        .where(
+            or_(
+                matches_filter,
+                Ticket.id.in_(matching_parents),
+                Ticket.id.in_(ancestor_identifiers),
+            )
+        )
+        .order_by(Ticket.sort_order, Ticket.number, Ticket.id)
+    ).all()
+
+
+def filtered_project_ticket_query(
+    project_id: int, actor_id: int, *, override: bool, ticket_filter: TicketFilter
+):
+    """목록과 칸반이 공유하는 프로젝트 권한·업무 필터 query를 구성한다."""
     query = ticket_query(project_id, actor_id, override=override)
     if ticket_filter.query:
         query = query.where(
@@ -236,6 +258,22 @@ def ticket_rows(
     if ticket_filter.due_through is not None:
         query = query.where(Ticket.due_date <= ticket_filter.due_through)
 
+    return query
+
+
+def ticket_rows(
+    session: Session,
+    project_id: int,
+    actor_id: int,
+    *,
+    override: bool,
+    ticket_filter: TicketFilter,
+    page: int = 1,
+):
+    """프로젝트 티켓 목록 row를 filter·sort·page 조건으로 조회한다."""
+    query = filtered_project_ticket_query(
+        project_id, actor_id, override=override, ticket_filter=ticket_filter
+    )
     total = session.scalar(select(func.count()).select_from(query.subquery())) or 0
     sort_columns = _ticket_sort_columns(ticket_filter)
     rows = session.execute(

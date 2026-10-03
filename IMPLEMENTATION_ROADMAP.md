@@ -2,7 +2,7 @@
 
 이 문서는 태스크·티켓 관리 시스템의 권장 구현 순서와 현재 진척도를 관리한다.
 
-- 마지막 갱신일: 2026-10-03
+- 마지막 갱신일: 2026-10-04
 - 상세 요구사항: [REQUIREMENTS.md](REQUIREMENTS.md)
 - 기존 구현 차용 기준: [REFERENCE_IMPLEMENTATION.md](REFERENCE_IMPLEMENTATION.md)
 
@@ -335,6 +335,7 @@
 ## 9단계 — 목록·검색·대시보드
 
 - [x] typed ticket filter DTO 구현
+- [x] 칸반의 공통 필터·URL 보존·필터 제외 부모 식별 표시 연결
 - [x] 유형·상태·중요도·계층·사용자·날짜 필터 구현
 - [x] 생성일·수정일·마감일·중요도·번호 정렬 구현
 - [x] 항상 안정적인 보조 정렬 적용
@@ -354,6 +355,8 @@
 완료 기준: 접근 가능한 티켓만 안정적으로 필터링·검색·페이지 이동할 수 있고 내 작업 현황을 한 화면에서 확인할 수 있다.
 
 2026-09-28 프로젝트 티켓 목록 filter·sort 연결: 기존 `TicketFilter` v1 계약을 프로젝트 목록 API와 화면에 적용해 유형·상태·중요도, Epic·직접 상위, 생성자·담당자·미지정 담당자, 생성·수정·마감일 범위를 조합하고 생성일·수정일·마감일·중요도·티켓 번호의 양방향 정렬을 제공한다. Epic 조건은 Epic 자체와 하위 Task·Subtask를 포함하며, 날짜 화면 값은 Asia/Seoul 날짜 경계로 변환한다. 목록과 count는 같은 권한·filter query를 사용하고 안정적인 ID 보조 정렬과 due date NULL 후순위를 유지한다. filter·정렬·페이지 크기·현재 페이지는 pagination과 inline 상세 link의 URL query에 보존한다. Windows Python 환경에서 전체 pytest 327개와 Ruff 및 diff 검사를 통과했다.
+
+2026-10-04 칸반 기본 필터 연결: 목록과 칸반이 같은 query 검증·repository 필터·HTML form을 공유하도록 연결했다. 키·제목, 유형·상태·중요도, Epic·직접 상위, 생성자·담당자·미지정과 날짜 조건을 지원하고, 미일치 상위 티켓은 그룹 식별에만 사용해 일치하는 Subtask를 보존한다. 모든 상태 열·필터 밖 의존성 검사·기존 카드 순서를 유지하며 목록 전환과 drag 재조회에서 URL 조건을 보존한다. Windows Python 전체 pytest 379개(실제 Edge Browser 테스트 포함), Ruff·JavaScript 문법·diff 검사를 통과했다. Browser에서 form 제출·초기화·목록 왕복·drag 취소/성공·재조회와 1440px 배치를 확인했다. 기존 dependency deprecation 경고 2개는 남아 있으며 DB migration과 기존 업무 DB 변경은 없다. Label·Ad-hoc 필터, 개인·공유 저장 필터와 macOS 실환경 검증은 후속이다.
 
 ## 10단계 — 칸반 및 웹 UI 완성
 

@@ -63,6 +63,8 @@
 | UI-027 | 2026-09-29 | DECIDED | 쓰기 가능한 활성 프로젝트의 Epic 상세에는 현재 Epic을 parent로 미리 선택한 `Task 만들기`, Task 상세에는 현재 Task를 parent로 미리 선택한 `Subtask 만들기`를 제공한다. 전체 상세와 목록 inline 상세에서 동일하게 제공하고 서버가 query의 유형·parent 조합과 현재 프로젝트 후보를 검증한다. | 계층을 탐색한 맥락에서 티켓 유형과 상위를 다시 찾는 입력을 줄이면서 변조된 prefill query가 다른 프로젝트나 잘못된 계층을 선택하지 못하게 한다. |
 | UI-028 | 2026-10-02 | DECIDED | 공통 왼쪽 navigation sidebar는 topbar의 button으로 완전히 접고 펼친다. 접힌 동안 main workspace가 전체 너비를 사용하고, 상태는 browser `localStorage`에 유지하며 숨겨진 navigation은 keyboard focus와 접근성 tree에서 제외한다. | 티켓 목록·칸반처럼 너비가 중요한 화면의 작업 공간을 넓히면서 page 이동 후에도 사용자의 표시 선호를 유지한다. toggle은 sidebar 밖에 두어 접힌 상태에서도 항상 복원할 수 있게 한다. |
 
+| UI-029 | 2026-10-04 | DECIDED | 칸반은 목록의 typed filter와 query 조건을 공유하고 일치하는 Task·Subtask만 카드로 표시한다. 제외된 상위 Epic·Task는 그룹 식별에만 사용하며 필터 시 빈 그룹은 숨긴다. 모든 상태 열과 필터 밖 의존성 검증은 유지한다. | Subtask가 부모 조건 때문에 사라지거나 미일치 부모가 결과 수에 포함되는 혼동을 막는다. URL·화면 전환·drag 재조회에서 조건을 유지하며 목록 정렬·페이지 크기는 보존만 하고 칸반에는 기존 순서·전체 카드 표시를 적용한다. Label·Ad-hoc 필터와 저장 필터는 후속이다. |
+
 ## Open decisions
 
 - 목록의 인라인 상세 패널을 server-rendered partial, HTMX, 또는 별도 client state 중 무엇으로 구현할지는 UI 기반 작업 전에 확정한다.

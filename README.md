@@ -58,7 +58,7 @@ Docker Compose는 개발 중인 `app`, `migrations`, `alembic.ini`를 컨테이�
 
 Compose는 TOML을 직접 해석할 수 없으므로 직접 `docker compose up`을 실행하면 필수 포트 변수가 없다는 오류와 함께 중단됩니다. 항상 실행 래퍼를 사용하면 설정 변경과 포트 매핑이 어긋나지 않습니다. 다른 호스트 설정 파일을 사용하려면 절대 경로로 `APP_CONFIG_FILE=/path/to/application.toml sh ./run_compose.sh start`를 실행합니다.
 
-루트 `/`는 내 작업 대시보드이며 로그인하지 않았다면 로그인 화면으로 이동합니다. 인증, 사용자 조회·생성·수정·활성화·비활성화·비밀번호 초기화, 조직 조회·생성, 프로젝트 생성·조회·기본 정보 수정·비활성화·재활성화와 참여자 등록·역할 변경·제거, 티켓 생성·조회·편집·상태 전이·관계 관리·계층 단위 휴지통 이동과 복구, 댓글·대댓글 관리, 일반 첨부파일과 본문 이미지의 업로드·조회, 내 작업 대시보드와 칸반 상태 이동은 실제 DB에 연결되어 있습니다. 조직 수정·JSON 입출력, 휴지통·첨부파일 삭제와 영구 정리, 멘션 쓰기와 저장 필터는 후속 범위입니다. 최초 실행 전 [초기 관리자 설정](docs/authentication.md)에 따라 CLI 또는 bootstrap 환경 변수로 관리자를 생성하세요.
+루트 `/`는 내 작업 대시보드이며 로그인하지 않았다면 로그인 화면으로 이동합니다. 인증, 사용자 조회·생성·수정·활성화·비활성화·비밀번호 초기화, 조직 조회·생성, 프로젝트 생성·조회·기본 정보 수정·비활성화·재활성화와 참여자 등록·역할 변경·제거, 티켓 생성·조회·편집·상태 전이·관계 관리·계층 단위 휴지통 이동과 복구, 댓글·대댓글 관리, 일반 첨부파일과 본문 이미지의 업로드·조회, 내 작업 대시보드와 칸반 필터·상태 이동은 실제 DB에 연결되어 있습니다. 조직 수정·JSON 입출력, 휴지통·첨부파일 삭제와 영구 정리, 멘션 쓰기와 저장 필터는 후속 범위입니다. 최초 실행 전 [초기 관리자 설정](docs/authentication.md)에 따라 CLI 또는 bootstrap 환경 변수로 관리자를 생성하세요.
 
 ## 로컬 개발
 
@@ -87,6 +87,18 @@ pytest
 ruff check .
 npm run build
 ```
+
+칸반 Browser 회귀 테스트는 Playwright가 `node_modules` 또는 `NODE_PATH`에서 제공되고 Edge가 설치된 환경에서 별도로 실행합니다. 임시 SQLite DB와 임의의 localhost 포트를 사용하며 기존 업무 DB는 변경하지 않습니다.
+
+```powershell
+$env:TTMS_RUN_BROWSER_TESTS = '1'
+$env:PLAYWRIGHT_CHANNEL = 'msedge'
+pytest tests/integration/test_tickets.py -k filters_in_real_browser
+Remove-Item Env:TTMS_RUN_BROWSER_TESTS
+Remove-Item Env:PLAYWRIGHT_CHANNEL
+```
+
+기본 `pytest`에서는 이 Browser 테스트 하나만 건너뛰며 API·HTML 필터 검증은 항상 실행합니다.
 
 ## 설정
 

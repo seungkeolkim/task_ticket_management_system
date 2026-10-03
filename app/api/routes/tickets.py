@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.db.session import get_db_session
 from app.domain.auth import Identity
+from app.schemas.contracts import TicketFilter
 from app.schemas.tickets import (
     BoardView,
     TicketCreate,
@@ -57,11 +58,7 @@ def list_global_tickets_api(
     )
 
 
-@router.get("", response_model=TicketPage)
-def list_project_tickets_api(
-    project_key: str,
-    session: Database,
-    actor: Actor,
+def project_ticket_filter_parameters(
     search_query: Annotated[str, Query(alias="q")] = "",
     types: Annotated[list[str] | None, Query(alias="type")] = None,
     statuses: Annotated[list[str] | None, Query(alias="status")] = None,
@@ -79,11 +76,10 @@ def list_project_tickets_api(
     due_through: date | None = None,
     sort_by: str = "updated_at",
     sort_direction: str = "desc",
-    page: int = 1,
     page_size: int | None = None,
-):
-    """프로젝트 티켓 API 목록을 조회한다."""
-    ticket_filter = service.build_project_ticket_filter(
+) -> TicketFilter:
+    """목록과 칸반 API의 query를 동일한 filter 계약으로 검증한다."""
+    return service.build_project_ticket_filter(
         search_query=search_query,
         types=types,
         statuses=statuses,
@@ -103,6 +99,17 @@ def list_project_tickets_api(
         sort_direction=sort_direction,
         page_size=page_size,
     )
+
+
+@router.get("", response_model=TicketPage)
+def list_project_tickets_api(
+    project_key: str,
+    session: Database,
+    actor: Actor,
+    ticket_filter: Annotated[TicketFilter, Depends(project_ticket_filter_parameters)],
+    page: int = 1,
+):
+    """프로젝트 티켓 API 목록을 조회한다."""
     return service.list_project_tickets(
         session, actor, project_key, ticket_filter=ticket_filter, page=page
     )[1]
@@ -130,9 +137,14 @@ def create_ticket_api(
 
 
 @router.get("/board", response_model=BoardView)
-def get_ticket_board_api(project_key: str, session: Database, actor: Actor):
+def get_ticket_board_api(
+    project_key: str,
+    session: Database,
+    actor: Actor,
+    ticket_filter: Annotated[TicketFilter, Depends(project_ticket_filter_parameters)],
+):
     """티켓 보드 API 정보를 조회한다."""
-    return service.build_ticket_board(session, actor, project_key)[1]
+    return service.build_ticket_board(session, actor, project_key, ticket_filter=ticket_filter)[1]
 
 
 @router.get("/trash", response_model=TicketTrashPage)

@@ -10,50 +10,14 @@
     <h1>티켓</h1>
     <p>실제 프로젝트 데이터에서 티켓을 검색하고 업무 조건에 맞게 필터·정렬합니다.</p>
   </div>
-  {% if project.role in ['PROJECT_USER', 'PROJECT_ADMIN'] or project.can_manage %}<div class="page-actions"><a class="button primary" href="/projects/{{ project.key }}/tickets/new"><span>＋</span> 새 티켓</a></div>{% endif %}
+  <div class="page-actions">
+    <a class="button secondary" href="{{ board_url }}">칸반 보기</a>
+    {% if project.role in ['PROJECT_USER', 'PROJECT_ADMIN'] or project.can_manage %}<a class="button primary" href="/projects/{{ project.key }}/tickets/new"><span>＋</span> 새 티켓</a>{% endif %}
+  </div>
 </header>
 
 {% if created %}<div class="auth-message success" role="status">티켓을 생성하고 최초 변경 이력을 기록했습니다.</div>{% endif %}
-<form class="filter-toolbar ticket-filter-toolbar" action="/projects/{{ project.key }}/tickets" method="get">
-  <div class="ticket-filter-primary">
-    <label class="search-field ticket-search"><span>⌕</span><input name="q" value="{{ q }}" maxlength="200" placeholder="티켓 키 또는 제목 검색"></label>
-    <label>정렬
-      <select name="sort_by">
-        {% for value, label in [('updated_at','수정일'),('created_at','생성일'),('due_date','마감일'),('priority','중요도'),('number','티켓 번호')] %}<option value="{{ value }}" {% if filters.sort_by == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
-      </select>
-    </label>
-    <label>방향
-      <select name="sort_direction"><option value="desc" {% if filters.sort_direction == 'desc' %}selected{% endif %}>내림차순</option><option value="asc" {% if filters.sort_direction == 'asc' %}selected{% endif %}>오름차순</option></select>
-    </label>
-    <label>표시
-      <select name="page_size" aria-label="페이지당 표시 개수">{% for size in [10, 20, 50] %}<option value="{{ size }}" {% if result.page_size == size %}selected{% endif %}>{{ size }}개</option>{% endfor %}</select>
-    </label>
-    <button class="button primary" type="submit">적용</button>
-    <a class="button quiet" href="/projects/{{ project.key }}/tickets">초기화</a>
-  </div>
-  <details class="ticket-filter-details" {% if filters.types or filters.statuses or filters.priorities or filters.epic_id or filters.parent_id or filters.creator_ids or filters.assignee_ids or filters.unassigned or filters.created_from or filters.created_before or filters.updated_from or filters.updated_before or filters.due_from or filters.due_through %}open{% endif %}>
-    <summary>상세 필터</summary>
-    <div class="ticket-filter-grid">
-      <fieldset><legend>유형</legend>{% for value, label in [('EPIC','Epic'),('TASK','Task'),('SUBTASK','Subtask')] %}<label class="check-option"><input type="checkbox" name="type" value="{{ value }}" {% if value in filters.types %}checked{% endif %}>{{ label }}</label>{% endfor %}</fieldset>
-      <fieldset><legend>상태</legend>{% for value, label in [('TODO','등록'),('IN_PROGRESS','진행중'),('ON_HOLD','보류'),('DONE','완료'),('CANCELLED','취소')] %}<label class="check-option"><input type="checkbox" name="status" value="{{ value }}" {% if value in filters.statuses %}checked{% endif %}>{{ label }}</label>{% endfor %}</fieldset>
-      <fieldset><legend>중요도</legend>{% for value in ['TRIVIAL','MINOR','MAJOR','CRITICAL','BLOCKER'] %}<label class="check-option"><input type="checkbox" name="priority" value="{{ value }}" {% if value in filters.priorities %}checked{% endif %}>{{ value|title }}</label>{% endfor %}</fieldset>
-      <div class="ticket-filter-fields">
-        <label>생성자<select name="creator_id"><option value="">전체</option>{% for user in filter_options.users %}<option value="{{ user.id }}" {% if user.id in filters.creator_ids %}selected{% endif %}>{{ user.display_name }} · {{ user.login_id }}</option>{% endfor %}</select></label>
-        <label>담당자<select name="assignee_id" {% if filters.unassigned %}disabled{% endif %}><option value="">전체</option>{% for user in filter_options.users %}<option value="{{ user.id }}" {% if user.id in filters.assignee_ids %}selected{% endif %}>{{ user.display_name }} · {{ user.login_id }}</option>{% endfor %}</select></label>
-        <label class="check-option"><input type="checkbox" name="unassigned" value="true" {% if filters.unassigned %}checked{% endif %}>담당자 미지정만</label>
-      </div>
-      <div class="ticket-filter-fields">
-        <label>Epic 및 하위<select name="epic_id"><option value="">전체</option>{% for item in filter_options.hierarchy if item.type.value == 'EPIC' %}<option value="{{ item.id }}" {% if filters.epic_id == item.id %}selected{% endif %}>{{ item.key }} · {{ item.title }}</option>{% endfor %}</select></label>
-        <label>직접 상위<select name="parent_id"><option value="">전체</option>{% for item in filter_options.hierarchy %}<option value="{{ item.id }}" {% if filters.parent_id == item.id %}selected{% endif %}>{{ item.key }} · {{ item.type.value|title }} · {{ item.title }}</option>{% endfor %}</select></label>
-      </div>
-      <div class="ticket-filter-dates">
-        <strong>생성일</strong><input type="date" name="created_from" value="{{ filter_dates.created_from or '' }}" aria-label="생성일 시작"><span>–</span><input type="date" name="created_through" value="{{ filter_dates.created_through or '' }}" aria-label="생성일 종료">
-        <strong>수정일</strong><input type="date" name="updated_from" value="{{ filter_dates.updated_from or '' }}" aria-label="수정일 시작"><span>–</span><input type="date" name="updated_through" value="{{ filter_dates.updated_through or '' }}" aria-label="수정일 종료">
-        <strong>마감일</strong><input type="date" name="due_from" value="{{ filter_dates.due_from or '' }}" aria-label="마감일 시작"><span>–</span><input type="date" name="due_through" value="{{ filter_dates.due_through or '' }}" aria-label="마감일 종료">
-      </div>
-    </div>
-  </details>
-</form>
+{% include "_ticket_filter_form.html" %}
 
 <div class="ticket-workspace">
   <section class="ticket-table-panel">
