@@ -2,8 +2,8 @@
 
 - 조사일: 2026-10-03
 - 저장소 기준: `main`, `4523def`
-- 상태: 범위 검토 중. 58개 항목 중 A01은 **방향 확정**, A02는 **복수 Label 지원 포함**, A03은 **후속**, A04는 **최하위 Backlog**, A05·A06·A07은 **제외**다. A01·A02의 세부 정책·구현 시점과 나머지 51개 항목은 **미결정**이다.
-- 목적: 기능을 추가하기 전에 ticket 속성과 업무 흐름을 비교하고, 항목별로 `이번 범위 포함 / 후속 / 최하위 Backlog / 제외 / 현행 유지`를 결정한다. 최하위 Backlog는 일반 후속 계획과 달리 구현 의무나 일정 없이 아이디어로만 보관한다.
+- 상태: A01은 방향 확정·시점 미정, A02는 포함, A03·A09·A10·A12·A14·A15는 후속, A04·A08·A11은 백로그, A05·A06·A07·A13은 제외다. 나머지 43개는 미결정이다.
+- 목적: 기능을 추가하기 전에 ticket 속성과 업무 흐름을 비교한다. 분류 기준은 포함 = MVP에 포함, 후속 = MVP 바로 뒤, 백로그 = 시간 나면 선택적으로 검토, 제외 = 구현하지 않음이다. 기존 최하위 Backlog 표기는 백로그와 같다.
 - 이 문서는 별도 브랜치의 범위 검토 자료다. 결정은 이 폴더의 `decisions.md`에만 기록하며 기존 요구사항·decision·로드맵은 변경하지 않는다. 공식 문서 반영은 범위 검토 후 별도 합의한다.
 
 ## 1. 비교 기준
@@ -70,14 +70,14 @@ Notion은 task database, Projects·Tasks·Sprints, 업무에 적용하는 proper
 | A05 | 영향받는 Version | Affects version [J01] | Select·Relation으로 구성 [N01][N04] | 없음 / 기존 범위 미정 | 2026-10-03: 전용 속성 제외. [결정 기록](decisions.md) |
 | A06 | 재현 환경·재현 절차·Acceptance criteria | Environment와 본문·custom field로 구성 [J05][J06] | 본문·property·template으로 구성 [N01][N06] | 본문에 수동 기재 가능, 독립 필드·template 없음 | 2026-10-03: 별도 필드·전용 Template 제외, 본문 자유 작성 유지. 범용 Template(B16)은 별도 검토. [결정 기록](decisions.md) |
 | A07 | Severity — Priority와 별도 관리 | custom Select로 구성 가능; 모든 Jira의 기본 필드로 간주하지 않음 [J06] | Select로 구성 [N01] | Priority만 있음 | 2026-10-03: 별도 Severity 제외, Priority 유지. [결정 기록](decisions.md) |
-| A08 | Reporter·요청자 — 생성자와 분리 | Reporter 및 변경 권한 [J01][J07] | Created by 외 Person으로 구성 [N01] | creator만 자동 기록 / 미정 | 미결정 |
-| A09 | 복수 담당자·협업자·Reviewer | 추가 multi-user field로 구성 가능 [J06] | Person에 여러 사용자 지정 [N01] | 단일 assignee만 있음 / 미정 | 미결정 |
-| A10 | 계획 시작일·종료일 | Start/end 일정·Plans [J08] | Date range [N01] | 기반만 / 후속 간트 | 미결정 |
-| A11 | 시간까지 지정하는 기한 | Date time custom field로 구성 [J06] | Date의 time·timezone [N01] | due date는 날짜만 / 미정 | 미결정 |
-| A12 | Story points·상대적 작업량 | Story points [J09] | Number로 구성 [N01] | 없음 / 확장 후보 | 미결정 |
-| A13 | 예상 공수·남은 공수 | Original·Remaining estimate [J09] | Number property로 구성; 전용 추적과 구분 [N01] | 없음 / 예상 작업량은 확장 후보 | 미결정 |
-| A14 | 실제 작업 시간·Work log | 작업별 시간 기록 [J07][J09] | 시간 기록 database와 Relation·Rollup으로 구성 [N04] | 없음; 최초 착수 시각은 작업 시간 합계가 아님 / 미정 | 미결정 |
-| A15 | 진행률 % | 개수·estimate 기반 진행 집계, custom numeric field [J08][J06] | Number·Formula·Rollup [N01][N04] | `progress_percent` 기반만 / 후속 | 미결정 |
+| A08 | Reporter·요청자 — 생성자와 분리 | Reporter 및 변경 권한 [J01][J07] | Created by 외 Person으로 구성 [N01] | creator만 자동 기록 / 미정 | 2026-10-03: 백로그. [결정 기록](decisions.md) |
+| A09 | 복수 담당자·협업자·Reviewer | 추가 multi-user field로 구성 가능 [J06] | Person에 여러 사용자 지정 [N01] | 단일 assignee만 있음 / 미정 | 2026-10-03: 후속 — 상세는 그때 논의. [결정 기록](decisions.md) |
+| A10 | 계획 시작일·종료일 | Start/end 일정·Plans [J08] | Date range [N01] | 기반만 / 후속 간트 | 2026-10-03: 후속. [결정 기록](decisions.md) |
+| A11 | 시간까지 지정하는 기한 | Date time custom field로 구성 [J06] | Date의 time·timezone [N01] | due date는 날짜만 / 미정 | 2026-10-03: 백로그. [결정 기록](decisions.md) |
+| A12 | Story points·상대적 작업량 | Story points [J09] | Number로 구성 [N01] | 없음 / 확장 후보 | 2026-10-03: 후속. [결정 기록](decisions.md) |
+| A13 | 예상 공수·남은 공수 | Original·Remaining estimate [J09] | Number property로 구성; 전용 추적과 구분 [N01] | 없음 / 예상 작업량은 확장 후보 | 2026-10-03: 제외. [결정 기록](decisions.md) |
+| A14 | 실제 작업 시간·Work log | 작업별 시간 기록 [J07][J09] | 시간 기록 database와 Relation·Rollup으로 구성 [N04] | 없음; 최초 착수 시각은 작업 시간 합계가 아님 / 미정 | 2026-10-03: 후속. [결정 기록](decisions.md) |
+| A15 | 진행률 % | 개수·estimate 기반 진행 집계, custom numeric field [J08][J06] | Number·Formula·Rollup [N01][N04] | `progress_percent` 기반만 / 후속 | 2026-10-03: 후속. [결정 기록](decisions.md) |
 | A16 | Milestone 표시 | timeline의 일정 관리와 custom field로 구성; 동일한 범용 Boolean은 미확인 [J08][J06] | Date·Checkbox 등으로 구성 [N01] | `is_milestone` 기반만 / 후속 | 미결정 |
 | A17 | Sprint 소속 | Sprint 필드 [J10] | task와 Sprint relation [N02] | Sprint 모델·기능 없음 / 후속 | 미결정 |
 | A18 | Resolution·종료 사유 | 상태와 별도 Resolution [J11] | Select·Text로 구성 [N01] | 완료·취소만 구분 / 미정 | 미결정 |
@@ -151,13 +151,13 @@ B03은 앱 내 Inbox 확대와 email·push를 별도 선택할 수 있다. B08�
 ## 8. 항목별 결정 진행 방식
 
 1. 속성을 먼저 검토하되 기본 8개씩 묶어 용도·현재 상태·선택지를 간단히 제시한다. 여러 항목을 한 번에 결정받으며 미응답 항목은 미결정으로 유지한다.
-2. 답변은 `이번 범위 포함`, `후속`, `최하위 Backlog`, `제외`, `현행 유지`로 기록한다. 기존 MVP 항목도 우선순위 재조정이 가능하다.
+2. 답변은 `포함(MVP)`, `후속(MVP 바로 뒤)`, `백로그(시간 나면)`, `제외(하지 않음)`로 기록한다. 기존 MVP 항목도 우선순위 재조정이 가능하다.
 3. 묶음 항목의 일부만 필요하면 ID를 분할해 기록한다. 예: A09는 단일 assignee를 유지하면서 collaborators만 추가할 수 있다.
 4. 결정한 항목에 날짜·정확한 범위·짧은 근거를 이 폴더의 `decisions.md`에 기록한다. 기존 요구사항·decision·로드맵은 검토 중 갱신하지 않으며 미결정·미구현 항목을 완료로 표시하지 않는다.
 5. 필드 추가를 포함하면 입력뿐 아니라 목록 표시·필터·정렬·이력·권한·기존 데이터 기본값까지 구현 범위에 포함할지 확인한다.
 6. 속성 다음에 B의 사용 흐름, 마지막에 C의 정책을 점검한다. 선행 정책이 필요한 항목은 해당 C 항목을 앞당겨 논의한다.
 
-A01은 2026-10-03에 **계층을 유지하고 업무 분류 property를 분리**하는 방향으로 확정했다. 예시로 제시한 개발·오류·운영·검토 또는 Bug·Story를 실제 분류 값으로 확정한 것은 아니다. A02는 **복수 Label 지원 포함**, A03은 **사용 빈도가 낮아 후속**, A04는 **일정 없는 최하위 Backlog**, A05·A06·A07은 **제외**로 결정했다. 세부 미정 사항은 [검토 결정 기록](decisions.md)에 유지한다. 다음 검토 묶음은 **A08–A15**다.
+A01–A15의 결정과 남은 세부 정책은 [검토 결정 기록](decisions.md)에 유지한다. A01의 예시 분류 값은 확정한 것이 아니며, A09 상세는 후속 착수 시 논의한다. 다음 검토 묶음은 **A16–A23**이다.
 
 ## 9. 코드 확인 위치
 
