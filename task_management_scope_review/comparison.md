@@ -2,7 +2,7 @@
 
 - 조사일: 2026-10-03
 - 저장소 기준: `main`, `4523def`
-- 상태: A01은 방향 확정·시점 미정이다. A02·A20·B05–B07은 포함, A03·A09·A10·A12·A14–A19·A22·B01–B04·B13은 후속, A04·A08·A11·A21·A23·A24·B08·B09·B11·B14·B15는 백로그, A05·A06·A07·A13·B10은 제외다. B12는 응답 중복으로 확인 필요하며 나머지 19개는 미결정이다.
+- 상태: A01은 방향 확정·시점 미정이다. 포함 5개, 후속 19개, 백로그 16개, 제외 5개이며 B12는 응답 중복으로 확인 필요하다. 나머지 11개는 미결정이다. 항목별 분류는 아래 표와 결정 기록을 따른다.
 - 목적: 기능을 추가하기 전에 ticket 속성과 업무 흐름을 비교한다. 분류 기준은 포함 = MVP에 포함, 후속 = MVP 바로 뒤, 백로그 = 시간 나면 선택적으로 검토, 제외 = 구현하지 않음이다. 기존 최하위 Backlog 표기는 백로그와 같다.
 - 이 문서는 별도 브랜치의 범위 검토 자료다. 결정은 이 폴더의 `decisions.md`에만 기록하며 기존 요구사항·decision·로드맵은 변경하지 않는다. 공식 문서 반영은 범위 검토 후 별도 합의한다.
 
@@ -109,14 +109,14 @@ A06은 ‘별도 속성’과 ‘본문 template’ 중 선택할 수 있다. A0
 | B13 | Backlog·Sprint 계획·종료·이월 | Scrum/backlog·Sprint 종료와 미완료 이월 [J36] | Sprint planning·backlog·완료 시 이월 [N02] | 없음 / 후속 | 2026-10-03: 후속. [결정 기록](decisions.md) |
 | B14 | WIP 제한 | column constraint 초과 표시 [J24] | 동등한 native 제한은 미확인; 집계 구성은 가능 [N04] | 없음 / 미정 | 2026-10-03: 백로그. [결정 기록](decisions.md) |
 | B15 | 팀 통계·Workload·진척 report | Sprint·Velocity·Burndown·Cycle time 등 [J23] | task 집계·chart·Sprint 완료율; Jira report와 동일하지 않음 [N11][N20] | 개인 dashboard만 / 프로젝트·업무 통계 후속 | 2026-10-03: 백로그. [결정 기록](decisions.md) |
-| B16 | 티켓 작성 Template | clone·automation 활용 가능; Notion식 범용 본문 template와 구분 [J25][J16] | database template [N06] | 없음 / 미정 | 미결정 |
-| B17 | 반복 Task 자동 생성 | recurring automation [J26] | repeating template [N13] | 없음 / 미정 | 미결정 |
-| B18 | 조건 기반 자동 처리 | trigger·condition·action [J16] | database automation, 유료 plan 중심 [N14] | 없음; 자동 시각 기록·FSM은 사용자 설정 자동화가 아님 / 미정 | 미결정 |
-| B19 | 일괄 수정·상태 변경 | Bulk edit/transition [J27] | 여러 row의 property 변경 [N10] | 없음 / 명시적 제외 | 미결정 |
-| B20 | 티켓 복제 | Clone [J25] | page·sub-items duplicate [N03] | 없음 / 명시적 제외 | 미결정 |
-| B21 | CSV 가져오기·내보내기 | CSV import·검색 결과 export [J28][J17] | CSV import·database export, relation 왕복 제한 [N15][N04] | 없음 / 명시적 제외; 조직 JSON과 별개 | 미결정 |
-| B22 | 본문·댓글 검색·고급 조건 | text 검색·JQL [J05] | workspace는 본문 검색, database는 제목/property; 댓글 검색 제외 [N16] | key·제목 검색만 / 한국어 전문 검색 후속, JQL 제외 | 미결정 |
-| B23 | 사용자 정의 상태·Workflow·Review 단계 | status·transition·rule 편집 [J29] | Status·automation으로 구성; 서버 FSM과 동등하다고 보지 않음 [N01][N14] | 고정 5상태·FSM / 후속 | 미결정 |
+| B16 | 티켓 작성 Template | clone·automation 활용 가능; Notion식 범용 본문 template와 구분 [J25][J16] | database template [N06] | 없음 / 미정 | 2026-10-03: 후속. [결정 기록](decisions.md) |
+| B17 | 반복 Task 자동 생성 | recurring automation [J26] | repeating template [N13] | 없음 / 미정 | 2026-10-03: 백로그. [결정 기록](decisions.md) |
+| B18 | 조건 기반 자동 처리 | trigger·condition·action [J16] | database automation, 유료 plan 중심 [N14] | 없음; 자동 시각 기록·FSM은 사용자 설정 자동화가 아님 / 미정 | 2026-10-03: 백로그. [결정 기록](decisions.md) |
+| B19 | 일괄 수정·상태 변경 | Bulk edit/transition [J27] | 여러 row의 property 변경 [N10] | 없음 / 명시적 제외 | 2026-10-03: 백로그(기존 제외에서 조정). [결정 기록](decisions.md) |
+| B20 | 티켓 복제 | Clone [J25] | page·sub-items duplicate [N03] | 없음 / 명시적 제외 | 2026-10-03: 후속(기존 제외에서 조정). [결정 기록](decisions.md) |
+| B21 | CSV 가져오기·내보내기 | CSV import·검색 결과 export [J28][J17] | CSV import·database export, relation 왕복 제한 [N15][N04] | 없음 / 명시적 제외; 조직 JSON과 별개 | 2026-10-03: 백로그(기존 제외에서 조정). [결정 기록](decisions.md) |
+| B22 | 본문·댓글 검색·고급 조건 | text 검색·JQL [J05] | workspace는 본문 검색, database는 제목/property; 댓글 검색 제외 [N16] | key·제목 검색만 / 한국어 전문 검색 후속, JQL 제외 | 2026-10-03: 후속, 고급 조건은 별도 결정. [결정 기록](decisions.md) |
+| B23 | 사용자 정의 상태·Workflow·Review 단계 | status·transition·rule 편집 [J29] | Status·automation으로 구성; 서버 FSM과 동등하다고 보지 않음 [N01][N14] | 고정 5상태·FSM / 후속 | 2026-10-03: 백로그. [결정 기록](decisions.md) |
 | B24 | 첨부파일 삭제·본문 참조 처리 | 첨부 삭제 권한 [J07] | 파일 property 삭제 [N01] | 등록·조회·다운로드만 / 8단계 후순위 | 미결정 |
 | B25 | 휴지통·첨부파일 보존 만료 정리 | 이번 조사에서 동일한 30일 cascade 정책 비교는 하지 않음 | 동일 정책으로 간주하지 않음 | 휴지통·복구 구현, purge·scheduler 없음 / 기존 MVP 6·8·11단계 | 미결정 |
 | B26 | 요청 접수 Form | Form 제출로 work item 생성 [J37] | Form 응답을 database property로 저장 [N19] | 일반 ticket 생성 form만 있음 / 별도 접수 form은 미정 | 미결정 |
@@ -157,7 +157,7 @@ B03은 앱 내 Inbox 확대와 email·push를 별도 선택할 수 있다. B08�
 5. 필드 추가를 포함하면 입력뿐 아니라 목록 표시·필터·정렬·이력·권한·기존 데이터 기본값까지 구현 범위에 포함할지 확인한다.
 6. 속성 다음에 B의 사용 흐름, 마지막에 C의 정책을 점검한다. 선행 정책이 필요한 항목은 해당 C 항목을 앞당겨 논의한다.
 
-A01–A24와 B01–B15의 결정 및 남은 세부 정책은 [검토 결정 기록](decisions.md)에 유지한다. B12는 백로그·후속 중복 응답으로 확인이 필요하다. 다음 신규 검토 묶음은 **B16–B23**이다.
+A01–A24와 B01–B23의 결정 및 남은 세부 정책은 [검토 결정 기록](decisions.md)에 유지한다. B12는 백로그·후속 중복 응답으로 확인이 필요하다. 다음 신규 검토 묶음은 **B24–B27과 C01–C04**다.
 
 ## 9. 코드 확인 위치
 
