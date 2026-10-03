@@ -2,7 +2,7 @@
 
 - 조사일: 2026-10-03
 - 저장소 기준: `main`, `4523def`
-- 상태: A01은 방향 확정·시점 미정이다. 포함 7개, 후속 22개, 조건부 후속 1개(C01), 백로그 18개, 제외 6개이며 마지막 3개(C05–C07)는 미결정이다. 항목별 분류는 아래 표와 결정 기록을 따른다.
+- 상태: 전체 58개 항목의 범위 분류 완료: 포함 8개, 후속 24개, 조건부 후속 1개(C01), 백로그 19개, 제외 6개. 세부 정책과 구현은 미완료이며 C06은 실제 완화가 아닌 MVP 내 완화 검토 포함이다.
 - 목적: 기능을 추가하기 전에 ticket 속성과 업무 흐름을 비교한다. 분류 기준은 포함 = MVP에 포함, 후속 = MVP 바로 뒤, 백로그 = 시간 나면 선택적으로 검토, 제외 = 구현하지 않음이다. 기존 최하위 Backlog 표기는 백로그와 같다.
 - 이 문서는 별도 브랜치의 범위 검토 자료다. 결정은 이 폴더의 `decisions.md`에만 기록하며 기존 요구사항·decision·로드맵은 변경하지 않는다. 공식 문서 반영은 범위 검토 후 별도 합의한다.
 
@@ -63,7 +63,7 @@ Notion은 task database, Projects·Tasks·Sprints, 업무에 적용하는 proper
 
 | ID | 결정할 항목 | Jira | Notion task management | 현재 구현 / 기존 범위 | 결정 |
 |---|---|---|---|---|---|
-| A01 | Bug·Story 등 업무 유형 | 표준 유형과 custom work type [J02] | Select로 구성 [N01] | Epic·Task·Subtask만 구현 / 별도 업무 분류 도입 방향 확정, 미구현 | 2026-10-03: 계층 유지 + 업무 분류 속성 분리. 세부 범위·구현 시점 미정. [결정 기록](decisions.md) |
+| A01 | Bug·Story 등 업무 유형 | 표준 유형과 custom work type [J02] | Select로 구성 [N01] | Epic·Task·Subtask만 구현 / 별도 업무 분류 도입 방향 확정, 미구현 | 2026-10-03: 후속 — 계층 유지 + 업무 분류 속성 분리, 세부 정책 미정. [결정 기록](decisions.md) |
 | A02 | Labels·Tags | Labels [J01] | Multi-select [N01] | 없음 / 기존 확장 후보에서 검토 범위 포함으로 결정, 미구현 | 2026-10-03: 복수 Label 지원 포함. 세부 정책·구현 시점 미정. [결정 기록](decisions.md) |
 | A03 | Component·업무 영역 | project별 component, owner·자동 할당; company-managed [J03] | Select 또는 Relation으로 구성 [N01][N04] | 없음 / 확장 후보 | 2026-10-03: 사용 빈도가 낮아 후속으로 연기. [결정 기록](decisions.md) |
 | A04 | 목표 Release·Fix version | release와 Fix version [J04] | Release database relation으로 구성 [N04] | 없음 / 기존 범위 미정 | 2026-10-03: 일정·구현 의무 없는 최하위 Backlog. 다른 할 일이 없을 때 선택적으로 재검토. [결정 기록](decisions.md) |
@@ -132,9 +132,9 @@ B03은 앱 내 Inbox 확대와 email·push를 별도 선택할 수 있다. B08�
 | C02 | 프로젝트 간 티켓 관계 | Jira는 권한이 있는 다른 space와 link 가능 [J07]. Notion은 DB 간 Relation [N04] | 동일 프로젝트만 허용. 양쪽 조회 권한·정보 은폐·DB 제약 재설계 필요 | 2026-10-03: 백로그. [결정 기록](decisions.md) |
 | C03 | 티켓의 프로젝트 간 이동 | Jira는 field/status 매핑을 거치는 move [J30]. Notion은 다른 DB로 page 이동 [N03] | 금지. key·계층·첨부 경로·이력·권한·이전 URL 정책을 함께 결정해야 함 | 2026-10-03: 후속. [결정 기록](decisions.md) |
 | C04 | 생성 후 Type 변환·계층 유연화 | Jira는 work type 변경 [J31]. Notion은 Select와 sub-items를 각각 변경 [N01][N03] | Type은 수정 불가. Task↔Subtask 등의 전환과 Bug 분류 추가는 별도 문제 | 2026-10-03: 후속. [결정 기록](decisions.md) |
-| C05 | Ticket별·Field별 권한 | Jira의 work-item security [J32]. Notion의 page sharing 및 Business/Enterprise의 page/property access [N17][N18] | project role 기준. creator·assignee와 무관한 전체 업무 수정 정책을 유지할지 검토 | 미결정 |
-| C06 | 종료 티켓 잠금·의존 완료 차단 | Jira는 Workflow rule로 제어 [J29][J33]. Notion의 dependency는 날짜 조정 기능이며 같은 완료 차단은 확인되지 않음 [N03] | 종료 티켓 편집 금지·의존 대상 미완료 시 완료 금지. 편의성 때문에 완화할지, 현행 유지할지 선택 | 미결정 |
-| C07 | 하위 상태·진척의 상위 집계 | Jira Plans roll-up [J08], Notion Relation·Rollup·프로젝트 완료율 [N04][N12] | 상위 상태 자동 연동 없음, 상세에 완료율도 표시하지 않는 확정 정책. 표시용 집계와 자동 상태 변경은 따로 결정 | 미결정 |
+| C05 | Ticket별·Field별 권한 | Jira의 work-item security [J32]. Notion의 page sharing 및 Business/Enterprise의 page/property access [N17][N18] | project role 기준. creator·assignee와 무관한 전체 업무 수정 정책을 유지할지 검토 | 2026-10-03: 백로그. [결정 기록](decisions.md) |
+| C06 | 종료 티켓 잠금·의존 완료 차단 | Jira는 Workflow rule로 제어 [J29][J33]. Notion의 dependency는 날짜 조정 기능이며 같은 완료 차단은 확인되지 않음 [N03] | 종료 티켓 편집 금지·의존 대상 미완료 시 완료 금지. 편의성 때문에 완화할지, 현행 유지할지 선택 | 2026-10-03: 포함(MVP) — 티켓 권한 점검 때 완화 검토. 실제 완화 정책 미정. [결정 기록](decisions.md) |
+| C07 | 하위 상태·진척의 상위 집계 | Jira Plans roll-up [J08], Notion Relation·Rollup·프로젝트 완료율 [N04][N12] | 상위 상태 자동 연동 없음, 상세에 완료율도 표시하지 않는 확정 정책. 표시용 집계와 자동 상태 변경은 따로 결정 | 2026-10-03: 후속 — 표시 집계·자동 상태 변경 범위는 추후 결정. [결정 기록](decisions.md) |
 
 ## 7. 이번 목록에서 별도로 유지할 범위
 
@@ -157,7 +157,7 @@ B03은 앱 내 Inbox 확대와 email·push를 별도 선택할 수 있다. B08�
 5. 필드 추가를 포함하면 입력뿐 아니라 목록 표시·필터·정렬·이력·권한·기존 데이터 기본값까지 구현 범위에 포함할지 확인한다.
 6. 속성 다음에 B의 사용 흐름, 마지막에 C의 정책을 점검한다. 선행 정책이 필요한 항목은 해당 C 항목을 앞당겨 논의한다.
 
-A01–A24, B01–B27, C01–C04의 결정 및 남은 세부 정책은 [검토 결정 기록](decisions.md)에 유지한다. B12는 후속으로 확인 완료했으며 C01은 필요성이 확인될 때만 후속 진행한다. 마지막 신규 검토 항목은 **C05–C07**이며 **A01 구현 시점**도 미정이다.
+전체 58개 항목의 범위 분류를 완료했다. A01과 C07은 후속이며 C07의 표시 집계·자동 상태 변경 범위는 아직 미정이다. C06은 MVP의 티켓 권한 점검 때 완화를 검토하며 현재 제한을 즉시 없애는 결정이 아니다. 세부 미정 정책은 [검토 결정 기록](decisions.md)에 유지하고 공식 문서 반영·구현은 별도 합의한다.
 
 ## 9. 코드 확인 위치
 
