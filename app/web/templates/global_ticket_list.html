@@ -26,7 +26,7 @@
     <div class="ticket-table-head"><span>티켓</span><span>프로젝트</span><span>상태</span><span>중요도</span><span>담당자</span><span>마감일</span></div>
     {% for ticket in result.tickets %}
     <a class="ticket-table-row" href="/projects/{{ ticket.project_key }}/tickets/{{ ticket.key }}">
-      <span class="ticket-title-cell">{{ ui.ticket_type(ticket.type_label) }}<span><small>{{ ticket.key }} · {{ ticket.type_label }}</small><strong>{{ ticket.title }}</strong></span></span>
+      <span class="ticket-title-cell">{{ ui.ticket_type(ticket.type_label) }}<span><small>{{ ticket.key }} · {{ ticket.type_label }}</small><strong>{{ ticket.title }}</strong>{{ ui.ticket_labels(ticket.labels, true) }}</span></span>
       <span>{{ ticket.project_name }}</span><span>{{ ui.status_badge(ticket.status_label, ticket.status_code) }}</span><span>{{ ui.priority_badge(ticket.priority_label, ticket.priority_code) }}</span><span>{{ ticket.assignee.display_name if ticket.assignee else '미지정' }}</span><span>{{ ticket.due_date or '없음' }}</span>
     </a>
     {% else %}<div class="empty-state"><strong>조건에 맞는 티켓이 없습니다.</strong></div>{% endfor %}

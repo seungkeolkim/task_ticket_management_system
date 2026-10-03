@@ -2,6 +2,22 @@
 <span class="avatar avatar-{{ size }} avatar-{{ tone }}" aria-hidden="true">{{ initials }}</span>
 {%- endmacro %}
 
+{% macro ticket_labels(labels, compact=false) -%}
+{% if labels %}<span class="ticket-labels" aria-label="Labels">
+  {% set visible_labels = labels[:3] if compact else labels %}
+  {% for label in visible_labels %}
+    <span class="ticket-label">{{ label }}</span>
+  {% endfor %}
+  {% if compact and labels|length > 3 %}<span class="ticket-label">+{{ labels|length - 3 }}</span>{% endif %}
+</span>{% endif %}
+{%- endmacro %}
+
+{% macro ticket_custom_fields(custom_fields) -%}
+{% if custom_fields %}<section class="detail-section ticket-custom-fields"><h3>추가 정보</h3><dl>
+  {% for custom_field in custom_fields %}<div><dt>{{ custom_field.name }} <small>Text</small></dt><dd>{{ custom_field.value if custom_field.value else '값 없음' }}</dd></div>{% endfor %}
+</dl></section>{% endif %}
+{%- endmacro %}
+
 {% macro status_badge(label, code) -%}
 <span class="status-badge status-{{ code }}"><span class="status-dot"></span>{{ label }}</span>
 {%- endmacro %}

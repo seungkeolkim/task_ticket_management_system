@@ -164,6 +164,7 @@ def _build_ticket_common_view_values(ticket_row) -> dict[str, object]:
         "type": ticket_type,
         "type_label": TYPE_LABELS[ticket_type],
         "title": ticket.title,
+        "labels": ticket.labels,
         "status": status,
         "status_label": status_label,
         "status_code": status_code,
@@ -205,6 +206,7 @@ def build_ticket_view(ticket_row) -> TicketView:
         **_build_ticket_common_view_values(ticket_row),
         description_plain_text=description_plain_text,
         description_document=ticket.description_document,
+        custom_fields=ticket.custom_fields,
         description_html=render_body_document_html(ticket.description_document),
         description_has_content=bool(
             description_plain_text.strip() or description_attachment_ids
@@ -333,6 +335,7 @@ def _build_board_card(
         ),
         due_date=ticket.due_date,
         can_transition=can_transition,
+        labels=ticket.labels,
         allowed_statuses=list(get_allowed_transitions(status)) if can_transition else [],
         completion_blocked=completion_blocked,
     )
@@ -343,6 +346,8 @@ def _build_ticket_state_snapshot(
 ) -> TicketState:
     """티켓의 현재 업무 상태 snapshot을 구성한다."""
     return TicketState(
+        labels=ticket.labels,
+        custom_fields=ticket.custom_fields,
         ticket_key=ticket.key,
         project_id=ticket.project_id,
         version=ticket.version,
@@ -1540,6 +1545,8 @@ def create_ticket(
             key=f"{project.key}-{number}",
             type=payload.type,
             title=payload.title,
+            labels=list(payload.labels),
+            custom_fields=[field.model_dump(mode="json") for field in payload.custom_fields],
             description_document=payload.description_document,
             status=TicketStatus.TODO,
             priority=payload.priority,
@@ -1606,7 +1613,17 @@ def update_ticket(
         )
 
         current_parent_key = row._mapping["parent_key"]
+        desired_labels = (
+            list(payload.labels) if "labels" in payload.model_fields_set else ticket.labels
+        )
+        desired_custom_fields = (
+            [field.model_dump(mode="json") for field in payload.custom_fields]
+            if "custom_fields" in payload.model_fields_set
+            else ticket.custom_fields
+        )
         desired = {
+            "labels": desired_labels,
+            "custom_fields": desired_custom_fields,
             "title": payload.title,
             "description_document": payload.description_document,
             "priority": payload.priority,
@@ -1615,6 +1632,8 @@ def update_ticket(
             "due_date": payload.due_date,
         }
         current = {
+            "labels": ticket.labels,
+            "custom_fields": ticket.custom_fields,
             "title": ticket.title,
             "description_document": ticket.description_document,
             "priority": Priority(ticket.priority),
@@ -1628,6 +1647,8 @@ def update_ticket(
 
         before = _build_ticket_snapshot(session, ticket, current_parent_key)
         ticket.title = payload.title
+        ticket.labels = desired_labels
+        ticket.custom_fields = desired_custom_fields
         ticket.description_document = payload.description_document
         ticket.priority = payload.priority
         ticket.parent_id = parent.id if parent else None
@@ -1645,6 +1666,8 @@ def update_ticket(
                 after,
                 (
                     "title",
+                    "labels",
+                    "custom_fields",
                     "description_document",
                     "priority",
                     "parent_key",

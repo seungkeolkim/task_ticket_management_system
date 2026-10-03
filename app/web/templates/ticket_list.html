@@ -62,7 +62,7 @@
       <div class="ticket-table-head"><span>티켓</span><span>상태</span><span>중요도</span><span>담당자</span><span>마감일</span></div>
       {% for ticket in result.tickets %}
       <a class="ticket-table-row {% if selected_ticket and selected_ticket.key == ticket.key %}is-selected{% endif %}" href="{{ current_page_url }}&selected={{ ticket.key|urlencode }}">
-        <span class="ticket-title-cell">{{ ui.ticket_type(ticket.type_label) }}<span><small>{{ ticket.key }} · {{ ticket.type_label }}</small><strong>{{ ticket.title }}</strong>{% if ticket.parent %}<em>{{ ticket.parent.key }} · {{ ticket.parent.title }}</em>{% endif %}</span></span>
+        <span class="ticket-title-cell">{{ ui.ticket_type(ticket.type_label) }}<span><small>{{ ticket.key }} · {{ ticket.type_label }}</small><strong>{{ ticket.title }}</strong>{{ ui.ticket_labels(ticket.labels, true) }}{% if ticket.parent %}<em>{{ ticket.parent.key }} · {{ ticket.parent.title }}</em>{% endif %}</span></span>
         <span>{{ ui.status_badge(ticket.status_label, ticket.status_code) }}</span>
         <span>{{ ui.priority_badge(ticket.priority_label, ticket.priority_code) }}</span>
         <span class="assignee-cell">{{ ticket.assignee.display_name if ticket.assignee else '미지정' }}</span>
@@ -81,6 +81,8 @@
   <aside class="inline-detail">
     <div class="inline-detail-top"><div class="ticket-identity">{{ ui.ticket_type(selected_ticket.type_label) }}<a href="/projects/{{ project.key }}/tickets/{{ selected_ticket.key }}">{{ selected_ticket.key }}</a></div><div><a class="icon-button" href="/projects/{{ project.key }}/tickets/{{ selected_ticket.key }}" title="크게 보기">↗</a><a class="icon-button" href="{{ current_page_url }}">×</a></div></div>
     <h2>{{ selected_ticket.title }}</h2>
+    {{ ui.ticket_labels(selected_ticket.labels) }}
+    {{ ui.ticket_custom_fields(selected_ticket.custom_fields) }}
     <div class="inline-badges">{{ ui.status_badge(selected_ticket.status_label, selected_ticket.status_code) }}{{ ui.priority_badge(selected_ticket.priority_label, selected_ticket.priority_code) }}</div>
     {% if selected_ticket.description_has_content %}<div class="detail-description rich-text-viewer">{{ selected_ticket.description_html|safe }}</div>{% else %}<p class="detail-description">등록된 설명이 없습니다.</p>{% endif %}
     <div class="detail-section"><div class="section-title"><h3>세부 정보</h3></div><dl class="property-list">

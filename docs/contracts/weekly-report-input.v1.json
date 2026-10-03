@@ -39,12 +39,22 @@
       "ticket_key": "DEMO-1",
       "project_id": 1,
       "state_at_start": {
+        "labels": [],
+        "custom_fields": [],
         "schema_version": 2,
         "ticket_key": "DEMO-1",
         "project_id": 1,
         "version": 1,
         "type": "TASK",
         "title": "로그인 화면 연결",
+        "description_document": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "paragraph"
+            }
+          ]
+        },
         "body_schema_version": 2,
         "status": "TODO",
         "priority": "MAJOR",
@@ -63,7 +73,17 @@
         "is_milestone": false,
         "sort_order": "0",
         "deleted_at": null,
-        "relations": [],
+        "relations": []
+      },
+      "state_at_end": {
+        "labels": [],
+        "custom_fields": [],
+        "schema_version": 2,
+        "ticket_key": "DEMO-1",
+        "project_id": 1,
+        "version": 2,
+        "type": "TASK",
+        "title": "로그인 화면 연결",
         "description_document": {
           "type": "doc",
           "content": [
@@ -71,15 +91,7 @@
               "type": "paragraph"
             }
           ]
-        }
-      },
-      "state_at_end": {
-        "schema_version": 2,
-        "ticket_key": "DEMO-1",
-        "project_id": 1,
-        "version": 2,
-        "type": "TASK",
-        "title": "로그인 화면 연결",
+        },
         "body_schema_version": 2,
         "status": "IN_PROGRESS",
         "priority": "MAJOR",
@@ -98,15 +110,7 @@
         "is_milestone": false,
         "sort_order": "0",
         "deleted_at": null,
-        "relations": [],
-        "description_document": {
-          "type": "doc",
-          "content": [
-            {
-              "type": "paragraph"
-            }
-          ]
-        }
+        "relations": []
       },
       "events": [
         {
@@ -120,12 +124,22 @@
           "actor_id": 1,
           "occurred_at": "2026-09-15T01:00:00Z",
           "before_state": {
+            "labels": [],
+            "custom_fields": [],
             "schema_version": 2,
             "ticket_key": "DEMO-1",
             "project_id": 1,
             "version": 1,
             "type": "TASK",
             "title": "로그인 화면 연결",
+            "description_document": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph"
+                }
+              ]
+            },
             "body_schema_version": 2,
             "status": "TODO",
             "priority": "MAJOR",
@@ -144,7 +158,17 @@
             "is_milestone": false,
             "sort_order": "0",
             "deleted_at": null,
-            "relations": [],
+            "relations": []
+          },
+          "after_state": {
+            "labels": [],
+            "custom_fields": [],
+            "schema_version": 2,
+            "ticket_key": "DEMO-1",
+            "project_id": 1,
+            "version": 2,
+            "type": "TASK",
+            "title": "로그인 화면 연결",
             "description_document": {
               "type": "doc",
               "content": [
@@ -152,15 +176,7 @@
                   "type": "paragraph"
                 }
               ]
-            }
-          },
-          "after_state": {
-            "schema_version": 2,
-            "ticket_key": "DEMO-1",
-            "project_id": 1,
-            "version": 2,
-            "type": "TASK",
-            "title": "로그인 화면 연결",
+            },
             "body_schema_version": 2,
             "status": "IN_PROGRESS",
             "priority": "MAJOR",
@@ -179,15 +195,7 @@
             "is_milestone": false,
             "sort_order": "0",
             "deleted_at": null,
-            "relations": [],
-            "description_document": {
-              "type": "doc",
-              "content": [
-                {
-                  "type": "paragraph"
-                }
-              ]
-            }
+            "relations": []
           },
           "changes": [
             {

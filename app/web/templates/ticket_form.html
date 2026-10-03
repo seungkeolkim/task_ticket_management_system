@@ -65,6 +65,19 @@
       </div>
     </div>
 
+    <div class="form-section">
+      <div class="form-section-head"><span>03</span><div><h2>Label·추가 정보</h2><p>이 ticket에 필요한 정보를 자유롭게 추가합니다.</p></div></div>
+      <label class="field"><span>Labels</span><textarea name="labels" rows="3" maxlength="4096" placeholder="한 줄에 하나씩 입력하세요">{{ form.get('labels_text', '') }}</textarea><small>사전 등록 없이 최대 30개, 이름당 64자. 같은 이름은 대소문자와 관계없이 한 번만 저장합니다.</small></label>
+      <div data-ticket-custom-fields>
+        <input type="hidden" name="properties_present" value="true">
+        <textarea name="custom_fields" data-custom-fields-payload hidden>{{ form.get('custom_fields_json', '[]') }}</textarea>
+        <div data-custom-field-rows class="custom-field-rows"></div>
+        <p data-custom-field-error class="auth-message error" role="alert" hidden></p>
+        <button class="button secondary" type="button" data-add-custom-field>+ 필드 추가</button>
+        <p class="custom-field-help">이 ticket에서만 사용하는 필드입니다. 최대 30개이며 현재 Text만 지원합니다. 제거는 저장 시 반영됩니다.</p>
+      </div>
+    </div>
+
     <footer class="sticky-form-actions"><div><span class="info-dot">i</span>{{ '생성 시 번호와 최초 변경 이력이 함께 기록됩니다.' if mode == 'create' else '변경 내용은 새 티켓 버전과 이력으로 함께 기록됩니다.' }}</div><div><a class="button secondary" href="{{ '/projects/' ~ project.key ~ '/tickets' if mode == 'create' else '/projects/' ~ project.key ~ '/tickets/' ~ ticket.key }}">취소</a><button class="button primary" type="submit" {% if conflict %}disabled{% endif %}>{{ '티켓 만들기' if mode == 'create' else '변경 저장' }}</button></div></footer>
   </form>
 
@@ -75,4 +88,4 @@
 </div>
 {% endblock %}
 
-{% block extra_scripts %}<script src="{{ url_for('static', path='ticket-form.js') }}" defer></script><script src="{{ url_for('static', path='tiptap-editor.js') }}" defer></script>{% endblock %}
+{% block extra_scripts %}<script src="{{ url_for('static', path='ticket-form.js') }}" defer></script><script src="{{ url_for('static', path='tiptap-editor.js') }}" defer></script><script src="{{ url_for('static', path='ticket-properties.js') }}" defer></script>{% endblock %}

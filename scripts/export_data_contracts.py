@@ -124,7 +124,9 @@ def main() -> None:
         directory = os.path.join(os.path.dirname(os.path.dirname(__file__)), "docs", "contracts")
         os.makedirs(directory, exist_ok=True)
         artifacts = {
-            f"{name}.v1.schema.json": contract.model_json_schema()
+            f"{name}.v{contract.model_fields['schema_version'].default}.schema.json": (
+                contract.model_json_schema()
+            )
             for name, contract in CONTRACTS.items()
         } | example_contracts()
         for name, payload in artifacts.items():

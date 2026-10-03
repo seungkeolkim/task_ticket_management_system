@@ -148,6 +148,12 @@ class Ticket(IntegerPrimaryKeyMixin, TimestampMixin, Base):
     key: Mapped[str] = mapped_column(String(64), unique=True)
     type: Mapped[str] = mapped_column(String(16), default=TicketType.TASK, server_default="TASK")
     title: Mapped[str] = mapped_column(String(200))
+    labels: Mapped[list[str]] = mapped_column(
+        JSON, default=list, server_default=text("'[]'"), nullable=False
+    )
+    custom_fields: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSON, default=list, server_default=text("'[]'"), nullable=False
+    )
     description_document: Mapped[dict[str, Any]] = mapped_column(
         JSON,
         default=empty_body_document,

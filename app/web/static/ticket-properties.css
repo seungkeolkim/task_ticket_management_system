@@ -1,0 +1,36 @@
+.ticket-labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 6px 0;
+}
+.ticket-labels .ticket-label {
+  display: inline-block;
+  padding: 2px 7px;
+  border: 1px solid #d8dce8;
+  border-radius: 10px;
+  background: #f2f4fa;
+  color: #394667;
+  font-size: 12px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.custom-field-rows { display: grid; gap: 12px; margin: 12px 0; }
+.custom-field-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 100px;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #d8dce8;
+  border-radius: 8px;
+}
+.custom-field-row > label:nth-child(3) { grid-column: 1 / -1; }
+.custom-field-row > button { justify-self: start; }
+.custom-field-help { font-size: 13px; color: #59647a; }
+.ticket-custom-fields dl > div { margin: 12px 0; }
+.ticket-custom-fields dt { font-weight: 600; overflow-wrap: anywhere; }
+.ticket-custom-fields dt small { color: #59647a; font-weight: 400; }
+.ticket-custom-fields dd { margin: 5px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 600px) {
+  .custom-field-row { grid-template-columns: minmax(0, 1fr); }
+}

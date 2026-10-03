@@ -1,0 +1,19 @@
+# Task management 기능 범위 재검토
+
+- 전용 브랜치: `scope/task-management-review`
+- 검토 내용은 main에 merge했으며, Label·Custom fields 상세 설계는 `feature/ticket-labels-custom-fields`에서 이어간다.
+- 개발 요청에 따라 A02·A20의 코드와 공식 문서를 반영했다. 구현 범위·검증은 [Label·Ad-hoc 계약](../docs/ticket_properties.md)과 공식 로드맵을 따른다.
+- 기존 구현 비교 기준: `main`의 `4523def`
+- [기능 비교 및 58개 검토 항목](comparison.md)
+- [합의된 방향과 미정 사항](decisions.md)
+- [합의된 MVP 남은 작업 순서](mvp_work_sequence.md)
+
+## 기록 원칙
+
+- 사용자의 2026-10-03 요청에 따라 범위 확장 검토와 결정은 이 폴더에 분리한다.
+- 검토 중 기존 `REQUIREMENTS.md`, `IMPLEMENTATION_ROADMAP.md`, `docs/decisions/`와 구현 코드는 변경하지 않는다.
+- 기존 문서 반영 및 구현은 범위 검토 후 별도 합의한다. 이 폴더의 결정은 구현 완료를 의미하지 않는다.
+- 기존 decision ID를 선점하지 않고 비교 목록의 A/B/C ID로 추적한다.
+- 사용자에게는 파일 확인을 요구하지 않는다. 용도·현재 상태·선택지를 대화에서 짧게 설명하며 기본 8개씩 묶어서 한 번에 결정받는다. 답변하지 않은 항목은 미결정으로 유지한다.
+- 분류 기준: 포함 = MVP에 포함, 후속 = MVP 바로 뒤, 백로그 = 시간 나면 선택적으로 검토, 제외 = 구현하지 않음. 기존 최하위 Backlog는 백로그에 해당한다.
+- 전체 58개 항목의 범위 분류 완료: 포함 8개, 후속 24개, 조건부 후속 1개(C01), 백로그 19개, 제외 6개. 세부 정책과 구현은 미완료이며 C06은 실제 완화가 아닌 MVP 내 완화 검토 포함이다. 상세는 결정 기록을 따른다.

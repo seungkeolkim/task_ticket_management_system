@@ -152,6 +152,28 @@ def _optional_date(raw_value: str) -> date | None:
         raise AuthError("invalid_filter", "검색 조건과 페이지 범위를 확인하세요.") from error
 
 
+def _parse_ticket_properties(
+    labels: str | None, custom_fields: str | None, properties_present: bool = False
+) -> dict[str, object]:
+    """HTML 속성 입력을 변환하며 생략된 속성은 기존 API와 같이 보존한다."""
+    properties: dict[str, object] = {}
+    if properties_present:
+        labels = labels or ""
+        custom_fields = custom_fields or "[]"
+    if labels is not None:
+        if len(labels) > 4096:
+            raise ValueError("Label 입력이 너무 깁니다.")
+        properties["labels"] = [label for label in labels.splitlines() if label.strip()]
+    if custom_fields is not None:
+        if len(custom_fields) > 1000000:
+            raise ValueError("추가 필드 입력이 너무 큽니다.")
+        try:
+            properties["custom_fields"] = json.loads(custom_fields or "[]")
+        except (ValueError, RecursionError) as error:
+            raise ValueError("추가 필드 입력을 확인하세요.") from error
+    return properties
+
+
 def _ticket_form_error_message(
     error: ValidationError | AuthError | ValueError, default_message: str
 ) -> str:
@@ -159,6 +181,15 @@ def _ticket_form_error_message(
     if isinstance(error, AuthError):
         return error.message
     if isinstance(error, ValidationError):
+        for validation_error in error.errors():
+            if any(
+                name in validation_error.get("loc", ()) for name in ("labels", "custom_fields")
+            ):
+                return (
+                    "Label은 최대 30개·각 64자입니다. "
+                    "추가 필드는 최대 30개·이름 100자·값 10,000자입니다. "
+                    "빈 이름, 중복 필드 이름, 잘못된 ID 또는 Text 이외 타입을 확인하세요."
+                )
         for validation_error in error.errors():
             if "description_document" not in validation_error.get("loc", ()):
                 continue
@@ -329,8 +360,20 @@ def _render_ticket_edit_page(request, session, actor, project_key, ticket_key, *
             "parent_key": ticket.parent.key if ticket.parent else "",
             "assignee_id": str(ticket.assignee.id) if ticket.assignee else "",
             "due_date": ticket.due_date.isoformat() if ticket.due_date else "",
+            "labels_text": "\n".join(ticket.labels),
+            "custom_fields_json": json.dumps(
+                [field.model_dump(mode="json") for field in ticket.custom_fields],
+                ensure_ascii=False,
+            ),
             "expected_version": str(ticket.version),
         },
+    )
+    values.setdefault("labels_text", "\n".join(ticket.labels))
+    values.setdefault(
+        "custom_fields_json",
+        json.dumps(
+            [field.model_dump(mode="json") for field in ticket.custom_fields], ensure_ascii=False
+        ),
     )
     attachment_image_accept = _inline_image_accept_value()
     return render(
@@ -592,6 +635,9 @@ def create_ticket_submit(
     parent_key: Annotated[str, Form()] = "",
     assignee_id: Annotated[str, Form()] = "",
     due_date: Annotated[str, Form()] = "",
+    labels: Annotated[str | None, Form()] = None,
+    custom_fields: Annotated[str | None, Form()] = None,
+    properties_present: Annotated[bool, Form()] = False,
     csrf_token: Annotated[str, Form()] = "",
 ):
     """티켓 submit 생성을 처리한다."""
@@ -604,9 +650,12 @@ def create_ticket_submit(
         "parent_key": parent_key[:64],
         "assignee_id": assignee_id[:20],
         "due_date": due_date[:10],
+        "labels_text": (labels or "")[:4096],
+        "custom_fields_json": (custom_fields or "[]")[:1000000],
     }
     try:
         payload = TicketCreate(
+            **_parse_ticket_properties(labels, custom_fields, properties_present),
             type=type,
             title=title,
             description_document=_parse_description_document(description_document),
@@ -649,6 +698,9 @@ def update_ticket_submit(
     parent_key: Annotated[str, Form()] = "",
     assignee_id: Annotated[str, Form()] = "",
     due_date: Annotated[str, Form()] = "",
+    labels: Annotated[str | None, Form()] = None,
+    custom_fields: Annotated[str | None, Form()] = None,
+    properties_present: Annotated[bool, Form()] = False,
     expected_version: Annotated[str, Form()] = "",
     csrf_token: Annotated[str, Form()] = "",
 ):
@@ -662,9 +714,16 @@ def update_ticket_submit(
         "assignee_id": assignee_id[:20],
         "due_date": due_date[:10],
         "expected_version": expected_version[:20],
+        "labels_text": (labels or "")[:4096],
+        "custom_fields_json": (custom_fields or "[]")[:1000000],
     }
+    if not properties_present and labels is None:
+        values.pop("labels_text")
+    if not properties_present and custom_fields is None:
+        values.pop("custom_fields_json")
     try:
         payload = TicketUpdate(
+            **_parse_ticket_properties(labels, custom_fields, properties_present),
             title=title,
             description_document=_parse_description_document(description_document),
             priority=priority,

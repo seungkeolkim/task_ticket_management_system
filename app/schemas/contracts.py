@@ -17,6 +17,7 @@ from pydantic import (
 
 from app.domain.codes import HistoryEventType, Priority, RelationType, TicketStatus, TicketType
 from app.domain.rich_text import empty_body_document, validate_body_document
+from app.schemas.ticket_properties import TicketCustomFields, TicketLabels
 
 PositiveId = Annotated[int, Field(gt=0)]
 
@@ -84,6 +85,8 @@ class RelationSnapshot(Contract):
 
 
 class TicketState(Contract):
+    labels: TicketLabels = Field(default_factory=list)
+    custom_fields: TicketCustomFields = Field(default_factory=list)
     schema_version: Literal[2] = 2
     ticket_key: str
     project_id: PositiveId
