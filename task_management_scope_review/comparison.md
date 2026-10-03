@@ -2,7 +2,7 @@
 
 - 조사일: 2026-10-03
 - 저장소 기준: `main`, `4523def`
-- 상태: A01은 방향 확정·시점 미정, A02·A20·B05–B07은 포함, A03·A09·A10·A12·A14–A19·A22·B01–B04는 후속, A04·A08·A11·A21·A23·A24는 백로그, A05·A06·A07·A13은 제외다. 나머지 27개는 미결정이다.
+- 상태: A01은 방향 확정·시점 미정이다. A02·A20·B05–B07은 포함, A03·A09·A10·A12·A14–A19·A22·B01–B04·B13은 후속, A04·A08·A11·A21·A23·A24·B08·B09·B11·B14·B15는 백로그, A05·A06·A07·A13·B10은 제외다. B12는 응답 중복으로 확인 필요하며 나머지 19개는 미결정이다.
 - 목적: 기능을 추가하기 전에 ticket 속성과 업무 흐름을 비교한다. 분류 기준은 포함 = MVP에 포함, 후속 = MVP 바로 뒤, 백로그 = 시간 나면 선택적으로 검토, 제외 = 구현하지 않음이다. 기존 최하위 Backlog 표기는 백로그와 같다.
 - 이 문서는 별도 브랜치의 범위 검토 자료다. 결정은 이 폴더의 `decisions.md`에만 기록하며 기존 요구사항·decision·로드맵은 변경하지 않는다. 공식 문서 반영은 범위 검토 후 별도 합의한다.
 
@@ -101,14 +101,14 @@ A06은 ‘별도 속성’과 ‘본문 template’ 중 선택할 수 있다. A0
 | B05 | 개인 저장 필터 | private saved filter [J17] | 개인 적용 filter/view [N09] | 모델·DTO 기반만 / 기존 MVP 9단계 | 2026-10-03: 포함(MVP), 상세는 칸반 필터 작업 때 논의. [결정 기록](decisions.md) |
 | B06 | 프로젝트 공유 필터 | 공유 saved filter [J17] | 공유 view·Save for everyone [N09] | 모델·DTO 기반만 / 기존 MVP 9단계 | 2026-10-03: 포함(MVP), 상세는 칸반 필터 작업 때 논의. [결정 기록](decisions.md) |
 | B07 | 칸반 필터 | board/custom filters [J18] | board view filter [N09] | 없음; 목록 필터는 구현 / 요구사항 §8.4 포함 | 2026-10-03: 포함(MVP), 상세는 작업 때 논의. [결정 기록](decisions.md) |
-| B08 | 표시 열·카드 필드·Group·Swimlane 구성 | board/card/swimlane 설정 [J19] | property visibility·group·sub-group [N09] | 고정 목록 열·카드·Epic 그룹 / 미정 | 미결정 |
-| B09 | 목록에서 바로 값 편집 | 지원되는 필드의 inline edit [J20] | table cell 편집 [N01] | 별도 편집 form만 / 미정 | 미결정 |
-| B10 | Drag로 수동 순위 정렬 | Rank [J12] | row drag 정렬 [N10] | `sort_order` 조회만, 순위 변경 없음 / 후속 기록은 있으나 독립 checklist 없음 | 미결정 |
-| B11 | Timeline·Gantt·의존 일정 조정 | timeline·Plans; 고급 Plans는 Premium/Enterprise [J08][J21] | timeline·dependency date shifting [N03][N09] | 일정·관계 필드 기반만 / 후속 | 미결정 |
-| B12 | Calendar 업무 보기 | calendar 일정 편집 [J22] | Calendar view [N09] | 없음 / 미정 | 미결정 |
-| B13 | Backlog·Sprint 계획·종료·이월 | Scrum/backlog·Sprint 종료와 미완료 이월 [J36] | Sprint planning·backlog·완료 시 이월 [N02] | 없음 / 후속 | 미결정 |
-| B14 | WIP 제한 | column constraint 초과 표시 [J24] | 동등한 native 제한은 미확인; 집계 구성은 가능 [N04] | 없음 / 미정 | 미결정 |
-| B15 | 팀 통계·Workload·진척 report | Sprint·Velocity·Burndown·Cycle time 등 [J23] | task 집계·chart·Sprint 완료율; Jira report와 동일하지 않음 [N11][N20] | 개인 dashboard만 / 프로젝트·업무 통계 후속 | 미결정 |
+| B08 | 표시 열·카드 필드·Group·Swimlane 구성 | board/card/swimlane 설정 [J19] | property visibility·group·sub-group [N09] | 고정 목록 열·카드·Epic 그룹 / 미정 | 2026-10-03: 백로그. [결정 기록](decisions.md) |
+| B09 | 목록에서 바로 값 편집 | 지원되는 필드의 inline edit [J20] | table cell 편집 [N01] | 별도 편집 form만 / 미정 | 2026-10-03: 백로그. [결정 기록](decisions.md) |
+| B10 | Drag로 수동 순위 정렬 | Rank [J12] | row drag 정렬 [N10] | `sort_order` 조회만, 순위 변경 없음 / 후속 기록은 있으나 독립 checklist 없음 | 2026-10-03: 제외, 기존 Drag 상태 변경 유지. [결정 기록](decisions.md) |
+| B11 | Timeline·Gantt·의존 일정 조정 | timeline·Plans; 고급 Plans는 Premium/Enterprise [J08][J21] | timeline·dependency date shifting [N03][N09] | 일정·관계 필드 기반만 / 후속 | 2026-10-03: 백로그. [결정 기록](decisions.md) |
+| B12 | Calendar 업무 보기 | calendar 일정 편집 [J22] | Calendar view [N09] | 없음 / 미정 | 2026-10-03: 미결정 — 백로그·후속 중복 응답으로 확인 필요. [결정 기록](decisions.md) |
+| B13 | Backlog·Sprint 계획·종료·이월 | Scrum/backlog·Sprint 종료와 미완료 이월 [J36] | Sprint planning·backlog·완료 시 이월 [N02] | 없음 / 후속 | 2026-10-03: 후속. [결정 기록](decisions.md) |
+| B14 | WIP 제한 | column constraint 초과 표시 [J24] | 동등한 native 제한은 미확인; 집계 구성은 가능 [N04] | 없음 / 미정 | 2026-10-03: 백로그. [결정 기록](decisions.md) |
+| B15 | 팀 통계·Workload·진척 report | Sprint·Velocity·Burndown·Cycle time 등 [J23] | task 집계·chart·Sprint 완료율; Jira report와 동일하지 않음 [N11][N20] | 개인 dashboard만 / 프로젝트·업무 통계 후속 | 2026-10-03: 백로그. [결정 기록](decisions.md) |
 | B16 | 티켓 작성 Template | clone·automation 활용 가능; Notion식 범용 본문 template와 구분 [J25][J16] | database template [N06] | 없음 / 미정 | 미결정 |
 | B17 | 반복 Task 자동 생성 | recurring automation [J26] | repeating template [N13] | 없음 / 미정 | 미결정 |
 | B18 | 조건 기반 자동 처리 | trigger·condition·action [J16] | database automation, 유료 plan 중심 [N14] | 없음; 자동 시각 기록·FSM은 사용자 설정 자동화가 아님 / 미정 | 미결정 |
@@ -157,7 +157,7 @@ B03은 앱 내 Inbox 확대와 email·push를 별도 선택할 수 있다. B08�
 5. 필드 추가를 포함하면 입력뿐 아니라 목록 표시·필터·정렬·이력·권한·기존 데이터 기본값까지 구현 범위에 포함할지 확인한다.
 6. 속성 다음에 B의 사용 흐름, 마지막에 C의 정책을 점검한다. 선행 정책이 필요한 항목은 해당 C 항목을 앞당겨 논의한다.
 
-A01–A24와 B01–B07의 결정 및 남은 세부 정책은 [검토 결정 기록](decisions.md)에 유지한다. A09·B02는 함께 후속 처리하고, B03·B04는 메인 화면 unread 같은 확인 방식으로 검토한다. B05–B07은 MVP에 포함하며 칸반 필터 작업 때 상세를 논의한다. 다음 검토 묶음은 **B08–B15**다.
+A01–A24와 B01–B15의 결정 및 남은 세부 정책은 [검토 결정 기록](decisions.md)에 유지한다. B12는 백로그·후속 중복 응답으로 확인이 필요하다. 다음 신규 검토 묶음은 **B16–B23**이다.
 
 ## 9. 코드 확인 위치
 
