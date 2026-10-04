@@ -3,10 +3,11 @@
 {% block content %}
 <header class="page-header compact-header">
   <div><span class="eyebrow">SYSTEM ADMIN</span><h1>조직 관리</h1><p>조직을 추가하고 이름·설명·상위 조직·활성 상태를 관리합니다.</p></div>
-  <a class="button primary" href="#create-organization">＋ 조직 추가</a>
+  <div><a class="button" href="/admin/organizations/export">JSON 내보내기</a> <a class="button primary" href="#create-organization">＋ 조직 추가</a></div>
 </header>
 {% if created %}<div class="auth-message success" role="status">조직을 생성했습니다. 사용자 등록 시 소속 조직으로 선택할 수 있습니다.</div>{% endif %}
 {% if updated %}<div class="auth-message success" role="status">조직 정보를 변경했습니다.</div>{% endif %}
+{% if imported is not none %}<div class="auth-message success" role="status">조직 {{ imported }}개를 추가하거나 갱신했습니다.</div>{% endif %}
 {% if error %}<div class="auth-message error" role="alert">{{ error }}</div>{% endif %}
 <div class="admin-live-layout">
   <section class="panel org-tree-panel">
@@ -37,4 +38,27 @@
     </form>
   </aside>
 </div>
+<section class="panel" id="import-organizations">
+  <div class="panel-header"><div><h2>조직 JSON 가져오기</h2><p>기존 조직은 key로 갱신하고, 파일에 없는 조직과 사용자·프로젝트 정보는 보존합니다. 적용 전에 변경 내용을 확인합니다.</p></div></div>
+  <form method="post" action="/admin/organizations/import/preview" enctype="multipart/form-data" class="admin-create-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>JSON 파일<input type="file" name="document_file" accept=".json,application/json" required></label>
+    <button type="submit" class="button">적용 내용 미리보기</button>
+  </form>
+  {% if preview %}
+  <div role="status"><p>추가 {{ preview.add_count }}개 · 갱신 {{ preview.update_count }}개 · 변경 없음 {{ preview.unchanged_count }}개</p></div>
+  {% if preview.errors %}<div class="auth-message error" role="alert"><strong>적용할 수 없습니다.</strong><ul>{% for problem in preview.errors %}<li>{{ problem }}</li>{% endfor %}</ul></div>{% endif %}
+  <div class="admin-org-tree" aria-label="조직 가져오기 미리보기">
+    {% for change in preview.changes %}<div class="admin-org-item"><strong>{{ change.action }}</strong> · {{ change.name }} <small>({{ change.key }})</small>{% if change.parent_key %} · 상위 key: {{ change.parent_key }}{% endif %}{% if change.changed_fields %} · 변경: {{ change.changed_fields|join(', ') }}{% endif %}</div>{% else %}<p>파일에 조직 항목이 없습니다.</p>{% endfor %}
+  </div>
+  {% if preview.preview_token %}
+  <form method="post" action="/admin/organizations/import/apply" data-confirm-message="미리보기의 조직 변경을 적용하시겠습니까?">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="preview_token" value="{{ preview.preview_token }}">
+    <textarea name="document_json" hidden>{{ preview_document }}</textarea>
+    <button type="submit" class="button primary">확인한 변경 적용</button>
+  </form>
+  {% endif %}
+  {% endif %}
+</section>
 {% endblock %}

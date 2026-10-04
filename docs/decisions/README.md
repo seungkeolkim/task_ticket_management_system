@@ -24,7 +24,7 @@
 |---|---|---|---|
 | [architecture-and-configuration.md](architecture-and-configuration.md) | `ARC` | 기술 구조, 실행 환경, 외부 설정 | `ARC-014` |
 | [users-auth-and-permissions.md](users-auth-and-permissions.md) | `IAM` | 사용자, 인증, 세션, 역할, 권한 | `IAM-019` |
-| [organizations-and-projects.md](organizations-and-projects.md) | `ORG`, `PRJ` | 조직 계층, 프로젝트, 구성원 격리 | `ORG-007`, `PRJ-011` |
+| [organizations-and-projects.md](organizations-and-projects.md) | `ORG`, `PRJ` | 조직 계층, 프로젝트, 구성원 격리 | `ORG-008`, `PRJ-011` |
 | [tickets-and-workflow.md](tickets-and-workflow.md) | `TKT` | 티켓 계층, 속성, 상태, 관계, 삭제 | `TKT-015` |
 | [content-comments-and-attachments.md](content-comments-and-attachments.md) | `CNT` | 구조화 본문, 댓글, 멘션, 첨부파일 | `CNT-017` |
 | [database-and-data-lifecycle.md](database-and-data-lifecycle.md) | `DB` | DB 타입, migration, transaction, 보존 | `DB-026` |
