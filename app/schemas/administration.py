@@ -27,6 +27,14 @@ class OrganizationCreate(BaseModel):
     description: str = Field(default="", max_length=4000)
 
 
+class OrganizationUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    name: str = Field(min_length=1, max_length=200)
+    parent_id: int | None = Field(gt=0)
+    description: str = Field(max_length=4000)
+    is_active: bool
+
+
 class UserCreate(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     login_id: str = Field(min_length=3, max_length=100)

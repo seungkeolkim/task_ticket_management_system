@@ -10,7 +10,7 @@ from app.core.config import get_settings
 from app.domain.auth import AuthError, hash_password, verify_password
 from app.main import app
 from app.models import AuditLog, Organization, User, UserSession
-from app.schemas.administration import OrganizationCreate, UserUpdate
+from app.schemas.administration import OrganizationCreate, OrganizationUpdate, UserUpdate
 from app.services import administration as service
 from app.services.auth import get_current_identity
 
@@ -67,6 +67,17 @@ def new_user(default_organization_id, **overrides):
         "email": "",
         "organization_id": default_organization_id,
         "password": "New-user-pass-12345!",
+        **overrides,
+    }
+
+
+def organization_update_payload(organization: Organization, **overrides):
+    """조직 관리 API에 보낼 전체 수정 값을 구성한다."""
+    return {
+        "name": organization.name,
+        "parent_id": organization.parent_id,
+        "description": organization.description,
+        "is_active": organization.is_active,
         **overrides,
     }
 
@@ -151,9 +162,217 @@ def test_organization_user_and_first_login_flow(client, admin, db_session):
         assert newcomer.get("/admin/users").status_code == 403
 
 
-def test_user_update_deactivation_reactivation_and_session_revocation(
-    client, admin, db_session
+def test_organization_update_move_and_activation_rules(client, admin, db_session):
+    """조직 이동·순환·중복·비활성 상위 정책과 감사 기록을 검증한다."""
+    first_root = Organization(key="first", name="첫 본부")
+    second_root = Organization(key="second", name="둘째 본부")
+    db_session.add_all([first_root, second_root])
+    db_session.flush()
+    team = Organization(key="team", name="개발팀", parent_id=first_root.id)
+    sibling = Organization(key="sibling", name="운영팀", parent_id=second_root.id)
+    db_session.add_all([team, sibling])
+    db_session.commit()
+
+    moved = patch(
+        client,
+        f"/api/admin/organizations/{team.id}",
+        organization_update_payload(
+            team, name="플랫폼팀", parent_id=second_root.id, description="새 설명"
+        ),
+    )
+    assert moved.status_code == 200
+    assert moved.json()["name"] == "플랫폼팀"
+    assert moved.json()["depth"] == 1
+    db_session.refresh(team)
+    assert team.parent_id == second_root.id
+    assert team.description == "새 설명"
+    audit_count = db_session.scalar(
+        select(func.count())
+        .select_from(AuditLog)
+        .where(AuditLog.target_type == "organization", AuditLog.target_id == str(team.id))
+    )
+    assert audit_count == 1
+    assert (
+        patch(
+            client, f"/api/admin/organizations/{team.id}", organization_update_payload(team)
+        ).status_code
+        == 200
+    )
+    assert (
+        db_session.scalar(
+            select(func.count())
+            .select_from(AuditLog)
+            .where(AuditLog.target_type == "organization", AuditLog.target_id == str(team.id))
+        )
+        == audit_count
+    )
+
+    for target_id, requested_parent_id in ((team.id, team.id), (second_root.id, team.id)):
+        target = db_session.get(Organization, target_id)
+        response = patch(
+            client,
+            f"/api/admin/organizations/{target_id}",
+            organization_update_payload(target, parent_id=requested_parent_id),
+        )
+        assert response.status_code == 409
+        assert response.json()["code"] == "organization_cycle"
+    duplicate = patch(
+        client,
+        f"/api/admin/organizations/{team.id}",
+        organization_update_payload(team, name="운영팀"),
+    )
+    assert duplicate.status_code == 409
+    db_session.refresh(team)
+    assert team.name == "플랫폼팀" and team.parent_id == second_root.id
+    existing_member = create_managed_user(db_session, admin, organization_id=team.id)
+
+    deactivated = patch(
+        client,
+        f"/api/admin/organizations/{second_root.id}",
+        organization_update_payload(second_root, is_active=False),
+    )
+    assert deactivated.status_code == 200
+    assert not deactivated.json()["selectable"]
+    team_row = next(
+        row for row in client.get("/api/admin/organizations").json() if row["id"] == team.id
+    )
+    assert not team_row["selectable"]
+    with TestClient(app) as existing_member_client:
+        assert (
+            login(
+                existing_member_client,
+                existing_member.login_id,
+                "Managed-user-pass-12345!",
+            ).status_code
+            == 200
+        )
+        assert existing_member_client.get("/").status_code == 200
+    assert (
+        patch(
+            client,
+            f"/api/admin/organizations/{team.id}",
+            organization_update_payload(team, description="비활성 상위 아래 설명 수정"),
+        ).status_code
+        == 200
+    )
+    db_session.refresh(team)
+    assert (
+        post(
+            client, "/api/admin/organizations", {"name": "신규 팀", "parent_id": team.id}
+        ).status_code
+        == 400
+    )
+    assert post(client, "/api/admin/users", new_user(team.id)).status_code == 400
+    assert (
+        patch(
+            client,
+            f"/api/admin/organizations/{team.id}",
+            organization_update_payload(team, parent_id=first_root.id),
+        ).status_code
+        == 200
+    )
+    db_session.refresh(team)
+    assert team.parent_id == first_root.id
+    assert client.get("/api/auth/me").status_code == 200
+    db_session.refresh(second_root)
+    assert (
+        patch(
+            client,
+            f"/api/admin/organizations/{second_root.id}",
+            organization_update_payload(second_root, is_active=True),
+        ).status_code
+        == 200
+    )
+    actions = list(
+        db_session.scalars(
+            select(AuditLog.action)
+            .where(
+                AuditLog.target_type == "organization",
+                AuditLog.target_id == str(second_root.id),
+            )
+            .order_by(AuditLog.id)
+        )
+    )
+    assert actions == ["organization.deactivated", "organization.reactivated"]
+
+
+def test_organization_update_web_csrf_and_audit_rollback(
+    client, admin, db_session, db_session_factory, monkeypatch
 ):
+    """화면 제출과 CSRF를 확인하고 감사 실패 때 조직 변경을 되돌린다."""
+    organization = Organization(key="managed", name="관리 대상")
+    db_session.add(organization)
+    db_session.commit()
+    page = client.get("/admin/organizations")
+    assert f"/admin/organizations/{organization.id}/update" in page.text
+    csrf_token = re.search('name="csrf_token" value="([^"]+)"', page.text).group(1)
+    path = f"/admin/organizations/{organization.id}/update"
+    values = {"name": "변경 조직", "parent_id": "", "description": "설명", "is_active": "true"}
+    assert client.post(path, data=values, headers=ORIGIN).status_code == 403
+    assert (
+        client.post(
+            path,
+            data=values | {"is_active": "", "csrf_token": csrf_token},
+            headers=ORIGIN,
+        ).status_code
+        == 422
+    )
+    assert (
+        client.patch(
+            f"/api/admin/organizations/{organization.id}",
+            json=organization_update_payload(organization),
+            headers=ORIGIN,
+        ).status_code
+        == 403
+    )
+    response = client.post(
+        path, data=values | {"csrf_token": csrf_token}, headers=ORIGIN, follow_redirects=False
+    )
+    assert response.status_code == 303
+    db_session.refresh(organization)
+    assert organization.name == "변경 조직"
+
+    def fail_audit(*args, **kwargs):
+        """감사 저장 실패를 재현한다."""
+        raise RuntimeError("simulated audit failure")
+
+    monkeypatch.setattr(service, "record_audit_event", fail_audit)
+    with db_session_factory() as session:
+        identity = get_current_identity(
+            session, client.cookies.get(get_settings().session.cookie_name)
+        )
+        with pytest.raises(RuntimeError, match="audit failure"):
+            service.update_organization(
+                session,
+                identity,
+                organization.id,
+                OrganizationUpdate(
+                    name="롤백 대상", parent_id=None, description="", is_active=True
+                ),
+                "127.0.0.1",
+            )
+    db_session.expire_all()
+    organization = db_session.get(Organization, organization.id)
+    assert organization.name == "변경 조직"
+
+
+def test_organization_update_requires_administrator(client, admin, db_session):
+    """일반 사용자는 조직 정보를 변경할 수 없다."""
+    managed_user = create_managed_user(db_session, admin)
+    with TestClient(app) as managed_client:
+        assert (
+            login(managed_client, managed_user.login_id, "Managed-user-pass-12345!").status_code
+            == 200
+        )
+        response = patch(
+            managed_client,
+            f"/api/admin/organizations/{admin.organization_id}",
+            organization_update_payload(db_session.get(Organization, admin.organization_id)),
+        )
+        assert response.status_code == 403
+
+
+def test_user_update_deactivation_reactivation_and_session_revocation(client, admin, db_session):
     """사용자 수정·비활성화·재활성화와 session 폐기를 검증한다."""
     destination = Organization(key="destination", name="이동 조직")
     db_session.add(destination)
@@ -351,9 +570,7 @@ def test_password_reset_revokes_sessions_and_forces_change(client, admin, db_ses
         assert RESET_PASSWORD not in reset.text
         assert managed_client.get("/api/auth/me").status_code == 401
         assert (
-            login(
-                managed_client, managed_user.login_id, "Managed-user-pass-12345!"
-            ).status_code
+            login(managed_client, managed_user.login_id, "Managed-user-pass-12345!").status_code
             == 401
         )
         new_login = login(managed_client, managed_user.login_id, RESET_PASSWORD)
@@ -432,10 +649,7 @@ def test_user_lifecycle_api_requires_admin_and_csrf(client, admin, db_session):
     )
     admin.system_role = "USER"
     db_session.commit()
-    assert (
-        patch(client, f"/api/admin/users/{managed_user.id}", update_payload).status_code
-        == 403
-    )
+    assert patch(client, f"/api/admin/users/{managed_user.id}", update_payload).status_code == 403
     assert (
         post(
             client,
@@ -481,9 +695,7 @@ def test_user_management_web_forms_are_connected(client, admin, db_session):
     assert reset_response.status_code == 303
     assert f"password_reset={managed_user.id}" in reset_response.headers["location"]
     assert (
-        client.post(
-            f"/admin/users/{managed_user.id}/update", data={}, headers=ORIGIN
-        ).status_code
+        client.post(f"/admin/users/{managed_user.id}/update", data={}, headers=ORIGIN).status_code
         == 403
     )
 
@@ -711,6 +923,7 @@ def test_search_pagination_and_public_fields(client, admin, db_session):
 
 def test_creation_audit_failure_rolls_back(client, admin, db_session_factory, monkeypatch):
     """감사 로그 관련 동작을 검증한다."""
+
     def fail(*args, **kwargs):
         """실패 rollback 상황을 재현한다."""
         raise RuntimeError("simulated audit failure")

@@ -95,13 +95,17 @@ def duplicate_user(
     return session.scalar(query.limit(1)) is not None
 
 
-def duplicate_organization(session: Session, parent_id: int | None, name: str) -> bool:
+def duplicate_organization(
+    session: Session,
+    parent_id: int | None,
+    name: str,
+    *,
+    exclude_organization_id: int | None = None,
+) -> bool:
     """조직 중복 여부를 조회한다."""
-    return (
-        session.scalar(
-            select(Organization.id)
-            .where(Organization.parent_id == parent_id, Organization.name == name)
-            .limit(1)
-        )
-        is not None
+    query = select(Organization.id).where(
+        Organization.parent_id == parent_id, Organization.name == name
     )
+    if exclude_organization_id is not None:
+        query = query.where(Organization.id != exclude_organization_id)
+    return session.scalar(query.limit(1)) is not None

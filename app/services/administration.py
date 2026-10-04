@@ -14,6 +14,7 @@ from app.repositories import administration as repository
 from app.repositories.auth import lock_security_write, revoke_user_sessions
 from app.schemas.administration import (
     OrganizationCreate,
+    OrganizationUpdate,
     OrganizationView,
     UserCreate,
     UserPage,
@@ -46,10 +47,7 @@ def list_organizations(session: Session, actor: Identity) -> list[OrganizationVi
     children = defaultdict(list)
     for organization_row in organization_rows:
         children[organization_row.parent_id].append(organization_row)
-    stack = [
-        (organization_row, 0, True)
-        for organization_row in reversed(children[None])
-    ]
+    stack = [(organization_row, 0, True) for organization_row in reversed(children[None])]
     result = []
     seen = set()
     while stack:
@@ -175,6 +173,124 @@ def create_organization(
     return row_id
 
 
+def update_organization(
+    session: Session,
+    actor: Identity,
+    organization_id: int,
+    payload: OrganizationUpdate,
+    ip_address: str,
+) -> OrganizationView:
+    """조직의 기본 정보·계층·활성 상태를 한 transaction에서 변경한다."""
+    logger.debug(
+        "organization_update_started actor_id=%s organization_id=%s", actor.id, organization_id
+    )
+    try:
+        with request_transaction(session):
+            lock_security_write(session)
+            require_administrator(session, actor)
+            organizations = repository.list_organizations(session)
+            organization_by_id = {organization.id: organization for organization in organizations}
+            organization = organization_by_id.get(organization_id)
+            if organization is None:
+                raise AuthError("organization_not_found", "조직을 찾을 수 없습니다.", 404)
+
+            if payload.parent_id is not None:
+                parent = organization_by_id.get(payload.parent_id)
+                if parent is None:
+                    raise AuthError("invalid_organization", "상위 조직을 찾을 수 없습니다.", 422)
+                ancestor = parent
+                visited_ancestor_ids = set()
+                while ancestor is not None:
+                    if ancestor.id == organization_id:
+                        raise AuthError(
+                            "organization_cycle",
+                            "자기 자신이나 하위 조직으로 이동할 수 없습니다.",
+                            409,
+                        )
+                    if ancestor.id in visited_ancestor_ids:
+                        raise AuthError("invalid_organization_tree", "조직 구조를 확인하세요.", 409)
+                    visited_ancestor_ids.add(ancestor.id)
+                    ancestor = organization_by_id.get(ancestor.parent_id)
+                if payload.parent_id != organization.parent_id or (
+                    not organization.is_active and payload.is_active
+                ):
+                    get_active_organization(session, actor, payload.parent_id)
+
+            if repository.duplicate_organization(
+                session,
+                payload.parent_id,
+                payload.name,
+                exclude_organization_id=organization_id,
+            ):
+                raise AuthError(
+                    "organization_conflict", "같은 상위 조직에 동일한 이름이 이미 있습니다.", 409
+                )
+
+            changed_fields = [
+                field_name
+                for field_name, current_value, requested_value in (
+                    ("name", organization.name, payload.name),
+                    ("parent_id", organization.parent_id, payload.parent_id),
+                    ("description", organization.description, payload.description),
+                    ("is_active", organization.is_active, payload.is_active),
+                )
+                if current_value != requested_value
+            ]
+            if changed_fields:
+                previously_active = organization.is_active
+                organization.name = payload.name
+                organization.parent_id = payload.parent_id
+                organization.description = payload.description
+                organization.is_active = payload.is_active
+                session.flush()
+                action = "organization.updated"
+                if previously_active and not payload.is_active:
+                    action = "organization.deactivated"
+                elif not previously_active and payload.is_active:
+                    action = "organization.reactivated"
+                record_audit_event(
+                    session,
+                    action,
+                    actor.id,
+                    target_type="organization",
+                    target_id=str(organization_id),
+                    ip_address=ip_address,
+                    details={"changed_fields": changed_fields},
+                )
+            result = next(
+                organization_view
+                for organization_view in list_organizations(session, actor)
+                if organization_view.id == organization_id
+            )
+    except AuthError as error:
+        logger.info(
+            "organization_update_rejected actor_id=%s organization_id=%s code=%s",
+            actor.id,
+            organization_id,
+            error.code,
+        )
+        raise
+    except IntegrityError:
+        logger.info(
+            "organization_update_rejected actor_id=%s organization_id=%s code=conflict",
+            actor.id,
+            organization_id,
+        )
+        raise AuthError(
+            "organization_conflict", "조직 정보가 중복되거나 변경되었습니다. 다시 확인하세요.", 409
+        ) from None
+    except Exception:
+        logger.exception(
+            "organization_update_failed actor_id=%s organization_id=%s", actor.id, organization_id
+        )
+        raise
+    if changed_fields:
+        logger.info(
+            "organization_updated actor_id=%s organization_id=%s", actor.id, organization_id
+        )
+    return result
+
+
 def create_user(session: Session, actor: Identity, payload: UserCreate, ip_address: str) -> int:
     """사용자 생성을 처리한다."""
     logger.debug("user_create_started actor_id=%s", actor.id)
@@ -230,9 +346,7 @@ def _managed_user(session: Session, user_id: int) -> tuple[User, str]:
     return row
 
 
-def _protect_last_active_administrator(
-    session: Session, user: User, payload: UserUpdate
-) -> None:
+def _protect_last_active_administrator(session: Session, user: User, payload: UserUpdate) -> None:
     """마지막 활성 시스템 관리자를 없애는 변경을 차단한다."""
     removes_active_administrator = (
         user.is_active
@@ -261,9 +375,7 @@ def update_user(
             lock_security_write(session)
             require_administrator(session, actor)
             user, organization_name = _managed_user(session, user_id)
-            selected_organization = get_active_organization(
-                session, actor, payload.organization_id
-            )
+            selected_organization = get_active_organization(session, actor, payload.organization_id)
             if repository.duplicate_user(
                 session,
                 user.login_id,

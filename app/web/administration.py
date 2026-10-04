@@ -11,6 +11,7 @@ from app.db.session import get_db_session
 from app.domain.auth import AuthError, Identity
 from app.schemas.administration import (
     OrganizationCreate,
+    OrganizationUpdate,
     UserCreate,
     UserPasswordReset,
     UserUpdate,
@@ -86,10 +87,16 @@ def user_management_page(
 
 @router.get("/admin/organizations")
 def organization_management_page(
-    request: Request, session: Database, actor: Administrator, created: int | None = None
+    request: Request,
+    session: Database,
+    actor: Administrator,
+    created: int | None = None,
+    updated: int | None = None,
 ):
     """조직 관리 화면을 렌더링한다."""
-    return render_organization_management_page(request, session, actor, created=created)
+    return render_organization_management_page(
+        request, session, actor, created=created, updated=updated
+    )
 
 
 @router.post("/admin/users")
@@ -168,9 +175,7 @@ def user_update_submit(
             system_role=system_role,
             is_active=is_active == "true",
         )
-        service.update_user(
-            session, actor, user_id, payload, get_client_ip_address(request)
-        )
+        service.update_user(session, actor, user_id, payload, get_client_ip_address(request))
     except ValidationError:
         return render_user_management_page(
             request,
@@ -268,3 +273,46 @@ def organization_submit(
             status_code=error.status_code,
         )
     return RedirectResponse(f"/admin/organizations?created={row_id}", status_code=303)
+
+
+@router.post("/admin/organizations/{organization_id}/update")
+def organization_update_submit(
+    organization_id: int,
+    request: Request,
+    session: Database,
+    actor: Administrator,
+    name: Annotated[str, Form()] = "",
+    parent_id: Annotated[str, Form()] = "",
+    description: Annotated[str, Form()] = "",
+    is_active: Annotated[str, Form()] = "",
+    csrf_token: Annotated[str, Form()] = "",
+):
+    """조직 수정 form 제출을 처리한다."""
+    verify_csrf(request, csrf_token, actor, get_settings())
+    try:
+        payload = OrganizationUpdate(
+            name=name,
+            parent_id=parent_id or None,
+            description=description,
+            is_active=is_active,
+        )
+        service.update_organization(
+            session, actor, organization_id, payload, get_client_ip_address(request)
+        )
+    except ValidationError:
+        return render_organization_management_page(
+            request,
+            session,
+            actor,
+            error="조직명, 상위 조직과 설명의 형식·길이를 확인하세요.",
+            status_code=422,
+        )
+    except AuthError as error:
+        return render_organization_management_page(
+            request,
+            session,
+            actor,
+            error=error.message,
+            status_code=error.status_code,
+        )
+    return RedirectResponse(f"/admin/organizations?updated={organization_id}", status_code=303)

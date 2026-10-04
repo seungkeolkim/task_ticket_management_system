@@ -8,6 +8,7 @@ from app.db.session import get_db_session
 from app.domain.auth import Identity
 from app.schemas.administration import (
     OrganizationCreate,
+    OrganizationUpdate,
     OrganizationView,
     UserCreate,
     UserPage,
@@ -58,9 +59,7 @@ def update_user(
 ):
     """관리자 사용자 수정을 처리한다."""
     verify_csrf(request, request.headers.get("x-csrf-token", ""), actor, get_settings())
-    return service.update_user(
-        session, actor, user_id, payload, get_client_ip_address(request)
-    )
+    return service.update_user(session, actor, user_id, payload, get_client_ip_address(request))
 
 
 @router.post("/users/{user_id}/password-reset", response_model=UserView)
@@ -87,3 +86,18 @@ def create_organization(
     return {
         "id": service.create_organization(session, actor, payload, get_client_ip_address(request))
     }
+
+
+@router.patch("/organizations/{organization_id}", response_model=OrganizationView)
+def update_organization(
+    organization_id: int,
+    request: Request,
+    payload: OrganizationUpdate,
+    session: Database,
+    actor: Administrator,
+):
+    """관리자 조직 수정을 처리한다."""
+    verify_csrf(request, request.headers.get("x-csrf-token", ""), actor, get_settings())
+    return service.update_organization(
+        session, actor, organization_id, payload, get_client_ip_address(request)
+    )
