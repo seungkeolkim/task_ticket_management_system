@@ -22,8 +22,12 @@
     <h1>칸반 보드</h1>
     <p>카드를 드래그하여 허용된 상태 열로 옮길 수 있습니다.</p>
   </div>
-  <div class="page-actions"><a class="button secondary" href="/projects/{{ project.key }}/tickets">☷ 목록 보기</a><a class="button primary" href="/projects/{{ project.key }}/tickets/new">＋ 새 티켓</a></div>
+  <div class="page-actions"><a class="button secondary" href="{{ ticket_list_url }}">☷ 목록 보기</a><a class="button primary" href="/projects/{{ project.key }}/tickets/new">＋ 새 티켓</a></div>
 </header>
+
+{% include "_ticket_filter_form.html" %}
+{% include "_saved_filters.html" %}
+<p class="filter-help">조건에 맞는 Task·Subtask만 표시하며 상위 티켓은 그룹 이름으로 유지합니다.</p>
 
 <div id="board-feedback" class="auth-message" role="status" aria-live="polite" hidden></div>
 <div class="board-legend"><span><i class="legend-dot todo"></i>등록</span><span><i class="legend-dot progress"></i>진행중</span><span><i class="legend-dot hold"></i>보류</span><span><i class="legend-dot done"></i>완료</span><p>비활성 열은 현재 상태에서 이동할 수 없습니다.</p></div>
@@ -50,7 +54,7 @@
     {% endfor %}
   </div>
 </details>
-{% endfor %}
+{% else %}<div class="empty-state"><strong>조건에 맞는 카드가 없습니다.</strong><span>검색 조건을 바꾸거나 필터를 초기화하세요.</span></div>{% endfor %}
 </div>
 <script src="{{ url_for('static', path='board.js') }}" defer></script>
 {% endblock %}

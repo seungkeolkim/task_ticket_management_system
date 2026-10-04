@@ -1,0 +1,71 @@
+<section class="saved-filter-panel" data-personal-filters data-project-key="{{ project.key }}" data-csrf-token="{{ csrf_token }}" aria-label="저장 필터">
+  <div class="saved-filter-personal" data-filter-scope="personal">
+    <header class="saved-filter-heading">
+      <h2>내 개인 필터</h2><span class="filter-scope-badge personal">나만 보기</span>
+    </header>
+    <p class="saved-filter-description">이 프로젝트에서 나만 사용하는 조건입니다. 다른 구성원에게 공유되지 않습니다.</p>
+    <form class="saved-filter-create" data-personal-filter-create>
+      <label for="personal-filter-name">개인 필터 이름</label>
+      <div class="saved-filter-create-controls">
+        <input id="personal-filter-name" name="name" maxlength="200" required placeholder="예: 이번 주 내 미완료 업무" autocomplete="off">
+        <button class="button secondary" type="submit">개인 필터 저장</button>
+      </div>
+      <small>‘적용’ 버튼으로 반영한 현재 조건·정렬·표시 개수를 저장합니다.</small>
+    </form>
+    <details class="saved-filter-list" {% if personal_filters %}open{% endif %}>
+      <summary>저장한 개인 필터 <strong>{{ personal_filters|length }}</strong>개</summary>
+      <ul>
+        {% for personal_filter in personal_filters %}
+        <li data-personal-filter-id="{{ personal_filter.id }}" data-updated-at="{{ personal_filter.updated_at.isoformat() }}">
+          <span class="saved-filter-name" data-personal-filter-name>{{ personal_filter.name }}</span>
+          <div class="saved-filter-actions">
+            <a class="button secondary" href="/projects/{{ project.key }}/personal-filters/{{ personal_filter.id }}/apply?view={{ 'board' if is_board_filter else 'tickets' }}">적용</a>
+            <button class="button quiet" type="button" data-filter-action="rename">이름 변경</button>
+            <button class="button quiet" type="button" data-filter-action="overwrite">현재 조건으로 덮어쓰기</button>
+            <button class="button quiet" type="button" data-filter-action="delete">삭제</button>
+          </div>
+        </li>
+        {% else %}<li class="saved-filter-empty">저장한 개인 필터가 없습니다.</li>{% endfor %}
+      </ul>
+    </details>
+  </div>
+  <aside class="saved-filter-shared" data-filter-scope="shared" aria-label="프로젝트 공유 필터">
+    <header class="saved-filter-heading"><h2>프로젝트 공유 필터</h2><span class="filter-scope-badge shared">구성원 공용</span></header>
+    <p class="saved-filter-description">프로젝트 구성원 모두에게 표시됩니다. 프로젝트 관리자가 관리합니다.</p>
+    {% if not project.is_active %}<p class="saved-filter-description">비활성 프로젝트에서는 조회·적용만 가능합니다.</p>{% endif %}
+    {% if project.can_manage and project.is_active %}
+    <form class="saved-filter-create" data-shared-filter-create>
+      <label for="shared-filter-name">공유 필터 이름</label>
+      <div class="saved-filter-create-controls">
+        <input id="shared-filter-name" name="name" maxlength="200" required placeholder="예: 팀 미완료 업무" autocomplete="off">
+        <button class="button secondary" type="submit">공유 필터 저장</button>
+      </div>
+      <small>‘적용’ 버튼으로 반영한 현재 조건·정렬·표시 개수를 저장합니다.</small>
+    </form>
+    {% endif %}
+
+    <details class="saved-filter-list" {% if shared_filters %}open{% endif %}>
+      <summary>저장한 공유 필터 <strong>{{ shared_filters|length }}</strong>개</summary>
+      <ul>
+        {% for shared_filter in shared_filters %}
+        <li data-shared-filter-id="{{ shared_filter.id }}" data-updated-at="{{ shared_filter.updated_at.isoformat() }}">
+          <span class="saved-filter-name" data-shared-filter-name>{{ shared_filter.name }}</span>
+          <div class="saved-filter-actions">
+            <a class="button secondary" href="/projects/{{ project.key }}/shared-filters/{{ shared_filter.id }}/apply?view={{ 'board' if is_board_filter else 'tickets' }}">적용</a>
+            {% if project.can_manage and project.is_active %}
+            <button class="button quiet" type="button" data-filter-action="rename">이름 변경</button>
+            <button class="button quiet" type="button" data-filter-action="overwrite">현재 조건으로 덮어쓰기</button>
+            <button class="button quiet" type="button" data-filter-action="delete">삭제</button>
+            {% endif %}
+          </div>
+        </li>
+        {% else %}<li class="saved-filter-empty">저장한 공유 필터가 없습니다.</li>{% endfor %}
+      </ul>
+    </details>
+    <div class="auth-message" data-shared-filter-feedback role="status" aria-live="polite" hidden></div>
+  </aside>
+  <div class="auth-message" data-personal-filter-feedback role="status" aria-live="polite" hidden></div>
+  <script type="application/json" data-applied-ticket-filter>{{ filters.model_dump(mode='json')|tojson }}</script>
+</section>
+<link rel="stylesheet" href="{{ url_for('static', path='saved-filters.css') }}">
+<script src="{{ url_for('static', path='saved-filters.js') }}" defer></script>

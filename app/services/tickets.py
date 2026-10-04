@@ -812,13 +812,25 @@ def list_global_tickets(
         )
 
 
-def build_ticket_board(session: Session, actor: Identity, project_key: str):
-    """티켓 보드 구성한다."""
+def build_ticket_board(
+    session: Session,
+    actor: Identity,
+    project_key: str,
+    *,
+    ticket_filter: TicketFilter | None = None,
+):
+    """필터에 일치하는 카드와 계층 식별 정보를 보드로 구성한다."""
+    ticket_filter = ticket_filter or TicketFilter()
     with project_service.project_operation_context(session, actor, "ticket_board"):
         project = _get_project(session, actor, project_key)
         rows = repository.board_rows(
-            session, project.id, actor.id, override=uses_system_administrator_override(project)
+            session,
+            project.id,
+            actor.id,
+            override=uses_system_administrator_override(project),
+            ticket_filter=ticket_filter,
         )
+        matching_ticket_ids = {row[0].id for row in rows if row.matches_filter}
         dependency_blocked_ids = repository.incomplete_dependency_source_ids(session, project.id)
         indexed: dict[int, tuple[Ticket, BoardCard]] = {}
         for ticket_result_row in rows:
@@ -827,8 +839,7 @@ def build_ticket_board(session: Session, actor: Identity, project_key: str):
                 ticket,
                 _build_board_card(
                     ticket_result_row,
-                    can_transition=project.is_active
-                    and can_edit_ticket(project, ticket, actor),
+                    can_transition=project.is_active and can_edit_ticket(project, ticket, actor),
                     completion_blocked=ticket.id in dependency_blocked_ids,
                 ),
             )
@@ -838,9 +849,18 @@ def build_ticket_board(session: Session, actor: Identity, project_key: str):
         subtasks_by_parent: dict[int, list[tuple[Ticket, BoardCard]]] = {}
         for item in indexed.values():
             ticket = item[0]
-            if ticket.type == TicketType.SUBTASK and ticket.parent_id in indexed:
+            if (
+                ticket.type == TicketType.SUBTASK
+                and ticket.parent_id in indexed
+                and ticket.id in matching_ticket_ids
+            ):
                 subtasks_by_parent.setdefault(ticket.parent_id, []).append(item)
 
+        has_filter_conditions = any(
+            ticket_filter.model_dump(
+                exclude={"schema_version", "sort_by", "sort_direction", "page_size"}
+            ).values()
+        )
         groups: list[BoardEpicGroup] = []
         for epic_item in [*epics, None]:
             epic_id = epic_item[0].id if epic_item else None
@@ -856,7 +876,10 @@ def build_ticket_board(session: Session, actor: Identity, project_key: str):
                 detached: list[BoardDetachedGroup] = []
                 for task_ticket, task_card in group_tasks:
                     children = subtasks_by_parent.get(task_ticket.id, [])
-                    if task_ticket.status == ticket_status:
+                    if (
+                        task_ticket.status == ticket_status
+                        and task_ticket.id in matching_ticket_ids
+                    ):
                         task_cards.append(
                             BoardTask(
                                 card=task_card,
@@ -871,7 +894,10 @@ def build_ticket_board(session: Session, actor: Identity, project_key: str):
                         child_card
                         for child_ticket, child_card in children
                         if child_ticket.status == ticket_status
-                        and task_ticket.status != ticket_status
+                        and (
+                            task_ticket.status != ticket_status
+                            or task_ticket.id not in matching_ticket_ids
+                        )
                     ]
                     if other_status_children:
                         detached.append(
@@ -892,6 +918,8 @@ def build_ticket_board(session: Session, actor: Identity, project_key: str):
                         detached_groups=detached,
                     )
                 )
+            if has_filter_conditions and not any(column.card_count for column in columns):
+                continue
             groups.append(
                 BoardEpicGroup(
                     key=epic_item[1].key if epic_item else None,

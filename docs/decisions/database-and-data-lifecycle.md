@@ -25,6 +25,7 @@
 | DB-021 | 2026-09-28 | DECIDED | 프로젝트 기본 정보·활성 상태 변경은 DB-013의 SQLite 쓰기 잠금 이후 actor의 현재 관리 권한과 프로젝트 row를 다시 읽고, 변경과 감사 기록을 한 transaction으로 commit한다. 향후 비 SQLite backend 전환을 위해 프로젝트 row lock 경계를 둔다. | 동시 관리 요청을 직렬화하고 감사 실패 시 이름·설명·활성 상태 변경도 함께 rollback한다. 기존 `projects` 컬럼을 사용하므로 migration은 추가하지 않으며 backend 전환 시 row lock 동작을 별도로 검증한다. |
 | DB-022 | 2026-09-28 | DECIDED | 사용자 수정·비활성화·재활성화와 관리자 비밀번호 초기화는 DB-013의 SQLite 쓰기 잠금 이후 actor·대상 사용자·활성 관리자 수·조직 상태를 다시 확인한다. 사용자 변경, session 폐기와 감사 기록은 한 transaction으로 commit한다. | 동시 관리자 변경으로 활성 시스템 관리자가 0명이 되는 상황을 막고 감사 실패 시 계정과 session 상태를 함께 rollback한다. 기존 identity 테이블만 사용하므로 migration은 추가하지 않으며 backend 전환 시 사용자 row와 활성 관리자 집합에 대한 동등한 잠금 전략을 검증한다. |
 | DB-023 | 2026-10-03 | DECIDED | `20261003_0007`에서 ticket-local `labels`·`custom_fields` JSON 배열을 빈 목록 기본값으로 추가한다. DTO로 타입·크기·중복을 검증하고 전체 값을 교체하며 ticket version·이력·감사와 한 transaction으로 저장한다. | 재사용하지 않는 작은 속성 목록을 별도 카탈로그 없이 보존한다. `field_id`·`field_type`으로 향후 타입 확장 기반을 둔다. 상태 snapshot v2에 선택 필드로 추가하여 과거 이력은 수정하지 않고 누락값을 빈 목록으로 읽는다. downgrade는 현재 속성 값을 잃으므로 백업이 필요하며 새 이력은 구 reader와의 호환을 보장하지 않는다. |
+| DB-024 | 2026-10-04 | DECIDED | 개인·공유 저장 필터는 기존 saved_filters를 사용하며 새 migration은 추가하지 않는다. 쓰기 잠금 이후 현재 관리 권한·개인 소유권·동일 이름을 확인하고 변경과 감사를 같은 transaction으로 저장한다. 기존 updated_at을 동시 수정 기준으로 사용한다. | 저장·불러오기 시 JSON schema와 프로젝트별 후보를 재검증한다. 이름은 NFC·trim 후 대소문자를 구분해 개인 소유 범위 또는 프로젝트 공유 범위 내 중복을 거부한다. 공개 범위별 API를 분리하며 기존 row의 범위를 전환하지 않는다. 실패는 rollback하며 이름·검색 내용은 진단·감사 context에 넣지 않는다. PostgreSQL 경합 검증은 후속이다. |
 
 ## Open decisions
 

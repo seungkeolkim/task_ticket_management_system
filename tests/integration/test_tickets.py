@@ -2674,3 +2674,201 @@ def test_board_transition_metadata_dependency_permission_and_javascript(
     assert "window.confirm(" in script.text
     assert "window.location.reload()" in script.text
     assert "data-board-status" not in script.text
+
+
+def board_filter_cards(payload):
+    """보드 응답에서 식별용 부모를 제외한 실제 카드를 순서대로 수집한다."""
+    cards = []
+    for group in payload["groups"]:
+        for column in group["columns"]:
+            column_cards = []
+            for task in column["tasks"]:
+                column_cards.append(task["card"])
+                column_cards.extend(task["subtasks"])
+            for detached_group in column["detached_groups"]:
+                column_cards.extend(detached_group["subtasks"])
+            assert column["card_count"] == len(column_cards)
+            cards.extend(column_cards)
+    return cards
+
+
+def test_board_filters_preserve_ancestor_context_and_match_list(client, ticket_people, db_session):
+    """필터로 부모가 제외되어도 자손과 계층을 보존하고 목록과 같은 결과를 반환한다."""
+    people, project = ticket_people
+    epic = create_ticket(client, type="EPIC", title="분류용 Epic").json()
+    task = create_ticket(client, title="상위 업무", parent_key=epic["key"]).json()
+    subtask = create_ticket(
+        client, type="SUBTASK", parent_key=task["key"], title="선택할 하위 업무",
+        priority="CRITICAL", assignee_id=people["manager"].id, due_date="2026-10-10",
+    ).json()
+    create_ticket(client, title="관계없는 업무")
+    stored_subtask = db_session.get(Ticket, subtask["id"])
+    stored_subtask.created_at = datetime(2026, 10, 3, 15, 0, tzinfo=UTC)
+    stored_subtask.updated_at = datetime(2026, 10, 4, 14, 59, 59, tzinfo=UTC)
+    db_session.commit()
+    queries = [
+        [("type", "SUBTASK")],
+        [("q", "선택할 하위")],
+        [("priority", "CRITICAL"), ("status", "TODO")],
+        [("epic_id", epic["id"])],
+        [("parent_id", task["id"])],
+        [("creator_id", people["member"].id)],
+        [("assignee_id", people["manager"].id)],
+        [("unassigned", "true")],
+        [("created_from", "2026-10-04"), ("created_through", "2026-10-04")],
+        [("updated_from", "2026-10-04"), ("updated_through", "2026-10-04")],
+        [("due_from", "2026-10-10"), ("due_through", "2026-10-10")],
+        [("type", "TASK"), ("type", "SUBTASK"), ("status", "TODO"), ("status", "DONE")],
+        [("type", "EPIC")],
+        [("q", "%_")],
+    ]
+    for query_parameters in queries:
+        board_response = client.get("/api/projects/DEV/tickets/board", params=query_parameters)
+        list_response = client.get("/api/projects/DEV/tickets", params=query_parameters)
+        assert board_response.status_code == list_response.status_code == 200
+        expected_keys = {
+            ticket["key"] for ticket in list_response.json()["tickets"]
+            if ticket["type"] != "EPIC"
+        }
+        assert {card["key"] for card in board_filter_cards(board_response.json())} == expected_keys
+
+    payload = client.get("/api/projects/DEV/tickets/board?type=SUBTASK").json()
+    assert len(payload["groups"]) == 1
+    selected_group = payload["groups"][0]
+    assert selected_group["key"] == epic["key"]
+    assert len(selected_group["columns"]) == 5
+    todo_column = next(column for column in selected_group["columns"] if column["status"] == "TODO")
+    assert todo_column["tasks"] == []
+    assert todo_column["detached_groups"][0]["parent_key"] == task["key"]
+    assert board_filter_cards(payload)[0]["can_transition"] is True
+
+    response = client.get("/projects/DEV/board?type=SUBTASK&status=TODO&priority=CRITICAL")
+    assert response.status_code == 200
+    assert f'data-ticket-key="{subtask["key"]}"' in response.text
+    assert f'data-ticket-key="{task["key"]}"' not in response.text
+    assert 'name="type" value="SUBTASK" checked' in response.text
+    assert 'type=SUBTASK&amp;status=TODO&amp;priority=CRITICAL' in response.text
+    empty_response = client.get("/projects/DEV/board?q=absent-query")
+    assert "조건에 맞는 카드가 없습니다" in empty_response.text
+
+
+def test_board_filter_keeps_hidden_dependencies_and_reapplies_after_transition(
+    client, ticket_people, db_session,
+):
+    """화면 밖 의존 대상도 완료를 차단하고 전이 후 같은 필터로 카드를 재선택한다."""
+    _, project = ticket_people
+    dependency = create_ticket(client, title="숨겨진 선행 업무").json()
+    blocked = create_ticket(client, title="필터 대상").json()
+    db_session.add(TicketRelation(
+        project_id=project.id, source_ticket_id=blocked["id"],
+        target_ticket_id=dependency["id"], relation_type="DEPENDS_ON", dependency_kind="FS",
+        created_by_id=ticket_people[0]["member"].id,
+    ))
+    db_session.commit()
+    board_url = "/api/projects/DEV/tickets/board?q=필터 대상&status=TODO"
+    cards = board_filter_cards(client.get(board_url).json())
+    assert len(cards) == 1 and cards[0]["completion_blocked"] is True
+    response = post(client, f'/api/projects/DEV/tickets/{blocked["key"]}/transitions', {
+        "target_status": "IN_PROGRESS", "expected_version": blocked["version"],
+    })
+    assert response.status_code == 200
+    assert board_filter_cards(client.get(board_url).json()) == []
+    assert len(board_filter_cards(client.get(
+        "/api/projects/DEV/tickets/board?q=필터 대상&status=IN_PROGRESS"
+    ).json())) == 1
+
+
+def test_board_filter_does_not_paginate_and_keeps_project_isolation(
+    client, ticket_people, db_session,
+):
+    """목록 표시 개수가 카드를 자르지 않고 다른 프로젝트 조건은 데이터를 노출하지 않는다."""
+    people, project = ticket_people
+    for ticket_number in range(1, 26):
+        db_session.add(Ticket(
+            project_id=project.id, number=ticket_number, key=f"DEV-{ticket_number}",
+            type="TASK", title="모든 카드", creator_id=people["member"].id,
+        ))
+    hidden_project = Project(
+        key="SECRET", name="비공개 프로젝트", created_by_id=people["sysadmin"].id
+    )
+    db_session.add(hidden_project)
+    db_session.flush()
+    hidden_epic = Ticket(
+        project_id=hidden_project.id, number=1, key="SECRET-1", type="EPIC",
+        title="비공개 Epic", creator_id=people["sysadmin"].id,
+    )
+    db_session.add(hidden_epic)
+    db_session.commit()
+    payload = client.get("/api/projects/DEV/tickets/board?type=TASK&page_size=10").json()
+    assert len(board_filter_cards(payload)) == 25
+    assert "SECRET" not in str(payload)
+    assert board_filter_cards(client.get(
+        f"/api/projects/DEV/tickets/board?epic_id={hidden_epic.id}"
+    ).json()) == []
+    assert client.get("/api/projects/SECRET/tickets/board?type=TASK").status_code == 404
+    assert client.get("/projects/SECRET/board?type=TASK").status_code == 404
+    login(client, "guest")
+    assert all(not card["can_transition"] for card in board_filter_cards(client.get(
+        "/api/projects/DEV/tickets/board?type=TASK"
+    ).json()))
+
+
+@pytest.mark.parametrize("query", [
+    "type=INVALID", "priority=INVALID", "status=INVALID", "epic_id=-1",
+    "parent_id=0", "assignee_id=-1", "created_from=2026-10-05&created_through=2026-10-04",
+    "due_from=2026-10-05&due_through=2026-10-04", "q=" + "a" * 201,
+])
+def test_board_filter_rejects_invalid_conditions(client, ticket_people, query):
+    """잘못된 조건을 무시하고 전체 보드를 반환하지 않도록 API·HTML을 검사한다."""
+    assert client.get("/api/projects/DEV/tickets/board?" + query).status_code == 400
+    assert client.get("/projects/DEV/board?" + query).status_code == 400
+
+
+def test_board_filters_in_real_browser(client, ticket_people, monkeypatch):
+    """선택적으로 임시 DB 서버와 실제 Browser에서 filter·drag 흐름을 검증한다."""
+    import os
+    import shutil
+    import socket
+    import subprocess
+    import threading
+    import time
+
+    import uvicorn
+
+    from app.main import app
+
+    if os.environ.get("TTMS_RUN_BROWSER_TESTS") != "1":
+        pytest.skip("TTMS_RUN_BROWSER_TESTS=1과 Playwright가 필요합니다.")
+    node_executable = shutil.which("node")
+    assert node_executable is not None
+    epic = create_ticket(client, type="EPIC", title="Browser Epic").json()
+    task = create_ticket(client, title="Browser 상위", parent_key=epic["key"]).json()
+    create_ticket(client, type="SUBTASK", title="Browser 하위", parent_key=task["key"])
+    with socket.socket() as server_socket:
+        server_socket.bind(("127.0.0.1", 0))
+        server_port = server_socket.getsockname()[1]
+        server = uvicorn.Server(uvicorn.Config(app, lifespan="off", log_level="warning"))
+        server_thread = threading.Thread(
+            target=server.run, kwargs={"sockets": [server_socket]}, daemon=True,
+        )
+        server_thread.start()
+        try:
+            start_deadline = time.monotonic() + 10
+            while not server.started and time.monotonic() < start_deadline:
+                time.sleep(0.05)
+            assert server.started
+            monkeypatch.setenv("TTMS_BROWSER_BASE_URL", f"http://127.0.0.1:{server_port}")
+            result = subprocess.run(
+                [
+                    node_executable, "--test", "--test-concurrency=1",
+                    os.path.join("tests", "browser", "kanban-filters.test.cjs"),
+                    os.path.join("tests", "browser", "personal-filters.test.cjs"),
+                    os.path.join("tests", "browser", "shared-filters.test.cjs"),
+                ],
+                capture_output=True, text=True, encoding="utf-8", timeout=90,
+            )
+            assert result.returncode == 0, result.stdout + result.stderr
+        finally:
+            server.should_exit = True
+            server_thread.join(timeout=10)
+            assert not server_thread.is_alive()

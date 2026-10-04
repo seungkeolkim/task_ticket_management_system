@@ -1,7 +1,8 @@
 import json
 from datetime import date, timedelta
-from typing import Annotated
+from typing import Annotated, Literal
 from urllib.parse import urlencode
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
 from fastapi.responses import RedirectResponse
@@ -27,6 +28,8 @@ from app.schemas.tickets import (
 )
 from app.services import attachments as attachment_service
 from app.services import comments as comment_service
+from app.services import personal_filters as personal_filter_service
+from app.services import shared_filters as shared_filter_service
 from app.services import tickets as service
 from app.storage.attachments import AttachmentStorage, get_attachment_storage
 from app.web.attachment_responses import (
@@ -96,15 +99,22 @@ def _project_ticket_filter_query(ticket_filter: TicketFilter) -> list[tuple[str,
     query_items.extend(("assignee_id", item) for item in ticket_filter.assignee_ids)
     if ticket_filter.unassigned:
         query_items.append(("unassigned", "true"))
+    timezone = ZoneInfo("Asia/Seoul")
     if ticket_filter.created_from is not None:
-        query_items.append(("created_from", ticket_filter.created_from.date().isoformat()))
+        created_from = ticket_filter.created_from.astimezone(timezone).date()
+        query_items.append(("created_from", created_from.isoformat()))
     if ticket_filter.created_before is not None:
-        created_through = ticket_filter.created_before.date() - timedelta(days=1)
+        created_through = (
+            ticket_filter.created_before.astimezone(timezone).date() - timedelta(days=1)
+        )
         query_items.append(("created_through", created_through.isoformat()))
     if ticket_filter.updated_from is not None:
-        query_items.append(("updated_from", ticket_filter.updated_from.date().isoformat()))
+        updated_from = ticket_filter.updated_from.astimezone(timezone).date()
+        query_items.append(("updated_from", updated_from.isoformat()))
     if ticket_filter.updated_before is not None:
-        updated_through = ticket_filter.updated_before.date() - timedelta(days=1)
+        updated_through = (
+            ticket_filter.updated_before.astimezone(timezone).date() - timedelta(days=1)
+        )
         query_items.append(("updated_through", updated_through.isoformat()))
     if ticket_filter.due_from is not None:
         query_items.append(("due_from", ticket_filter.due_from.isoformat()))
@@ -259,10 +269,93 @@ def global_ticket_list_page(
     )
 
 
+def project_ticket_filter_parameters(
+    search_query: Annotated[str, Query(alias="q")] = "",
+    types: Annotated[list[str] | None, Query(alias="type")] = None,
+    statuses: Annotated[list[str] | None, Query(alias="status")] = None,
+    priorities: Annotated[list[str] | None, Query(alias="priority")] = None,
+    epic_id: str = "",
+    parent_id: str = "",
+    creator_ids: Annotated[list[str] | None, Query(alias="creator_id")] = None,
+    assignee_ids: Annotated[list[str] | None, Query(alias="assignee_id")] = None,
+    unassigned: bool = False,
+    created_from: str = "",
+    created_through: str = "",
+    updated_from: str = "",
+    updated_through: str = "",
+    due_from: str = "",
+    due_through: str = "",
+    sort_by: str = "updated_at",
+    sort_direction: str = "desc",
+    page_size: int | None = None,
+) -> TicketFilter:
+    """빈 HTML 입력을 처리하고 목록·칸반의 공통 filter를 구성한다."""
+    return service.build_project_ticket_filter(
+        search_query=search_query,
+        types=types,
+        statuses=statuses,
+        priorities=priorities,
+        epic_id=_optional_positive_integer(epic_id),
+        parent_id=_optional_positive_integer(parent_id),
+        creator_ids=_positive_integer_values(creator_ids),
+        assignee_ids=_positive_integer_values(assignee_ids),
+        unassigned=unassigned,
+        created_from=_optional_date(created_from),
+        created_through=_optional_date(created_through),
+        updated_from=_optional_date(updated_from),
+        updated_through=_optional_date(updated_through),
+        due_from=_optional_date(due_from),
+        due_through=_optional_date(due_through),
+        sort_by=sort_by,
+        sort_direction=sort_direction,
+        page_size=page_size,
+    )
+
+
+@router.get("/projects/{project_key}/personal-filters/{filter_id}/apply")
+def apply_personal_filter_page(
+    project_key: str, filter_id: int, session: Database, actor: Actor,
+    view: Literal["tickets", "board"] = "tickets",
+):
+    """저장 조건을 재검증한 뒤 지정 화면의 첫 페이지에 적용한다."""
+    personal_filter = personal_filter_service.get_personal_filter(
+        session, actor, project_key, filter_id
+    )
+    query_items = _project_ticket_filter_query(personal_filter.definition)
+    return RedirectResponse(
+        f"/projects/{project_key}/{view}?" + urlencode(query_items), status_code=303
+    )
+
+
+@router.get("/projects/{project_key}/shared-filters/{filter_id}/apply")
+def apply_shared_filter_page(
+    project_key: str, filter_id: int, session: Database, actor: Actor,
+    view: Literal["tickets", "board"] = "tickets",
+):
+    """저장 조건을 재검증한 뒤 지정 화면의 첫 페이지에 적용한다."""
+    shared_filter = shared_filter_service.get_shared_filter(
+        session, actor, project_key, filter_id
+    )
+    query_items = _project_ticket_filter_query(shared_filter.definition)
+    return RedirectResponse(
+        f"/projects/{project_key}/{view}?" + urlencode(query_items), status_code=303
+    )
+
+
 @router.get("/projects/{project_key}/board")
-def project_ticket_board_page(project_key: str, request: Request, session: Database, actor: Actor):
+def project_ticket_board_page(
+    project_key: str,
+    request: Request,
+    session: Database,
+    actor: Actor,
+    ticket_filter: Annotated[TicketFilter, Depends(project_ticket_filter_parameters)],
+):
     """프로젝트 티켓 보드 화면을 렌더링한다."""
-    project, board = service.build_ticket_board(session, actor, project_key)
+    project, board = service.build_ticket_board(
+        session, actor, project_key, ticket_filter=ticket_filter
+    )
+    filter_options = service.get_project_ticket_filter_options(session, actor, project_key)
+    query_items = _project_ticket_filter_query(ticket_filter)
     return render(
         request,
         "board.html",
@@ -271,6 +364,15 @@ def project_ticket_board_page(project_key: str, request: Request, session: Datab
         active="board",
         project=project,
         board=board,
+        filters=ticket_filter,
+        personal_filters=personal_filter_service.list_personal_filters(session, actor, project_key),
+        shared_filters=shared_filter_service.list_shared_filters(session, actor, project_key),
+        q=ticket_filter.query,
+        filter_options=filter_options,
+        filter_dates=dict(query_items),
+        filter_action=f"/projects/{project.key}/board",
+        is_board_filter=True,
+        ticket_list_url=f"/projects/{project.key}/tickets?" + urlencode(query_items),
     )
 
 
@@ -506,49 +608,12 @@ def project_ticket_list_page(
     request: Request,
     session: Database,
     actor: Actor,
-    search_query: Annotated[str, Query(alias="q")] = "",
-    types: Annotated[list[str] | None, Query(alias="type")] = None,
-    statuses: Annotated[list[str] | None, Query(alias="status")] = None,
-    priorities: Annotated[list[str] | None, Query(alias="priority")] = None,
-    epic_id: str = "",
-    parent_id: str = "",
-    creator_ids: Annotated[list[str] | None, Query(alias="creator_id")] = None,
-    assignee_ids: Annotated[list[str] | None, Query(alias="assignee_id")] = None,
-    unassigned: bool = False,
-    created_from: str = "",
-    created_through: str = "",
-    updated_from: str = "",
-    updated_through: str = "",
-    due_from: str = "",
-    due_through: str = "",
-    sort_by: str = "updated_at",
-    sort_direction: str = "desc",
+    ticket_filter: Annotated[TicketFilter, Depends(project_ticket_filter_parameters)],
     page: int = 1,
-    page_size: int | None = None,
     selected: str | None = None,
     created: bool = False,
 ):
     """프로젝트 티켓 목록 화면을 렌더링한다."""
-    ticket_filter = service.build_project_ticket_filter(
-        search_query=search_query,
-        types=types,
-        statuses=statuses,
-        priorities=priorities,
-        epic_id=_optional_positive_integer(epic_id),
-        parent_id=_optional_positive_integer(parent_id),
-        creator_ids=_positive_integer_values(creator_ids),
-        assignee_ids=_positive_integer_values(assignee_ids),
-        unassigned=unassigned,
-        created_from=_optional_date(created_from),
-        created_through=_optional_date(created_through),
-        updated_from=_optional_date(updated_from),
-        updated_through=_optional_date(updated_through),
-        due_from=_optional_date(due_from),
-        due_through=_optional_date(due_through),
-        sort_by=sort_by,
-        sort_direction=sort_direction,
-        page_size=page_size,
-    )
     project, result, filter_options = service.list_project_tickets(
         session,
         actor,
@@ -561,9 +626,8 @@ def project_ticket_list_page(
     if selected:
         _, selected_ticket = service.get_ticket_detail(session, actor, project_key, selected)
     query_items = _project_ticket_filter_query(ticket_filter)
-    current_page_url = (
-        f"/projects/{project.key}/tickets?"
-        + urlencode(query_items + [("page", page)], doseq=True)
+    current_page_url = f"/projects/{project.key}/tickets?" + urlencode(
+        query_items + [("page", page)], doseq=True
     )
     return render(
         request,
@@ -575,15 +639,12 @@ def project_ticket_list_page(
         result=result,
         q=ticket_filter.query,
         filters=ticket_filter,
+        personal_filters=personal_filter_service.list_personal_filters(session, actor, project_key),
+        shared_filters=shared_filter_service.list_shared_filters(session, actor, project_key),
         filter_options=filter_options,
-        filter_dates={
-            "created_from": created_from,
-            "created_through": created_through,
-            "updated_from": updated_from,
-            "updated_through": updated_through,
-            "due_from": due_from,
-            "due_through": due_through,
-        },
+        filter_dates=dict(query_items),
+        filter_action=f"/projects/{project.key}/tickets",
+        board_url=f"/projects/{project.key}/board?" + urlencode(query_items),
         selected_ticket=selected_ticket,
         created=created,
         current_page_url=current_page_url,
