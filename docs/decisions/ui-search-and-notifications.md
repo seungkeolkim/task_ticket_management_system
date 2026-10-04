@@ -67,6 +67,6 @@
 
 | UI-031 | 2026-10-04 | DECIDED | 설명·댓글 editor의 @ 입력과 toolbar에서 후보를 선택한다. 대시보드는 최신 5개 미확인 멘션과 개별·전체 확인, 원본 보기·확인을 제공한다. 읽음은 CSRF POST이며 원본 댓글 anchor로 이동한다. | GET 조회로 상태가 바뀌지 않게 하고 타인 읽음 override를 허용하지 않는다. 전체 확인은 현재 접근 가능한 항목 전체에 적용하며 비활성 프로젝트도 읽기는 허용한다. |
 
-## Open decisions
+| UI-032 | 2026-10-05 | DECIDED | 티켓 목록의 인라인 상세는 `selected` query로 선택한 티켓을 권한 검사 후 조회하고, 목록과 패널을 하나의 Jinja2 응답으로 server-rendering한다. 전체 상세는 별도 주소로 유지한다. | 기존 URL 기반 필터·정렬·페이지 상태를 보존하며 별도 client state나 HTMX 의존성 없이 직접 링크와 새로고침으로 같은 상세를 재현할 수 있다. |
 
-- 목록의 인라인 상세 패널을 server-rendered partial, HTMX, 또는 별도 client state 중 무엇으로 구현할지는 UI 기반 작업 전에 확정한다.
+## Open decisions

@@ -30,6 +30,8 @@
 - [ ] 10단계 — 칸반 및 웹 UI 완성
 - [ ] 11단계 — 운영 준비 및 최종 검증
 
+2026-10-05 현재 13개 구분 중 8개(0·1·데이터 선행 준비·3·4·5·7·9단계)가 완료됐다. 2단계는 감사 로그 정리 명령, 6단계는 티켓 영구 삭제, 8단계는 첨부파일 삭제·보존·영구 정리, 10단계는 주요 사용자 흐름 Browser 통합 테스트가 남아 있다. 11단계의 운영·보안·복구 검증도 완료 전이다. 간트·보고서 실행과 Label·Ad-hoc 필터는 별도 후속 범위이며, 데이터 구조만 준비된 상태를 기능 완료로 세지 않는다.
+
 ## 데이터 선행 준비 및 화면별 진행 방식
 
 기능별 단계는 누락 점검용으로 유지한다. 실제 구현은 데이터 기반 이후 아래 화면 순서로 작은 동작을 연결하고 반복 확장한다(ARC-009).
@@ -186,7 +188,7 @@
 
 2026-10-05 조직 관리 확장: 조직명·설명·상위 조직·활성 상태 변경을 관리자 API와 웹 화면에 연결했다. 이동 순환·형제 이름 중복·비활성 상위 계층을 차단하고 기존 사용자 로그인·프로젝트 참여는 보존한다. 변경과 감사는 같은 transaction에서 처리하며 no-op은 변경 감사를 남기지 않는다. Windows Python 전체 pytest와 관리 기능 통합 테스트, Ruff·diff 검사를 통과했다. 기존 dependency deprecation 경고 2개는 남아 있다. 조직 JSON 입출력은 다음 작업으로 남아 있어 3단계 전체는 진행 중이다.
 
-2026-10-05 조직 JSON 입출력: 전체 조직 트리의 versioned JSON export, key 기반 추가·갱신, 미포함 조직 보존, 적용 전 변경·충돌 미리보기와 session·문서·현재 상태에 묶인 token 검증을 연결했다. 형식·중복 key/이름·순환·비활성 상위 정책, CSRF·관리자 권한·stale 차단, 부모·자식 위치 교환과 감사 실패 rollback을 검증했다. Windows Python 전체 pytest, 조직 전용 통합 테스트 14개와 Ruff·diff 검사를 통과했다. 새 DB migration은 없으며 3단계 완료 기준을 충족했다. 기존 dependency deprecation 경고 2개와 선택적 Browser skip 2개는 남아 있다.
+2026-10-05 조직 JSON 입출력: 전체 조직 트리의 versioned JSON export, key 기반 추가·갱신, 미포함 조직 보존, 적용 전 변경·충돌 미리보기와 session·문서·현재 상태에 묶인 token 검증을 연결했다. 형식·중복 key/이름·순환·비활성 상위 정책, CSRF·관리자 권한·stale 차단, 부모·자식 위치 교환과 감사 실패 rollback을 검증했다. Windows Python 전체 pytest, 조직 전용 통합 테스트 14개와 Ruff·diff 검사를 통과했다. 새 DB migration은 없으며 3단계 완료 기준을 충족했다. 기존 dependency deprecation 경고 2개와 기본 실행 시 Browser·PowerShell 테스트의 조건부 skip 2개는 남아 있다.
 
 ## 4단계 — 프로젝트와 접근 권한
 
@@ -253,7 +255,7 @@
 
 2026-10-03 구현 검증: Windows Python 환경의 전체 pytest 364개가 통과했다. 이후 Unicode 정규화 후 길이 초과 회귀 2개를 추가하고 속성·계약 검증 21개를 재실행해 통과했다. 실제 Edge의 편집 component 테스트 2개, Ruff·JavaScript 문법·diff 검사도 통과했다. 검증은 임시 SQLite DB를 사용했으며 기존 업무 DB에는 migration을 실행하지 않았다. 기존 FastAPI/Starlette dependency deprecation 경고 2개는 남아 있다. 전체 배포 E2E·macOS·PostgreSQL 검증은 이 완료 범위에 포함하지 않는다.
 
-별도 후속: Text 이외 타입과 전용 입력 도구, 시스템 제공 선택형 확장 필드. Label·추가 필드의 필터 연계는 다음 칸반·저장 필터 작업에서 논의한다.
+별도 후속: Text 이외 타입과 전용 입력 도구, 시스템 제공 선택형 확장 필드. Label·추가 필드의 필터 연계는 별도 후속 필터 작업에서 논의한다.
 
 2026-10-03 사용자 요청에 따른 로컬 DB 적용: SQLite online backup 후 `20260929_0006`에서 `20261003_0007`로 upgrade했다. `alembic check`, DB integrity·FK 검사와 백업 대비 기존 테이블의 모든 기존 컬럼 값 보존을 확인했다. 업무 DB·백업 파일은 Git에 포함하지 않는다.
 

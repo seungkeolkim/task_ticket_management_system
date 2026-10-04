@@ -101,7 +101,7 @@ Remove-Item Env:TTMS_RUN_BROWSER_TESTS
 Remove-Item Env:PLAYWRIGHT_CHANNEL
 ```
 
-기본 `pytest`에서는 이 Browser 실행 항목 하나만 건너뛰며 API·HTML 필터 검증은 항상 실행합니다.
+기본 `pytest`에서는 opt-in Browser 테스트를 건너뛰고 API·HTML 필터 검증은 항상 실행합니다. PowerShell이 설치되지 않은 환경에서는 PowerShell 전용 테스트도 건너뜁니다.
 
 ## 설정
 

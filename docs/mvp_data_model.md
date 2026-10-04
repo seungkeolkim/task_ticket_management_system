@@ -40,7 +40,7 @@
 
 - 타입: EPIC/TASK/SUBTASK. 상태: TODO/IN_PROGRESS/DONE/ON_HOLD/CANCELLED. 중요도: TRIVIAL/MINOR/MAJOR/CRITICAL/BLOCKER.
 - UI의 한글 상태 표시명은 DB code가 아니다. 현재 서비스 변환 계층에서 저장 code와 화면 표시명을 분리한다.
-- `20260926_0004`부터 ticket의 `description_document`와 comment의 `body_document`는 `body_schema_version=2` Tiptap JSON을 저장한다. upgrade는 ticket·comment·ticket_history의 zero-row 상태를 확인하고 예상하지 못한 데이터가 있으면 실패한다.
+- `20260926_0004`부터 ticket의 `description_document`와 comment의 `body_document`는 Tiptap JSON을 저장한다. 처음에는 `body_schema_version=2`만 허용했고, `20261004_0008`부터 mention node가 포함된 v3도 허용한다. 최초 전환 upgrade는 ticket·comment·ticket_history의 zero-row 상태를 확인하고 예상하지 못한 데이터가 있으면 실패한다.
 - v2·v3 원본은 허용된 Tiptap node·mark·attribute만 가진 JSON document다. sanitized HTML과 plain text는 조회·검색·보고서 경계에서 생성하고 DB에 cache하지 않으며, Tiptap package 버전은 본문 schema version과 별도로 고정한다.
 - 설명과 각 댓글은 독립 document다. inline comment는 지원하지 않고 티켓 댓글·멘션·첨부파일·version history는 애플리케이션 서비스가 직접 관리한다.
 - v1 dual-read, Markdown converter와 legacy 본문 보존 컬럼은 구현하지 않는다. migration은 관련 row가 0건인지 확인하여 예상하지 못한 데이터가 있으면 자동 손실 대신 실패한다.
@@ -56,7 +56,7 @@
 - 삭제 시 활성 계층만 새 deletion batch에 연결하고 deleted_at을 설정한다. 이미 휴지통에 있는 자손은 원래 batch에 남긴다.
 - 복구는 해당 batch의 티켓을 함께 복구하고 ticket의 batch/deleted_at을 비운다. batch의 restored_at/restored_by_id는 남긴다.
 - batch의 root_ticket_key는 표시용 snapshot이며 순환 FK를 만들지 않는다. root가 속한 project와 당시 batch 집합의 일관성은 서비스가 검사한다.
-- 댓글 본문은 soft delete 중 보존하지만 일반 조회에서는 빈 document로 은폐하고 자리표시자를 반환한다. 원댓글을 삭제해도 기존 대댓글은 유지한다. 제거된 멘션은 일반 inbox에서 제외하고 재등장 시 같은 row를 사용한다. 읽음 상태 재설정 정책은 멘션 서비스에서 확정한다.
+- 댓글 본문은 soft delete 중 보존하지만 일반 조회에서는 빈 document로 은폐하고 자리표시자를 반환한다. 원댓글을 삭제해도 기존 대댓글은 유지한다. 제거된 멘션은 일반 inbox에서 제외하고 재등장 시 같은 row를 미확인 상태로 재활성화한다. 유지된 멘션의 읽음 상태는 보존한다.
 - 파일 영구 삭제 → Attachment 메타데이터 삭제 → 티켓 계층을 자식부터 물리 삭제한다. 파일이 없으면 삭제 성공으로 처리해 재시도 가능하게 한다.
 - Attachment의 FK RESTRICT는 메타데이터보다 원본이 먼저 사라지는 것을 막는다. 파일 삭제·재시도와 동시 다운로드 조정은 저장소 서비스 책임이다.
 - 티켓 물리 삭제 시 comments/mentions/relations/history는 FK cascade로 정리된다. 부모 삭제는 자식 FK RESTRICT 때문에 자식부터 처리해야 한다.
