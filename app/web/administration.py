@@ -1,8 +1,8 @@
 from typing import Annotated
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Depends, Form, Query, Request
-from fastapi.responses import RedirectResponse
+from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
+from fastapi.responses import RedirectResponse, Response
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
@@ -11,11 +11,13 @@ from app.db.session import get_db_session
 from app.domain.auth import AuthError, Identity
 from app.schemas.administration import (
     OrganizationCreate,
+    OrganizationUpdate,
     UserCreate,
     UserPasswordReset,
     UserUpdate,
 )
 from app.services import administration as service
+from app.services import organization_transfer
 from app.web.rendering import render
 from app.web.security import get_client_ip_address, require_web_admin, verify_csrf
 
@@ -86,10 +88,17 @@ def user_management_page(
 
 @router.get("/admin/organizations")
 def organization_management_page(
-    request: Request, session: Database, actor: Administrator, created: int | None = None
+    request: Request,
+    session: Database,
+    actor: Administrator,
+    created: int | None = None,
+    updated: int | None = None,
+    imported: int | None = None,
 ):
     """조직 관리 화면을 렌더링한다."""
-    return render_organization_management_page(request, session, actor, created=created)
+    return render_organization_management_page(
+        request, session, actor, created=created, updated=updated, imported=imported
+    )
 
 
 @router.post("/admin/users")
@@ -168,9 +177,7 @@ def user_update_submit(
             system_role=system_role,
             is_active=is_active == "true",
         )
-        service.update_user(
-            session, actor, user_id, payload, get_client_ip_address(request)
-        )
+        service.update_user(session, actor, user_id, payload, get_client_ip_address(request))
     except ValidationError:
         return render_user_management_page(
             request,
@@ -268,3 +275,119 @@ def organization_submit(
             status_code=error.status_code,
         )
     return RedirectResponse(f"/admin/organizations?created={row_id}", status_code=303)
+
+
+@router.post("/admin/organizations/{organization_id}/update")
+def organization_update_submit(
+    organization_id: int,
+    request: Request,
+    session: Database,
+    actor: Administrator,
+    name: Annotated[str, Form()] = "",
+    parent_id: Annotated[str, Form()] = "",
+    description: Annotated[str, Form()] = "",
+    is_active: Annotated[str, Form()] = "",
+    csrf_token: Annotated[str, Form()] = "",
+):
+    """조직 수정 form 제출을 처리한다."""
+    verify_csrf(request, csrf_token, actor, get_settings())
+    try:
+        payload = OrganizationUpdate(
+            name=name,
+            parent_id=parent_id or None,
+            description=description,
+            is_active=is_active,
+        )
+        service.update_organization(
+            session, actor, organization_id, payload, get_client_ip_address(request)
+        )
+    except ValidationError:
+        return render_organization_management_page(
+            request,
+            session,
+            actor,
+            error="조직명, 상위 조직과 설명의 형식·길이를 확인하세요.",
+            status_code=422,
+        )
+    except AuthError as error:
+        return render_organization_management_page(
+            request,
+            session,
+            actor,
+            error=error.message,
+            status_code=error.status_code,
+        )
+    return RedirectResponse(f"/admin/organizations?updated={organization_id}", status_code=303)
+
+
+@router.get("/admin/organizations/export")
+def organization_export(session: Database, actor: Administrator):
+    """조직 계층 JSON 파일을 다운로드한다."""
+    document = organization_transfer.export_organization_document(session, actor)
+    return Response(
+        content=document,
+        media_type="application/json; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="organizations.json"'},
+    )
+
+
+@router.post("/admin/organizations/import/preview")
+async def organization_import_preview_submit(
+    request: Request,
+    session: Database,
+    actor: Administrator,
+    document_file: Annotated[UploadFile, File()],
+    csrf_token: Annotated[str, Form()] = "",
+):
+    """조직 JSON 파일을 읽고 추가·갱신·충돌 미리보기를 표시한다."""
+    verify_csrf(request, csrf_token, actor, get_settings())
+    document = await document_file.read(organization_transfer.MAX_DOCUMENT_BYTES + 1)
+    await document_file.close()
+    try:
+        preview = organization_transfer.preview_organization_import(
+            session,
+            actor,
+            document,
+            request.cookies[get_settings().session.cookie_name],
+        )
+    except AuthError as error:
+        return render_organization_management_page(
+            request, session, actor, error=error.message, status_code=error.status_code
+        )
+    return render_organization_management_page(
+        request,
+        session,
+        actor,
+        preview=preview,
+        preview_document=document.decode("utf-8-sig"),
+    )
+
+
+@router.post("/admin/organizations/import/apply")
+def organization_import_apply_submit(
+    request: Request,
+    session: Database,
+    actor: Administrator,
+    document_json: Annotated[str, Form()] = "",
+    preview_token: Annotated[str, Form()] = "",
+    csrf_token: Annotated[str, Form()] = "",
+):
+    """관리자가 미리보기 결과를 확인한 조직 JSON을 적용한다."""
+    verify_csrf(request, csrf_token, actor, get_settings())
+    try:
+        result = organization_transfer.apply_organization_import(
+            session,
+            actor,
+            document_json.encode("utf-8"),
+            request.cookies[get_settings().session.cookie_name],
+            preview_token,
+            get_client_ip_address(request),
+        )
+    except AuthError as error:
+        return render_organization_management_page(
+            request, session, actor, error=error.message, status_code=error.status_code
+        )
+    return RedirectResponse(
+        "/admin/organizations?imported=" + str(result["added"] + result["updated"]),
+        status_code=303,
+    )
