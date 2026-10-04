@@ -18,6 +18,8 @@
 | CNT-014 | 2026-09-27 | DECIDED | 기존 티켓의 설명·댓글 editor에서 이미지를 일반 티켓 첨부파일로 즉시 업로드한 뒤 Tiptap image node에는 attachment ID만 삽입한다. 본문 저장을 취소해도 업로드된 파일은 일반 첨부파일로 유지한다. 새 티켓은 ticket ID가 없으므로 생성 후 편집 화면에서 이미지를 추가한다. image 조회는 활성 attachment와 현재 프로젝트·티켓 접근 권한을 다시 검사하는 보호 endpoint를 사용한다. | 임시 attachment 소유권·만료 상태를 추가하지 않고 일반 첨부파일의 저장·검증·이력 계약을 재사용한다. 이미지 참조 동작을 먼저 확정한 뒤 참조 중인 파일의 삭제 정책을 결정하며, 30일 후 실제 blob 정리는 별도 후속 TODO로 유지한다. |
 | CNT-015 | 2026-09-29 | DECIDED | Tiptap 3 link mark의 호환 속성인 `title`은 입력 검증에서 허용하되 canonical document에서는 제거한다. 외부 link는 명시적인 `http://` 또는 `https://` scheme을 요구하고 scheme 없는 주소를 임의 변환하지 않으며 editor에서 수정 방법을 안내한다. | editor 기본 schema와 서버 allowlist 불일치로 모든 수동 link 저장이 실패하는 문제를 해소하면서 저장 계약을 최소화한다. HTTP 주소를 HTTPS로 추론해 다른 resource를 가리키는 문제와 scheme 없는 주소가 현재 origin의 상대 경로로 해석되는 문제를 함께 방지한다. |
 
+| CNT-016 | 2026-10-04 | DECIDED | 멘션은 v3 본문의 inline atom으로 userId·서버 정규화 label을 저장하며 활성 명시적 프로젝트 구성원(게스트·자기 자신 포함)만 대상으로 한다. 원본·대상 row를 재사용하고 유지된 멘션의 읽음을 보존하되 제거 후 재추가는 미확인으로 갱신한다. | 표시 문자열 위조와 중복 알림을 막는다. 본문·멘션·감사를 한 transaction으로 처리하며 삭제·권한 회수 시 원본 노출을 차단한다. 상세 정책은 `docs/mentions.md`를 따른다. |
+
 ## Open decisions
 
 - 운영 환경의 전체 첨부파일 저장 용량과 용량 초과 시 차단·경고 정책은 실제 배포 전에 확정한다.

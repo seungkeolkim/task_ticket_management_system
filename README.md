@@ -90,7 +90,7 @@ ruff check .
 npm run build
 ```
 
-칸반·개인·공유 저장 필터 Browser 회귀 테스트는 Playwright가 `node_modules` 또는 `NODE_PATH`에서 제공되고 Edge가 설치된 환경에서 별도로 실행합니다. 임시 SQLite DB와 임의의 localhost 포트를 사용하며 기존 업무 DB는 변경하지 않습니다.
+칸반·개인·공유 저장 필터·멘션 Browser 회귀 테스트는 Playwright가 `node_modules` 또는 `NODE_PATH`에서 제공되고 Edge가 설치된 환경에서 별도로 실행합니다. 임시 SQLite DB와 임의의 localhost 포트를 사용하며 기존 업무 DB는 변경하지 않습니다.
 
 ```powershell
 $env:TTMS_RUN_BROWSER_TESTS = '1'
@@ -117,3 +117,5 @@ Remove-Item Env:PLAYWRIGHT_CHANNEL
 시스템 로그 레벨은 `[app].log_level` 또는 `TTMS__APP__LOG_LEVEL`로 조정합니다. 로그는 UTC 시간이 첫 필드인 공통 포맷으로 표준 출력과 `data/logs/application.log`에 함께 기록됩니다. 파일은 기본 100MB 단위로 회전하고 백업 10개를 유지하며 `[logging]` 설정이나 `TTMS__LOGGING__...` 환경 변수로 조정할 수 있습니다.
 
 비밀번호와 서명 키 등의 비밀값은 TOML 파일에 저장하지 않고 환경 변수나 컨테이너 secret으로 주입합니다.
+
+설명·댓글의 @멘션과 읽음 처리 정책은 [멘션 계약](docs/mentions.md)을 참고하세요. 멘션 기능에는 Alembic `20261004_0008` 적용이 필요합니다.

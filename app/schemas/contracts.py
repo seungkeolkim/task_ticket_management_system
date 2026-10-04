@@ -94,7 +94,7 @@ class TicketState(Contract):
     type: TicketType
     title: str = Field(min_length=1, max_length=200)
     description_document: dict[str, JsonValue] = Field(default_factory=empty_body_document)
-    body_schema_version: Literal[2] = 2
+    body_schema_version: Literal[2, 3] = 2
     status: TicketStatus
     priority: Priority
     parent_key: str | None = None

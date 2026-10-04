@@ -34,7 +34,7 @@ class TicketCreate(BaseModel):
     @field_validator("description_document")
     @classmethod
     def validate_description_document(cls, value: object) -> dict[str, Any]:
-        """티켓 설명 document를 body schema v2 계약으로 검증한다."""
+        """티켓 설명 document를 body schema v2·v3 계약으로 검증한다."""
         return validate_body_document(value)
 
     @field_validator("parent_key", mode="before")
@@ -82,7 +82,7 @@ class TicketUpdate(BaseModel):
     @field_validator("description_document")
     @classmethod
     def validate_description_document(cls, value: object) -> dict[str, Any]:
-        """티켓 설명 document를 body schema v2 계약으로 검증한다."""
+        """티켓 설명 document를 body schema v2·v3 계약으로 검증한다."""
         return validate_body_document(value)
 
     @field_validator("parent_key", mode="before")
@@ -185,7 +185,7 @@ class TicketView(TicketListItemView):
     description_document: dict[str, Any]
     description_html: str
     description_has_content: bool
-    body_schema_version: Literal[2]
+    body_schema_version: Literal[2, 3]
 
 
 class TicketRelationTargetView(BaseModel):

@@ -2824,7 +2824,11 @@ def test_board_filter_rejects_invalid_conditions(client, ticket_people, query):
     assert client.get("/projects/DEV/board?" + query).status_code == 400
 
 
-def test_board_filters_in_real_browser(client, ticket_people, monkeypatch):
+@pytest.mark.parametrize("browser_files", [
+    ("kanban-filters.test.cjs", "personal-filters.test.cjs", "shared-filters.test.cjs"),
+    ("mentions.test.cjs",),
+])
+def test_board_filters_in_real_browser(client, ticket_people, monkeypatch, browser_files):
     """선택적으로 임시 DB 서버와 실제 Browser에서 filter·drag 흐름을 검증한다."""
     import os
     import shutil
@@ -2861,9 +2865,7 @@ def test_board_filters_in_real_browser(client, ticket_people, monkeypatch):
             result = subprocess.run(
                 [
                     node_executable, "--test", "--test-concurrency=1",
-                    os.path.join("tests", "browser", "kanban-filters.test.cjs"),
-                    os.path.join("tests", "browser", "personal-filters.test.cjs"),
-                    os.path.join("tests", "browser", "shared-filters.test.cjs"),
+                    *[os.path.join("tests", "browser", filename) for filename in browser_files],
                 ],
                 capture_output=True, text=True, encoding="utf-8", timeout=90,
             )

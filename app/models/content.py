@@ -43,7 +43,7 @@ class Comment(IntegerPrimaryKeyMixin, TimestampMixin, Base):
             ondelete="RESTRICT",
         ),
         CheckConstraint(
-            "version > 0 AND body_schema_version = 2", name="supported_body_version"
+            "version > 0 AND body_schema_version IN (2, 3)", name="supported_body_version"
         ),
         CheckConstraint(
             "parent_comment_id IS NULL OR parent_comment_id != id",

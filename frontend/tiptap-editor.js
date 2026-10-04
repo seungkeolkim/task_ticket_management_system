@@ -1,3 +1,4 @@
+import { UserMention, initializeMentions } from './tiptap-mentions'
 import { Editor, Node } from '@tiptap/core'
 import Color from '@tiptap/extension-color'
 import { TableKit } from '@tiptap/extension-table'
@@ -373,6 +374,7 @@ function initializeEditor(editorElement) {
       TaskItem.configure({ nested: true }),
       TableKit.configure({ table: { resizable: false } }),
       AttachmentImage,
+      UserMention,
     ],
     editorProps: {
       attributes: editorAttributes,
@@ -389,6 +391,7 @@ function initializeEditor(editorElement) {
       updateToolbarState(currentEditor, toolbarElement)
     },
   })
+  initializeMentions(editor, fieldElement, formElement)
   const openLinkDialog = initializeLinkDialog(editor, fieldElement)
 
   fieldElement.addEventListener('click', (event) => {
