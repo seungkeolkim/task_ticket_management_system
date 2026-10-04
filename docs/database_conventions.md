@@ -52,6 +52,7 @@ alembic downgrade base
 
 ## MVP and reporting schema
 
+- Revision `20261005_0009` adds empty `scheduled_jobs` and `scheduled_job_runs` tables for the dedicated cron service. It does not seed cleanup or deletion jobs. Downgrade removes both scheduler tables and their records; see [scheduler.md](scheduler.md).
 - Revision `20261004_0008` preserves existing v2 content and accepts v3 mention documents. SQLite rebuild temporarily disables FK enforcement on the migration connection, checks all foreign keys, then re-enables it. Stop writes and back up before migration. Downgrade converts mentions in current bodies/history to plain text and loses user reference semantics; see [mentions.md](mentions.md).
 
 - Revision `20261003_0007` adds ticket-local label and typed ad-hoc field JSON arrays, defaulting to empty arrays for existing tickets. DTOs validate entries and writes replace whole arrays within the ticket transaction. Downgrade discards current property values, not ticket rows or history; use a backup for recovery. See [ticket_properties.md](ticket_properties.md).

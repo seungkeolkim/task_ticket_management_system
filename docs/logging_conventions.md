@@ -49,6 +49,7 @@ YYYY-MM-DDTHH:MM:SS.mmmZ LEVEL logger.name message
 - `[logging].file_enabled`, `file_name`, `max_size_mb`, `backup_count`로 파일 출력과 회전 정책을 조정한다. `file_name`에는 경로가 없는 파일명만 허용한다.
 - `backup_count`는 현재 로그 파일을 제외한 백업 개수다. 기본 설정의 최대 디스크 사용량은 대략 1.1GB다.
 - 내장 파일 회전은 단일 프로세스 쓰기를 기준으로 한다. `server.workers`를 2 이상으로 운영할 때는 여러 프로세스가 같은 파일을 회전하지 않도록 파일 출력을 끄고 container runtime 등 외부 로그 수집기의 회전을 사용한다.
+- 별도 `scheduler` container와 cron 작업 프로세스는 공용 `application.log` 회전에 참여하지 않고 표준 출력에 같은 포맷의 시스템 로그를 남긴다. 운영에서는 container runtime의 로그 수집·회전을 사용한다.
 - SQL 문 진단은 별도의 `database.echo` 설정을 사용한다. 운영 환경에서는 기본적으로 비활성화하고 engine의 `hide_parameters=True`로 SQL 로그와 예외 문자열의 parameter 노출도 차단한다.
 
 ## Context와 민감정보

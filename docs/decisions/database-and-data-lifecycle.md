@@ -28,9 +28,10 @@
 | DB-024 | 2026-10-04 | DECIDED | 개인·공유 저장 필터는 기존 saved_filters를 사용하며 새 migration은 추가하지 않는다. 쓰기 잠금 이후 현재 관리 권한·개인 소유권·동일 이름을 확인하고 변경과 감사를 같은 transaction으로 저장한다. 기존 updated_at을 동시 수정 기준으로 사용한다. | 저장·불러오기 시 JSON schema와 프로젝트별 후보를 재검증한다. 이름은 NFC·trim 후 대소문자를 구분해 개인 소유 범위 또는 프로젝트 공유 범위 내 중복을 거부한다. 공개 범위별 API를 분리하며 기존 row의 범위를 전환하지 않는다. 실패는 rollback하며 이름·검색 내용은 진단·감사 context에 넣지 않는다. PostgreSQL 경합 검증은 후속이다. |
 
 | DB-025 | 2026-10-04 | DECIDED | `20261004_0008`은 ticket·comment 본문 version CHECK를 2·3으로 확장하고 기존 row·이력은 변경하지 않는다. 멘션 포함 여부로 저장 version을 지정하고 v2를 계속 읽는다. | 본문 node 확장을 계약 version으로 구분한다. SQLite 재구성은 FK를 일시 해제하고 무결성을 검사하며 사전 중지·백업이 필요하다. downgrade는 mention을 표시 text로 변환하여 사용자 참조 의미를 잃으며 백업 없이 되돌릴 수 없다. |
+| DB-026 | 2026-10-05 | DECIDED | `20261005_0009`에서 고유 작업 key·cron 표현식·시간대·활성 상태를 `scheduled_jobs`에, 시작·완료·상태를 `scheduled_job_runs`에 저장한다. 두 테이블은 비어 있는 상태로 생성하고 삭제 작업은 등록하지 않는다. | DB를 일정 설정의 원본으로 삼되 실행 이력으로 다음 시각을 계산하지 않는다. 단일 scheduler의 작업 겹침은 data mount의 파일 잠금으로 차단하고, 다중 replica 조정은 후속 결정으로 둔다. |
 
 ## Open decisions
 
 - PostgreSQL migration·repository 검증을 CI에서 언제 필수화할지는 실제 전환 필요성과 함께 확정한다.
 - 대규모 데이터에서 keyset pagination으로 전환할 기준은 성능 측정 후 확정한다.
-- audit cleanup의 다중 instance 중복 실행 방지 방식은 scheduler 구조를 정할 때 확정한다.
+- audit cleanup 작업을 등록할 때 단일 scheduler 운영과 향후 다중 replica에서의 중복 실행 방식을 함께 검증한다.
