@@ -116,7 +116,7 @@ class Ticket(IntegerPrimaryKeyMixin, TimestampMixin, Base):
         allowed("status", TicketStatus, "status_allowed"),
         allowed("priority", Priority, "priority_allowed"),
         CheckConstraint("number > 0 AND version > 0", name="positive_number_version"),
-        CheckConstraint("body_schema_version = 2", name="supported_body_version"),
+        CheckConstraint("body_schema_version IN (2, 3)", name="supported_body_version"),
         CheckConstraint("parent_id IS NULL OR parent_id != id", name="not_own_parent"),
         CheckConstraint(
             "(type = 'EPIC' AND parent_id IS NULL) OR type = 'TASK' OR "

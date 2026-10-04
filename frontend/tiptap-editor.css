@@ -443,3 +443,8 @@
   border: 1px solid var(--border);
   border-radius: 8px;
 }
+
+[data-mention-user-id] { color: #1d4ed8; background: #eff6ff; border-radius: 4px; padding: 1px 3px; }
+.mention-suggestions { max-height: 240px; overflow-y: auto; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px; background: white; }
+.mention-suggestions button { display: block; width: 100%; text-align: left; padding: 8px; border: 0; background: transparent; cursor: pointer; }
+.mention-suggestions button.is-selected, .mention-suggestions button:hover { background: #eff6ff; color: #1d4ed8; }

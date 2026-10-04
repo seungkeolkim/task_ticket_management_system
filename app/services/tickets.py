@@ -18,6 +18,7 @@ from app.domain.codes import (
     TicketType,
 )
 from app.domain.rich_text import (
+    document_schema_version,
     extract_body_document_text,
     iter_attachment_ids,
     render_body_document_html,
@@ -63,6 +64,7 @@ from app.schemas.tickets import (
     TicketUserView,
     TicketView,
 )
+from app.services import mentions as mention_service
 from app.services import projects as project_service
 
 logger = logging.getLogger(__name__)
@@ -1560,6 +1562,7 @@ def create_ticket(
             session, project.id, payload.assignee_id
         ):
             raise AuthError("invalid_assignee", "활성 프로젝트 구성원을 담당자로 선택하세요.")
+        mention_service.validate_mentions(session, project.id, payload.description_document)
         _require_available_document_attachments(
             session,
             project.id,
@@ -1576,6 +1579,7 @@ def create_ticket(
             labels=list(payload.labels),
             custom_fields=[field.model_dump(mode="json") for field in payload.custom_fields],
             description_document=payload.description_document,
+            body_schema_version=document_schema_version(payload.description_document),
             status=TicketStatus.TODO,
             priority=payload.priority,
             parent_id=parent.id if parent else None,
@@ -1585,6 +1589,7 @@ def create_ticket(
         )
         session.add(ticket)
         session.flush()
+        mention_service.synchronize_mentions(session, actor.id, ticket, ticket.description_document)
         session.add(
             _build_ticket_creation_history(ticket, parent.key if parent else None, actor.id)
         )
@@ -1633,6 +1638,7 @@ def update_ticket(
             and not repository.assignee_is_active_member(session, project.id, payload.assignee_id)
         ):
             raise AuthError("invalid_assignee", "활성 프로젝트 구성원을 담당자로 선택하세요.")
+        mention_service.validate_mentions(session, project.id, payload.description_document)
         _require_available_document_attachments(
             session,
             project.id,
@@ -1678,6 +1684,8 @@ def update_ticket(
         ticket.labels = desired_labels
         ticket.custom_fields = desired_custom_fields
         ticket.description_document = payload.description_document
+        ticket.body_schema_version = document_schema_version(payload.description_document)
+        mention_service.synchronize_mentions(session, actor.id, ticket, ticket.description_document)
         ticket.priority = payload.priority
         ticket.parent_id = parent.id if parent else None
         ticket.assignee_id = payload.assignee_id

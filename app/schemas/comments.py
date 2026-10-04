@@ -19,7 +19,7 @@ class CommentCreate(BaseModel):
     @field_validator("body_document")
     @classmethod
     def validate_comment_document(cls, value: object) -> dict[str, Any]:
-        """댓글 document를 body schema v2 계약으로 검증한다."""
+        """댓글 document를 body schema v2·v3 계약으로 검증한다."""
         return validate_body_document(value)
 
 
@@ -34,7 +34,7 @@ class CommentUpdate(BaseModel):
     @field_validator("body_document")
     @classmethod
     def validate_comment_document(cls, value: object) -> dict[str, Any]:
-        """댓글 document를 body schema v2 계약으로 검증한다."""
+        """댓글 document를 body schema v2·v3 계약으로 검증한다."""
         return validate_body_document(value)
 
 
@@ -66,7 +66,7 @@ class CommentView(BaseModel):
     body_document: dict[str, Any]
     body_html: str
     body_plain_text: str
-    body_schema_version: Literal[2]
+    body_schema_version: Literal[2, 3]
     version: int
     is_deleted: bool
     deleted_at: datetime | None

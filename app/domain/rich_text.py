@@ -1,4 +1,4 @@
-"""Tiptap body schema v2 validation and deterministic rendering utilities."""
+"""Tiptap body schema v2/v3 validation and deterministic rendering utilities."""
 
 from __future__ import annotations
 
@@ -49,7 +49,7 @@ BLOCK_NODE_TYPES = frozenset(
         "image",
     }
 )
-INLINE_NODE_TYPES = frozenset({"text", "hardBreak"})
+INLINE_NODE_TYPES = frozenset({"text", "hardBreak", "mention"})
 MARK_ORDER = {
     "bold": 0,
     "italic": 1,
@@ -91,7 +91,7 @@ _SANITIZER_TAGS = frozenset(
 )
 _SANITIZER_ATTRIBUTES = {
     "a": ["href", "target", "rel"],
-    "span": ["style"],
+    "span": ["style", "data-mention-user-id"],
     "ol": ["start"],
     "li": ["data-checked"],
     "input": ["type", "checked", "disabled"],
@@ -125,7 +125,7 @@ def body_document_digest(document: object) -> str:
 
 
 def validate_body_document(document: object) -> dict[str, Any]:
-    """Tiptap JSON document를 schema v2 allowlist에 따라 검증하고 정규화한다."""
+    """Tiptap JSON document를 schema v2·v3 allowlist에 따라 검증하고 정규화한다."""
     try:
         serialized = json.dumps(document, ensure_ascii=False, separators=(",", ":"))
     except (TypeError, ValueError) as error:
@@ -204,13 +204,17 @@ def _normalize_node(
 
     normalized_node: dict[str, Any] = {"type": node_type}
     normalized_attributes = _normalize_node_attributes(node_type, node.get("attrs"))
+    if node_type == "mention":
+        counters["text_length"] += len(normalized_attributes["label"]) + 1
+        if counters["text_length"] > MAX_DOCUMENT_TEXT_LENGTH:
+            raise ValueError("본문 전체 text 길이가 허용 범위를 초과했습니다.")
     if normalized_attributes:
         normalized_node["attrs"] = normalized_attributes
 
     content = node.get("content", [])
     if not isinstance(content, list):
         raise ValueError(f"{node_type} node의 content는 배열이어야 합니다.")
-    if node_type in {"hardBreak", "image"} and content:
+    if node_type in {"hardBreak", "image", "mention"} and content:
         raise ValueError(f"{node_type} node는 하위 content를 가질 수 없습니다.")
     nodes_requiring_content = {
         "bulletList",
@@ -360,6 +364,18 @@ def _normalize_node_attributes(node_type: str, attributes: object) -> dict[str, 
         attributes = {}
     if not isinstance(attributes, dict):
         raise ValueError(f"{node_type} node의 attrs는 객체여야 합니다.")
+    if node_type == "mention":
+        if set(attributes) != {"userId", "label"}:
+            raise ValueError("mention에는 userId와 label이 필요합니다.")
+        user_id = attributes["userId"]
+        label = attributes["label"]
+        if type(user_id) is not int or user_id <= 0:
+            raise ValueError("mention userId는 양의 정수여야 합니다.")
+        if not isinstance(label, str) or not label.strip() or len(label) > 200:
+            raise ValueError("mention label 형식이 올바르지 않습니다.")
+        if any(ord(character) < 32 for character in label):
+            raise ValueError("mention label에 제어 문자를 사용할 수 없습니다.")
+        return {"userId": user_id, "label": label}
     if node_type == "heading":
         if set(attributes) != {"level"} or attributes["level"] not in {1, 2, 3}:
             raise ValueError("heading level은 1, 2, 3만 허용합니다.")
@@ -461,6 +477,10 @@ def _render_node(node: dict[str, Any]) -> str:
     content = "".join(_render_node(child) for child in node.get("content", []))
     if node_type == "text":
         return _render_text_node(node)
+    if node_type == "mention":
+        user_id = node["attrs"]["userId"]
+        label = html.escape(node["attrs"]["label"])
+        return f'<span data-mention-user-id="{user_id}">@{label}</span>'
     if node_type == "paragraph":
         return f"<p>{content}</p>"
     if node_type == "heading":
@@ -549,6 +569,8 @@ def _render_text_node(node: dict[str, Any]) -> str:
 def _extract_node_text(node: dict[str, Any]) -> str:
     """단일 node와 하위 node의 plain text 표현을 반환한다."""
     node_type = node["type"]
+    if node_type == "mention":
+        return "@" + node["attrs"]["label"]
     if node_type == "text":
         return node["text"]
     if node_type == "hardBreak":
@@ -577,3 +599,24 @@ def _iter_attachment_ids(node: dict[str, Any]) -> Iterable[int]:
         yield node["attrs"]["attachmentId"]
     for child in node.get("content", []):
         yield from _iter_attachment_ids(child)
+
+
+def iter_mention_nodes(document: dict) -> Iterable[dict]:
+    """검증된 document에서 사용자 멘션 node를 순회한다."""
+    if document.get("type") == "mention":
+        yield document
+    for child in document.get("content", []):
+        yield from iter_mention_nodes(child)
+
+
+def document_schema_version(document: dict) -> int:
+    """멘션 확장 본문은 v3, 기존 node만 사용한 본문은 v2로 구분한다."""
+    return 3 if any(iter_mention_nodes(document)) else 2
+
+
+def convert_body_v2_to_v3(document: object) -> dict:
+    """기존 v2 node를 손실 없이 v3의 공통 node 구조로 정규화한다."""
+    normalized = validate_body_document(document)
+    if any(iter_mention_nodes(normalized)):
+        raise ValueError("v2 원본에는 mention node가 없어야 합니다.")
+    return normalized

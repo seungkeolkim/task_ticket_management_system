@@ -4,6 +4,7 @@ from app.api.routes import auth, dashboard, health
 from app.api.routes.administration import router as administration_router
 from app.api.routes.attachments import router as attachments_router
 from app.api.routes.comments import router as comments_router
+from app.api.routes.mentions import router as mentions_router
 from app.api.routes.personal_filters import router as personal_filters_router
 from app.api.routes.projects import router as projects_router
 from app.api.routes.shared_filters import router as shared_filters_router
@@ -22,3 +23,4 @@ api_router.include_router(global_tickets_router)
 api_router.include_router(dashboard.router)
 api_router.include_router(health.router)
 api_router.include_router(auth.router)
+api_router.include_router(mentions_router)

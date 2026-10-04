@@ -8,6 +8,7 @@ from app.db.types import utc_now
 from app.domain.auth import AuthError, Identity
 from app.domain.codes import ProjectRole
 from app.domain.rich_text import (
+    document_schema_version,
     empty_body_document,
     extract_body_document_text,
     iter_attachment_ids,
@@ -23,6 +24,7 @@ from app.schemas.comments import (
     CommentUpdate,
     CommentView,
 )
+from app.services import mentions as mention_service
 from app.services import projects as project_service
 
 logger = logging.getLogger(__name__)
@@ -215,6 +217,7 @@ def _validate_comment_body(
     body_document: dict[str, object],
 ) -> None:
     """빈 댓글을 거부하고 image attachment의 티켓 scope를 검증한다."""
+    mention_service.validate_mentions(session, project_id, body_document)
     plain_text = extract_body_document_text(body_document).strip()
     requested_attachment_ids = set(iter_attachment_ids(body_document))
     if not plain_text and not requested_attachment_ids:
@@ -292,9 +295,13 @@ def create_comment(
             parent_comment_id=payload.parent_comment_id,
             author_id=actor.id,
             body_document=payload.body_document,
+            body_schema_version=document_schema_version(payload.body_document),
         )
         session.add(comment)
         session.flush()
+        mention_service.synchronize_mentions(
+            session, actor.id, ticket, comment.body_document, comment.id
+        )
         record_comment_audit_event(
             session,
             "comment.created",
@@ -366,6 +373,10 @@ def update_comment(
         if comment.body_document != payload.body_document:
             before_version = comment.version
             comment.body_document = payload.body_document
+            comment.body_schema_version = document_schema_version(payload.body_document)
+            mention_service.synchronize_mentions(
+                session, actor.id, ticket, comment.body_document, comment.id
+            )
             session.flush()
             record_comment_audit_event(
                 session,
@@ -432,6 +443,9 @@ def delete_comment(
         before_version = comment.version
         comment.deleted_at = utc_now()
         comment.deleted_by_id = actor.id
+        mention_service.synchronize_mentions(
+            session, actor.id, ticket, empty_body_document(), comment.id
+        )
         session.flush()
         record_comment_audit_event(
             session,

@@ -195,8 +195,11 @@
           "type": "object"
         },
         "body_schema_version": {
-          "const": 2,
           "default": 2,
+          "enum": [
+            2,
+            3
+          ],
           "title": "Body Schema Version",
           "type": "integer"
         },

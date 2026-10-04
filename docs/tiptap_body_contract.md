@@ -1,6 +1,6 @@
-# Tiptap body schema v2
+# Tiptap body schema v2·v3
 
-티켓 설명과 댓글의 canonical 원본은 `body_schema_version=2`인 Tiptap JSON document다. HTML과 plain text는 원본 JSON에서 생성하는 파생값이며 독립적으로 수정하거나 원본으로 사용하지 않는다.
+티켓 설명과 댓글의 canonical 원본은 Tiptap JSON document다. 기존 node만 있으면 `body_schema_version=2`, mention node가 있으면 3을 사용한다. 기존 v2를 계속 읽고 이력은 일괄 변환하지 않는다. HTML과 plain text는 원본 JSON에서 생성하는 파생값이며 독립적으로 수정하거나 원본으로 사용하지 않는다.
 
 ## 공통 규칙
 
@@ -18,10 +18,11 @@
 | Node | 주요 attribute | 허용 content |
 |---|---|---|
 | `doc` | 없음 | block node |
-| `paragraph` | 없음 | `text`, `hardBreak` |
-| `heading` | `level`: 1·2·3 | `text`, `hardBreak` |
+| `paragraph` | 없음 | `text`, `hardBreak`, v3의 `mention` |
+| `heading` | `level`: 1·2·3 | `text`, `hardBreak`, v3의 `mention` |
 | `text` | `text`, 선택적 `marks` | 없음 |
 | `hardBreak` | 없음 | 없음 |
+| `mention` (v3) | 양의 정수 `userId`, 1~200자 `label` | 없음(atom), mark 금지 |
 | `bulletList`, `orderedList` | ordered list의 `start` | `listItem` |
 | `taskList` | 없음 | `taskItem` |
 | `listItem`, `taskItem` | task item의 `checked` | paragraph와 중첩 list 등 |
@@ -39,3 +40,5 @@
 - `textStyle`: allowlist의 `color`와 `fontSize`
 
 허용 색상과 글자 크기의 실제 목록 및 구조 검증의 단일 구현 기준은 `app/domain/rich_text.py`다. `docs/contracts/tiptap-body.v2.schema.json`은 외부 교환 형식의 기본 구조를, `docs/contracts/tiptap-body.v2.example.ko.json`은 한국어 round-trip 예시를 제공한다.
+
+멘션 lifecycle·권한·migration은 [멘션 계약](mentions.md)을 따른다. v3 교환 schema는 [tiptap-body.v3.schema.json](contracts/tiptap-body.v3.schema.json)이며 `convert_body_v2_to_v3`는 기존 node를 손실 없이 정규화한다. outer ticket-event v2·report-input v1은 body_schema_version으로 본문 계약을 구분하여 v2·v3를 허용한다.

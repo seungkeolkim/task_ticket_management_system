@@ -63,17 +63,24 @@
     </div>
     <div class="mention-list">
       {% for mention in result.mentions %}
-      <a class="mention-item" href="/projects/{{ mention.project_key }}/tickets/{{ mention.ticket_key }}{% if mention.comment_id %}#comments{% endif %}">
+      <form class="mention-item" action="/mentions/{{ mention.id }}/read" method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         {{ ui.avatar(mention.actor_display_name[:2], 'md', 'blue') }}
         <div>
           <p><strong>{{ mention.actor_display_name }}</strong><span>{{ mention.created_at.strftime('%Y-%m-%d %H:%M') }}</span></p>
           <small>{{ mention.project_name }} · {{ mention.ticket_key }}</small>
           <blockquote>{{ mention.excerpt or '본문이 없습니다.' }}</blockquote>
+          <button class="button quiet" type="submit" name="open_source" value="true">원본 보기 · 읽음</button>
+          <button class="button quiet" type="submit">읽음 처리</button>
         </div>
-      </a>
+      </form>
       {% else %}<div class="empty-state"><strong>미확인 멘션이 없습니다.</strong></div>{% endfor %}
     </div>
-    <p class="read-only-note">멘션 확인 처리는 댓글·멘션 쓰기 기능과 함께 연결됩니다.</p>
+    {% if result.mentions %}<form action="/mentions/read-all" method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button class="button secondary" type="submit">모두 읽음 처리</button>
+    </form>{% endif %}
+    <p class="read-only-note">최근 미확인 멘션 최대 5개입니다. 모두 읽음은 현재 접근 가능한 전체 멘션에 적용됩니다.</p>
   </aside>
 </div>
 {% endblock %}
