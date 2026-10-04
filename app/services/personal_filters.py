@@ -1,6 +1,5 @@
 import logging
 from datetime import UTC, datetime, timedelta
-from zoneinfo import ZoneInfo
 
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
@@ -9,7 +8,6 @@ from app.domain.auth import AuthError, Identity
 from app.models import AuditLog, SavedFilter
 from app.repositories import personal_filters as repository
 from app.repositories import projects as project_repository
-from app.repositories import tickets as ticket_repository
 from app.schemas.contracts import TicketFilter
 from app.schemas.personal_filters import (
     PersonalFilterCreate,
@@ -19,6 +17,7 @@ from app.schemas.personal_filters import (
     PersonalFilterView,
 )
 from app.services import projects as project_service
+from app.services.saved_filter_definitions import validate_saved_filter_definition
 
 logger = logging.getLogger(__name__)
 
@@ -28,50 +27,6 @@ def personal_filter_summary(saved_filter: SavedFilter) -> PersonalFilterSummary:
     return PersonalFilterSummary(
         id=saved_filter.id, name=saved_filter.name, updated_at=saved_filter.updated_at
     )
-
-
-def validate_personal_filter_definition(
-    session: Session, project_id: int, definition: TicketFilter
-) -> None:
-    """계층·사용자 참조와 날짜 경계를 현재 프로젝트의 선택 가능 범위로 제한한다."""
-    hierarchy = {
-        candidate["id"]: candidate["type"]
-        for candidate in ticket_repository.ticket_filter_hierarchy(session, project_id)
-    }
-    if definition.epic_id is not None and hierarchy.get(definition.epic_id) != "EPIC":
-        raise AuthError("invalid_filter_reference", "Epic 조건을 다시 선택하세요.")
-    if definition.parent_id is not None and definition.parent_id not in hierarchy:
-        raise AuthError("invalid_filter_reference", "상위 티켓 조건을 다시 선택하세요.")
-    valid_user_ids = {
-        candidate["id"] for candidate in ticket_repository.ticket_filter_users(session, project_id)
-    }
-    if not set(definition.creator_ids + definition.assignee_ids).issubset(valid_user_ids):
-        raise AuthError("invalid_filter_reference", "생성자·담당자 조건을 다시 선택하세요.")
-    for timestamp in (
-        definition.created_from,
-        definition.created_before,
-        definition.updated_from,
-        definition.updated_before,
-    ):
-        if timestamp is None:
-            continue
-        try:
-            local_timestamp = timestamp.astimezone(ZoneInfo("Asia/Seoul"))
-            if timestamp in (definition.created_before, definition.updated_before):
-                local_timestamp.date() - timedelta(days=1)
-        except (OverflowError, ValueError):
-            raise AuthError("invalid_filter_date", "저장할 날짜 범위를 확인하세요.") from None
-        if any(
-            (
-                local_timestamp.hour,
-                local_timestamp.minute,
-                local_timestamp.second,
-                local_timestamp.microsecond,
-            )
-        ):
-            raise AuthError(
-                "invalid_filter_date", "날짜 조건은 한국 날짜의 시작을 기준으로 저장하세요."
-            )
 
 
 def require_personal_filter(session, project_id, actor_id, filter_id) -> SavedFilter:
@@ -120,7 +75,7 @@ def get_personal_filter(session: Session, actor: Identity, project_key: str, fil
             if saved_filter.schema_version != 1:
                 raise ValueError("unsupported schema")
             definition = TicketFilter.model_validate(saved_filter.definition)
-            validate_personal_filter_definition(session, project.id, definition)
+            validate_saved_filter_definition(session, project.id, definition)
         except (ValidationError, ValueError, AuthError):
             raise AuthError(
                 "saved_filter_invalid",
@@ -142,7 +97,7 @@ def create_personal_filter(
         project = project_service.require_project_member(session, actor, project_key)
         project_repository.lock_project_management(session, project.id)
         validate_unique_name(session, project.id, actor.id, payload.name)
-        validate_personal_filter_definition(session, project.id, payload.definition)
+        validate_saved_filter_definition(session, project.id, payload.definition)
         saved_filter = SavedFilter(
             project_id=project.id,
             owner_id=actor.id,
@@ -178,7 +133,7 @@ def update_personal_filter(
         validate_unique_name(session, project.id, actor.id, name, filter_id)
         definition = saved_filter.definition
         if payload.definition is not None:
-            validate_personal_filter_definition(session, project.id, payload.definition)
+            validate_saved_filter_definition(session, project.id, payload.definition)
             definition = payload.definition.model_dump(mode="json")
         if (
             name == saved_filter.name

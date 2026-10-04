@@ -1,54 +1,21 @@
-import unicodedata
-from typing import Annotated, Literal
+from typing import Literal
 
-from pydantic import AfterValidator, AwareDatetime, BaseModel, ConfigDict, model_validator
+from pydantic import AwareDatetime, BaseModel
 
 from app.schemas.contracts import TicketFilter
+from app.schemas.saved_filter_inputs import SavedFilterCreate, SavedFilterDelete, SavedFilterUpdate
 
 
-def normalize_personal_filter_name(value: str) -> str:
-    """필터 이름을 정규화하고 빈 이름·제어 문자·과도한 길이를 거부한다."""
-    normalized = unicodedata.normalize("NFC", value).strip()
-    if not normalized or len(normalized) > 200:
-        raise ValueError("필터 이름은 1~200자로 입력하세요.")
-    if any(unicodedata.category(character).startswith("C") for character in normalized):
-        raise ValueError("필터 이름에는 제어 문자를 사용할 수 없습니다.")
-    return normalized
+class PersonalFilterCreate(SavedFilterCreate):
+    """개인 필터의 Create 입력 계약이다."""
 
 
-PersonalFilterName = Annotated[str, AfterValidator(normalize_personal_filter_name)]
+class PersonalFilterUpdate(SavedFilterUpdate):
+    """개인 필터의 Update 입력 계약이다."""
 
 
-class PersonalFilterCreate(BaseModel):
-    """소유자·공개 범위를 서버가 지정하는 개인 필터 생성 입력이다."""
-
-    model_config = ConfigDict(extra="forbid")
-    name: PersonalFilterName
-    definition: TicketFilter
-
-
-class PersonalFilterUpdate(BaseModel):
-    """이름 변경과 조건 덮어쓰기의 입력 및 동시 수정 기준이다."""
-
-    model_config = ConfigDict(extra="forbid")
-    expected_updated_at: AwareDatetime
-    name: PersonalFilterName | None = None
-    definition: TicketFilter | None = None
-
-    @model_validator(mode="after")
-    def validate_changes(self):
-        """변경 필드를 요구하고 명시적인 null 입력을 거부한다."""
-        changed_fields = self.model_fields_set - {"expected_updated_at"}
-        if not changed_fields or any(getattr(self, name) is None for name in changed_fields):
-            raise ValueError("변경할 이름 또는 조건을 입력하세요.")
-        return self
-
-
-class PersonalFilterDelete(BaseModel):
-    """최근 조회한 필터에 대한 삭제만 허용하는 입력이다."""
-
-    model_config = ConfigDict(extra="forbid")
-    expected_updated_at: AwareDatetime
+class PersonalFilterDelete(SavedFilterDelete):
+    """개인 필터의 Delete 입력 계약이다."""
 
 
 class PersonalFilterSummary(BaseModel):

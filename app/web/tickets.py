@@ -29,6 +29,7 @@ from app.schemas.tickets import (
 from app.services import attachments as attachment_service
 from app.services import comments as comment_service
 from app.services import personal_filters as personal_filter_service
+from app.services import shared_filters as shared_filter_service
 from app.services import tickets as service
 from app.storage.attachments import AttachmentStorage, get_attachment_storage
 from app.web.attachment_responses import (
@@ -326,6 +327,21 @@ def apply_personal_filter_page(
     )
 
 
+@router.get("/projects/{project_key}/shared-filters/{filter_id}/apply")
+def apply_shared_filter_page(
+    project_key: str, filter_id: int, session: Database, actor: Actor,
+    view: Literal["tickets", "board"] = "tickets",
+):
+    """저장 조건을 재검증한 뒤 지정 화면의 첫 페이지에 적용한다."""
+    shared_filter = shared_filter_service.get_shared_filter(
+        session, actor, project_key, filter_id
+    )
+    query_items = _project_ticket_filter_query(shared_filter.definition)
+    return RedirectResponse(
+        f"/projects/{project_key}/{view}?" + urlencode(query_items), status_code=303
+    )
+
+
 @router.get("/projects/{project_key}/board")
 def project_ticket_board_page(
     project_key: str,
@@ -350,6 +366,7 @@ def project_ticket_board_page(
         board=board,
         filters=ticket_filter,
         personal_filters=personal_filter_service.list_personal_filters(session, actor, project_key),
+        shared_filters=shared_filter_service.list_shared_filters(session, actor, project_key),
         q=ticket_filter.query,
         filter_options=filter_options,
         filter_dates=dict(query_items),
@@ -623,6 +640,7 @@ def project_ticket_list_page(
         q=ticket_filter.query,
         filters=ticket_filter,
         personal_filters=personal_filter_service.list_personal_filters(session, actor, project_key),
+        shared_filters=shared_filter_service.list_shared_filters(session, actor, project_key),
         filter_options=filter_options,
         filter_dates=dict(query_items),
         filter_action=f"/projects/{project.key}/tickets",

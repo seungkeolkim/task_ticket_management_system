@@ -1,0 +1,24 @@
+.saved-filter-panel { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:20px; margin:16px 0; padding:18px; border:1px solid var(--border); border-radius:12px; background:var(--surface); }
+.saved-filter-heading { display:flex; align-items:center; flex-wrap:wrap; gap:10px; }
+.saved-filter-heading h2 { margin:0; font-size:16px; }
+.filter-scope-badge { padding:4px 8px; border-radius:6px; font-size:12px; font-weight:700; }
+.filter-scope-badge.personal { color:var(--primary); background:var(--surface-tint); }
+.filter-scope-badge.shared { color:var(--text-soft); background:var(--slate-soft); }
+.saved-filter-description, .saved-filter-create small { color:var(--text-soft); font-size:13px; line-height:1.6; }
+.saved-filter-create label { display:block; font-size:13px; font-weight:700; margin-bottom:6px; }
+.saved-filter-create-controls { display:flex; gap:8px; margin-bottom:5px; }
+.saved-filter-create-controls input { flex:1; min-width:0; padding:8px 10px; border:1px solid var(--border); border-radius:6px; font:inherit; }
+.saved-filter-list { margin-top:15px; }
+.saved-filter-list summary { color:var(--primary); cursor:pointer; font-size:13px; }
+.saved-filter-list ul { list-style:none; padding:0; margin:8px 0 0; max-height:280px; overflow:auto; }
+.saved-filter-list li { display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding:10px 0; border-bottom:1px solid var(--border); }
+.saved-filter-name { flex:1; min-width:130px; overflow-wrap:anywhere; font-size:14px; font-weight:600; }
+.saved-filter-actions { display:flex; flex-wrap:wrap; gap:4px; }
+.saved-filter-actions .button { padding:7px 9px; min-height:32px; font-size:12px; }
+.saved-filter-empty { color:var(--text-soft); font-size:13px; }
+.saved-filter-shared { padding-left:20px; border-left:1px solid var(--border); }
+.saved-filter-panel > .auth-message { grid-column:1 / -1; margin:0; }
+@media (max-width: 1000px) {
+  .saved-filter-panel { grid-template-columns:minmax(0, 1fr); }
+  .saved-filter-shared { padding:18px 0 0; border-left:0; border-top:1px solid var(--border); }
+}

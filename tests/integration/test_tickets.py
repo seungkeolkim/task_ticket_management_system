@@ -2863,6 +2863,7 @@ def test_board_filters_in_real_browser(client, ticket_people, monkeypatch):
                     node_executable, "--test", "--test-concurrency=1",
                     os.path.join("tests", "browser", "kanban-filters.test.cjs"),
                     os.path.join("tests", "browser", "personal-filters.test.cjs"),
+                    os.path.join("tests", "browser", "shared-filters.test.cjs"),
                 ],
                 capture_output=True, text=True, encoding="utf-8", timeout=90,
             )

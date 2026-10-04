@@ -22,7 +22,7 @@ test("personal filters remain private and support their full UI lifecycle", asyn
     assert.match(await panel.innerText(), /나만 보기/);
     assert.match(await panel.locator(".saved-filter-shared").innerText(), /프로젝트 공유 필터/);
     assert.match(await panel.locator(".saved-filter-shared").innerText(), /구성원 공용/);
-    assert.match(await panel.locator(".saved-filter-shared").innerText(), /준비 중/);
+    assert.match(await panel.locator(".saved-filter-shared").innerText(), /프로젝트 관리자가 관리/);
     assert.equal(await panel.locator(".saved-filter-shared button").count(), 0);
     const filterName = "개인 업무 <img src=x onerror=alert(1)>";
     await page.getByLabel("개인 필터 이름", { exact: true }).fill(filterName);
