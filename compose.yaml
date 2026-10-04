@@ -5,6 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: app-runtime
     init: true
     restart: unless-stopped
     env_file:
@@ -34,3 +35,23 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: scheduler-runtime
+    init: true
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      APP_CONFIG_FILE: "/app/config/application.toml"
+      APP_DATA_ROOT: "/app/data"
+    volumes:
+      - ./app:/app/app:ro
+      - ./data:/app/data
+      - "${HOST_CONFIG_FILE:?Run run_compose.sh or run_compose.ps1 start}:/app/config/application.toml:ro"

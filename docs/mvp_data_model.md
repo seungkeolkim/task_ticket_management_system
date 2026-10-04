@@ -1,7 +1,7 @@
 # MVP 데이터 구조
 
 이 문서는 ORM·DB 제약·입출력 계약·migration을 중심으로 설명한다. 현재 인증, 사용자·조직 관리와 JSON 입출력, 프로젝트 권한, 티켓 생성·조회·편집·상태 전이, 대시보드·칸반 이동, 관계, 계층 단위 휴지통·복구, 댓글·멘션, 저장 필터, 일반 첨부파일과 본문 이미지는 서비스·API·화면까지 연결되어 있고 티켓 쓰기는 변경 이력을 같은 transaction에 기록한다. 휴지통·첨부파일 삭제와 영구 정리, 간트·보고서 실행은 아직 연결하지 않았다.
-원본은 `app/models/`, 데이터 계약은 `app/schemas/`, 최신 추가 revision은 `20261004_0008`이다.
+원본은 `app/models/`, 데이터 계약은 `app/schemas/`, 최신 추가 revision은 `20261005_0009`다.
 
 ## 요구사항과 저장 구조
 
@@ -20,8 +20,9 @@
 | 보고서 스킬 | report_skills, report_skill_versions | 논리 key, 작성자, 활성 여부, 버전별 지침·입출력 JSON Schema·기본값·해시 |
 | 보고서 요청·범위 | report_runs, report_run_projects | 요청자, 스킬 버전, 기간·시간대·조건, 입력 snapshot/hash, 프로젝트 목록 |
 | 실제 LLM in/out | report_attempts | 시도 번호, 로컬 모델·실행 설정, 실제 요청·원응답·검증된 결과, 실패·시간·token 수 |
+| 공통 배치 일정·실행 이력 | scheduled_jobs, scheduled_job_runs | 고유 작업 key, cron 표현식·시간대·활성 상태, 독립 실행 결과 |
 
-총 19개 애플리케이션 테이블: 기존 4개 + 신규 15개. Alembic 관리 테이블은 별도다.
+총 21개 애플리케이션 테이블: 기존 4개 + 업무·보고서 15개 + scheduler 2개. Alembic 관리 테이블은 별도다.
 
 ## DB와 서비스의 책임
 

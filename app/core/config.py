@@ -117,6 +117,10 @@ class TicketTrashSettings(StrictSettingsModel):
     cleanup_interval_hours: int = Field(default=24, ge=1)
 
 
+class SchedulerSettings(StrictSettingsModel):
+    sync_interval_seconds: int = Field(default=15, ge=1)
+
+
 class SessionSettings(StrictSettingsModel):
     lifetime_minutes: int = Field(default=480, ge=1)
     cookie_name: str = Field(default="ttms_session", pattern=r"^[A-Za-z][A-Za-z0-9_]*$")
@@ -193,6 +197,7 @@ class Settings(StrictSettingsModel):
     attachments: AttachmentSettings = Field(default_factory=AttachmentSettings)
     audit: AuditSettings = Field(default_factory=AuditSettings)
     ticket_trash: TicketTrashSettings = Field(default_factory=TicketTrashSettings)
+    scheduler: SchedulerSettings = Field(default_factory=SchedulerSettings)
     session: SessionSettings = Field(default_factory=SessionSettings)
     auth: AuthSettings = Field(default_factory=AuthSettings)
     bootstrap: BootstrapSettings = Field(default_factory=BootstrapSettings)

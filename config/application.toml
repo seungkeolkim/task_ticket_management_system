@@ -58,6 +58,9 @@ cleanup_interval_hours = 24
 retention_days = 30
 cleanup_interval_hours = 24
 
+[scheduler]
+sync_interval_seconds = 15
+
 [session]
 lifetime_minutes = 480
 cookie_name = "ttms_session"

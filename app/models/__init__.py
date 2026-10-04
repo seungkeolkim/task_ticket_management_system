@@ -12,6 +12,7 @@ from app.models.reporting import (
     ReportSkill,
     ReportSkillVersion,
 )
+from app.models.scheduler import ScheduledJob, ScheduledJobRun
 from app.models.work import (
     Project,
     ProjectMember,
@@ -35,6 +36,8 @@ __all__ = [
     "ReportSkill",
     "ReportSkillVersion",
     "SavedFilter",
+    "ScheduledJob",
+    "ScheduledJobRun",
     "SystemRole",
     "Ticket",
     "TicketDeletionBatch",

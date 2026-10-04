@@ -8,7 +8,7 @@ RUN npm ci
 COPY frontend ./frontend
 RUN npm run build
 
-FROM python:3.12-slim
+FROM python:3.12-slim AS app-runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -28,3 +28,13 @@ COPY scripts/docker-entrypoint.sh ./scripts/docker-entrypoint.sh
 RUN chmod +x ./scripts/docker-entrypoint.sh
 
 ENTRYPOINT ["./scripts/docker-entrypoint.sh"]
+
+FROM app-runtime AS scheduler-runtime
+
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y cron tzdata \
+    && ln -snf /usr/share/zoneinfo/Asia/Seoul /etc/localtime \
+    && echo Asia/Seoul > /etc/timezone \
+    && rm -rf /var/lib/apt/lists/*
+
+ENTRYPOINT ["python", "-m", "app.scheduler", "serve"]

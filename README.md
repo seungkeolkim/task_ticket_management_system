@@ -15,6 +15,7 @@ FastAPI, SQLAlchemy, Alembic, and SQLite를 사용하는 사내용 태스크·�
 - [Tiptap 본문 저장 계약](docs/tiptap_body_contract.md)
 - [보고서 데이터 계약](docs/reporting_contracts.md)
 - [시스템 로깅 규약](docs/logging_conventions.md)
+- [공통 cron scheduler](docs/scheduler.md)
 - [로그인·초기 관리자 설정](docs/authentication.md)
 - [사용자·조직 관리](docs/administration.md)
 - [조직 JSON 내보내기·가져오기](docs/organization_transfer.md)
@@ -42,6 +43,8 @@ Windows PowerShell에서는 저장소 루트의 동일한 실행 래퍼를 사�
 ```
 
 `start`는 설정을 검증한 뒤 `docker compose up --build --detach`, `stop`은 `docker compose down`을 실행합니다. PowerShell 래퍼는 `.venv\Scripts\python.exe`, PATH의 `python`, `python3`, `py -3` 순으로 Python 3.11 이상을 찾습니다. 설정 파일이 없거나 잘못되어도 `stop`은 사용할 수 있으며, 호출 후 현재 폴더와 임시 환경 변수를 복원하고 Docker 종료 코드를 그대로 반환합니다.
+
+Compose는 웹 `app`과 별도 `scheduler` service를 시작합니다. scheduler는 DB의 활성 cron 일정을 기동 시 복원하고 변경 시 동기화합니다. 현재 등록된 배치 작업은 없으며 휴지통 30일 영구 삭제도 실행하지 않습니다.
 
 다른 설정 파일은 다음과 같이 지정합니다. 상대 경로는 스크립트를 호출한 폴더 기준으로 해석합니다.
 
