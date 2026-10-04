@@ -2860,8 +2860,9 @@ def test_board_filters_in_real_browser(client, ticket_people, monkeypatch):
             monkeypatch.setenv("TTMS_BROWSER_BASE_URL", f"http://127.0.0.1:{server_port}")
             result = subprocess.run(
                 [
-                    node_executable, "--test",
+                    node_executable, "--test", "--test-concurrency=1",
                     os.path.join("tests", "browser", "kanban-filters.test.cjs"),
+                    os.path.join("tests", "browser", "personal-filters.test.cjs"),
                 ],
                 capture_output=True, text=True, encoding="utf-8", timeout=90,
             )

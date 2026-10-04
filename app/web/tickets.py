@@ -1,7 +1,8 @@
 import json
 from datetime import date, timedelta
-from typing import Annotated
+from typing import Annotated, Literal
 from urllib.parse import urlencode
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
 from fastapi.responses import RedirectResponse
@@ -27,6 +28,7 @@ from app.schemas.tickets import (
 )
 from app.services import attachments as attachment_service
 from app.services import comments as comment_service
+from app.services import personal_filters as personal_filter_service
 from app.services import tickets as service
 from app.storage.attachments import AttachmentStorage, get_attachment_storage
 from app.web.attachment_responses import (
@@ -96,15 +98,22 @@ def _project_ticket_filter_query(ticket_filter: TicketFilter) -> list[tuple[str,
     query_items.extend(("assignee_id", item) for item in ticket_filter.assignee_ids)
     if ticket_filter.unassigned:
         query_items.append(("unassigned", "true"))
+    timezone = ZoneInfo("Asia/Seoul")
     if ticket_filter.created_from is not None:
-        query_items.append(("created_from", ticket_filter.created_from.date().isoformat()))
+        created_from = ticket_filter.created_from.astimezone(timezone).date()
+        query_items.append(("created_from", created_from.isoformat()))
     if ticket_filter.created_before is not None:
-        created_through = ticket_filter.created_before.date() - timedelta(days=1)
+        created_through = (
+            ticket_filter.created_before.astimezone(timezone).date() - timedelta(days=1)
+        )
         query_items.append(("created_through", created_through.isoformat()))
     if ticket_filter.updated_from is not None:
-        query_items.append(("updated_from", ticket_filter.updated_from.date().isoformat()))
+        updated_from = ticket_filter.updated_from.astimezone(timezone).date()
+        query_items.append(("updated_from", updated_from.isoformat()))
     if ticket_filter.updated_before is not None:
-        updated_through = ticket_filter.updated_before.date() - timedelta(days=1)
+        updated_through = (
+            ticket_filter.updated_before.astimezone(timezone).date() - timedelta(days=1)
+        )
         query_items.append(("updated_through", updated_through.isoformat()))
     if ticket_filter.due_from is not None:
         query_items.append(("due_from", ticket_filter.due_from.isoformat()))
@@ -302,6 +311,21 @@ def project_ticket_filter_parameters(
     )
 
 
+@router.get("/projects/{project_key}/personal-filters/{filter_id}/apply")
+def apply_personal_filter_page(
+    project_key: str, filter_id: int, session: Database, actor: Actor,
+    view: Literal["tickets", "board"] = "tickets",
+):
+    """저장 조건을 재검증한 뒤 지정 화면의 첫 페이지에 적용한다."""
+    personal_filter = personal_filter_service.get_personal_filter(
+        session, actor, project_key, filter_id
+    )
+    query_items = _project_ticket_filter_query(personal_filter.definition)
+    return RedirectResponse(
+        f"/projects/{project_key}/{view}?" + urlencode(query_items), status_code=303
+    )
+
+
 @router.get("/projects/{project_key}/board")
 def project_ticket_board_page(
     project_key: str,
@@ -325,6 +349,7 @@ def project_ticket_board_page(
         project=project,
         board=board,
         filters=ticket_filter,
+        personal_filters=personal_filter_service.list_personal_filters(session, actor, project_key),
         q=ticket_filter.query,
         filter_options=filter_options,
         filter_dates=dict(query_items),
@@ -597,6 +622,7 @@ def project_ticket_list_page(
         result=result,
         q=ticket_filter.query,
         filters=ticket_filter,
+        personal_filters=personal_filter_service.list_personal_filters(session, actor, project_key),
         filter_options=filter_options,
         filter_dates=dict(query_items),
         filter_action=f"/projects/{project.key}/tickets",
