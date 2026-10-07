@@ -10,7 +10,8 @@ if ($Action -cnotin @("start", "stop")) {
 }
 
 $previousPort = $env:APP_PORT
-$previousConfig = $env:HOST_CONFIG_FILE
+$previousConfigDirectory = $env:HOST_CONFIG_DIR
+$previousContainerConfigFile = $env:CONTAINER_CONFIG_FILE
 $locationPushed = $false
 $runnerExitCode = 1
 
@@ -21,8 +22,13 @@ try {
     }
     # Resolve relative paths before changing directory; no wildcard expansion.
     $configFile = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($configFile)
+    $configFileName = Split-Path -Leaf $configFile
+    $configDirectory = Split-Path -Parent $configFile
 
     if ($Action -ceq "start") {
+        if (-not (Test-Path -LiteralPath $configDirectory -PathType Container)) {
+            throw "Configuration directory does not exist: $configDirectory"
+        }
         $pythonCommand = $null
         $pythonArguments = @()
         $localPython = Join-Path $PSScriptRoot ".venv/Scripts/python.exe"
@@ -59,10 +65,13 @@ try {
     else {
         # Down must work even if the config is missing or temporarily invalid.
         $env:APP_PORT = "8000"
+        $configDirectory = Join-Path $PSScriptRoot "config"
+        $configFileName = "application.toml"
         $composeArguments = @("compose", "-f", "compose.yaml", "down")
     }
 
-    $env:HOST_CONFIG_FILE = $configFile
+    $env:HOST_CONFIG_DIR = $configDirectory
+    $env:CONTAINER_CONFIG_FILE = "/app/config/$configFileName"
     Push-Location -LiteralPath $PSScriptRoot
     $locationPushed = $true
     $dockerCommand = Get-Command docker -ErrorAction Stop
@@ -79,7 +88,8 @@ catch {
 finally {
     if ($locationPushed) { Pop-Location }
     $env:APP_PORT = $previousPort
-    $env:HOST_CONFIG_FILE = $previousConfig
+    $env:HOST_CONFIG_DIR = $previousConfigDirectory
+    $env:CONTAINER_CONFIG_FILE = $previousContainerConfigFile
 }
 
 exit $runnerExitCode

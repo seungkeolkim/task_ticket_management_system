@@ -1,26 +1,36 @@
 from __future__ import annotations
 
+import json
+import os
 import sys
 import tomllib
 from pathlib import Path
 from typing import Any
 
+DEFAULT_SERVER_PORT = 8000
+
 
 def read_server_port(config_file: Path) -> int:
-    """TOML 설정에서 server port를 읽고 검증한다."""
+    """외부 설정과 환경 변수의 server port를 읽고 검증한다."""
     try:
         with config_file.open("rb") as file_handle:
             settings: dict[str, Any] = tomllib.load(file_handle)
-    except FileNotFoundError as exc:
-        raise ValueError(f"Configuration file does not exist: {config_file}") from exc
+    except FileNotFoundError:
+        settings = {}
     except tomllib.TOMLDecodeError as exc:
         raise ValueError(f"Invalid TOML configuration: {config_file}: {exc}") from exc
 
-    server = settings.get("server")
+    server = settings.get("server", {})
     if not isinstance(server, dict):
-        raise ValueError("Configuration must contain a [server] table")
+        raise ValueError("server must be a table")
 
-    port = server.get("port")
+    port = server.get("port", DEFAULT_SERVER_PORT)
+    environment_port = os.getenv("TTMS__SERVER__PORT")
+    if environment_port is not None:
+        try:
+            port = json.loads(environment_port)
+        except json.JSONDecodeError as exc:
+            raise ValueError("server.port must be an integer between 1 and 65535") from exc
     if isinstance(port, bool) or not isinstance(port, int) or not 1 <= port <= 65535:
         raise ValueError("server.port must be an integer between 1 and 65535")
     return port

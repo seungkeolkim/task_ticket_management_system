@@ -20,4 +20,4 @@ DB 설정 확인 주기는 `[scheduler].sync_interval_seconds`에서 조정하�
 
 ## 설정과 운영
 
-`sh ./run_compose.sh start` 또는 `./run_compose.ps1 start`는 두 service를 시작한다. scheduler는 같은 외부 설정 파일과 data mount를 사용하며 별도 HTTP 포트를 열지 않는다. `docker ps --filter label=com.docker.compose.service=scheduler`로 container를 찾고 `docker logs <container-id>`에서 동기화·실패 로그를 확인한다. `20261005_0009` migration은 일정·실행 이력 테이블만 추가하며 기존 업무 데이터와 현재 휴지통 보존 정책을 바꾸지 않는다.
+`sh ./run_compose.sh start` 또는 `./run_compose.ps1 start`는 두 service를 시작한다. scheduler는 app과 같은 선택적 외부 설정 경로와 data mount를 사용하며 별도 HTTP 포트를 열지 않는다. 설정 파일이 없으면 app과 동일한 기본값을 적용한다. `docker ps --filter label=com.docker.compose.service=scheduler`로 container를 찾고 `docker logs <container-id>`에서 동기화·실패 로그를 확인한다. `20261005_0009` migration은 일정·실행 이력 테이블만 추가하며 기존 업무 데이터와 현재 휴지통 보존 정책을 바꾸지 않는다.

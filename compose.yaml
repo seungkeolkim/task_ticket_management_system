@@ -14,7 +14,7 @@ services:
     ports:
       - "${APP_PORT:?Run run_compose.sh or run_compose.ps1 start}:${APP_PORT:?Run run_compose.sh or run_compose.ps1 start}"
     environment:
-      APP_CONFIG_FILE: "/app/config/application.toml"
+      APP_CONFIG_FILE: "${CONTAINER_CONFIG_FILE:?Run run_compose.sh or run_compose.ps1 start}"
       APP_DATA_ROOT: "/app/data"
       TTMS__SERVER__PORT: "${APP_PORT:?Run run_compose.sh or run_compose.ps1 start}"
     volumes:
@@ -22,7 +22,12 @@ services:
       - ./migrations:/app/migrations
       - ./alembic.ini:/app/alembic.ini:ro
       - ./data:/app/data
-      - "${HOST_CONFIG_FILE:?Run run_compose.sh or run_compose.ps1 start}:/app/config/application.toml:ro"
+      - type: bind
+        source: "${HOST_CONFIG_DIR:?Run run_compose.sh or run_compose.ps1 start}"
+        target: /app/config
+        read_only: true
+        bind:
+          create_host_path: false
     healthcheck:
       test:
         [
@@ -49,9 +54,14 @@ services:
       - path: .env
         required: false
     environment:
-      APP_CONFIG_FILE: "/app/config/application.toml"
+      APP_CONFIG_FILE: "${CONTAINER_CONFIG_FILE:?Run run_compose.sh or run_compose.ps1 start}"
       APP_DATA_ROOT: "/app/data"
     volumes:
       - ./app:/app/app:ro
       - ./data:/app/data
-      - "${HOST_CONFIG_FILE:?Run run_compose.sh or run_compose.ps1 start}:/app/config/application.toml:ro"
+      - type: bind
+        source: "${HOST_CONFIG_DIR:?Run run_compose.sh or run_compose.ps1 start}"
+        target: /app/config
+        read_only: true
+        bind:
+          create_host_path: false

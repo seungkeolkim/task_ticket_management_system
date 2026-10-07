@@ -23,7 +23,7 @@ projects/<project-key>/tickets/<ticket-id>/<uuid 앞 2자>/<다음 2자>/<uuid>.
 - 원본 파일명에서 client 경로와 제어문자를 제거하고 512자로 제한
 - storage adapter에서 절대 경로와 `..` 경로 탈출을 거부
 
-확장자 목록과 확장자별 MIME type은 `config/application.toml`의 `[attachments]`와 `[attachments.allowed_media_types]`에서 조정한다. MIME mapping 없이 확장자만 추가하면 기동 검증이 실패한다.
+확장자 목록과 확장자별 MIME type은 선택적 `config/application.toml`의 `[attachments]`와 `[attachments.allowed_media_types]`에서 조정한다. 파일이 없으면 `config/application.toml.template`에 적힌 기본 허용 목록을 사용한다. 기본 목록에 없는 확장자를 MIME mapping 없이 추가하면 기동 검증이 실패한다.
 
 ## 권한과 이력
 

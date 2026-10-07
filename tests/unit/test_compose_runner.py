@@ -27,6 +27,27 @@ def test_compose_port_reader_reads_server_port(tmp_path: Path) -> None:
     assert module.read_server_port(config_file) == 9123
 
 
+def test_compose_port_reader_uses_defaults_without_file_or_port(tmp_path: Path) -> None:
+    """설정 파일이나 port 항목이 없을 때 기본 포트를 사용한다."""
+    module = _load_port_reader()
+    config_file = tmp_path / "application.toml"
+
+    assert module.read_server_port(config_file) == 8000
+    config_file.write_text("[app]\nname = 'Example'\n", encoding="utf-8")
+    assert module.read_server_port(config_file) == 8000
+
+
+def test_compose_port_reader_applies_environment_override(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """환경 변수 포트가 TOML 값보다 우선하는지 확인한다."""
+    config_file = tmp_path / "application.toml"
+    config_file.write_text("[server]\nport = 9123\n", encoding="utf-8")
+    monkeypatch.setenv("TTMS__SERVER__PORT", "9234")
+
+    assert _load_port_reader().read_server_port(config_file) == 9234
+
+
 @pytest.mark.parametrize("value", ["0", "65536", '"8000"', "true"])
 def test_compose_port_reader_rejects_invalid_port(tmp_path: Path, value: str) -> None:
     """Compose 관련 동작을 검증한다."""

@@ -38,16 +38,19 @@ def runner(request, tmp_path):
             f"""
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 $env:APP_PORT = 'original-port'
-$env:HOST_CONFIG_FILE = 'original-config'
+$env:HOST_CONFIG_DIR = 'original-config-directory'
+$env:CONTAINER_CONFIG_FILE = 'original-container-config'
 function global:docker {{
-    @{{ arguments=@($args); port=$env:APP_PORT; config=$env:HOST_CONFIG_FILE;
+    @{{ arguments=@($args); port=$env:APP_PORT; configDirectory=$env:HOST_CONFIG_DIR;
+       containerConfigFile=$env:CONTAINER_CONFIG_FILE;
        cwd=(Get-Location).Path }} | ConvertTo-Json |
     Set-Content -Encoding UTF8 {ps_quote(result_file)}
     $global:LASTEXITCODE = {docker_exit}
 }}
 & {ps_quote(root / "run_compose.ps1")} {ps_quote(action)}
 $result = $LASTEXITCODE
-@{{ port=$env:APP_PORT; config=$env:HOST_CONFIG_FILE; cwd=(Get-Location).Path }} |
+@{{ port=$env:APP_PORT; configDirectory=$env:HOST_CONFIG_DIR;
+   containerConfigFile=$env:CONTAINER_CONFIG_FILE; cwd=(Get-Location).Path }} |
     ConvertTo-Json | Set-Content -Encoding UTF8 {ps_quote(state_file)}
 exit $result
 """,
@@ -83,7 +86,12 @@ exit $result
             else None
         )
         state = json.loads(state_file.read_text(encoding="utf-8-sig"))
-        assert state == {"port": "original-port", "config": "original-config", "cwd": str(tmp_path)}
+        assert state == {
+            "port": "original-port",
+            "configDirectory": "original-config-directory",
+            "containerConfigFile": "original-container-config",
+            "cwd": str(tmp_path),
+        }
         return result, call
 
     return run, root, default_config
@@ -97,7 +105,8 @@ def test_start_reads_default_config_and_runs_from_script_directory(runner):
     assert call == {
         "arguments": ["compose", "-f", "compose.yaml", "up", "--build", "--detach"],
         "port": "9123",
-        "config": str(config),
+        "configDirectory": str(config.parent),
+        "containerConfigFile": "/app/config/application.toml",
         "cwd": str(root),
     }
 
@@ -109,17 +118,29 @@ def test_custom_relative_config_with_spaces_and_unicode(runner):
     custom.write_text("[server]\nport = 9234\n", encoding="utf-8")
     result, call = run(config=custom.name)
     assert result.returncode == 0, result.stderr
-    assert call["port"] == "9234" and call["config"] == str(custom)
+    assert call["port"] == "9234"
+    assert call["configDirectory"] == str(custom.parent)
+    assert call["containerConfigFile"] == "/app/config/외부 설정 [test].toml"
 
 
-@pytest.mark.parametrize("contents", [None, "[server\n", "[server]\nport = true\n"])
+def test_start_without_config_uses_default_port(runner):
+    """설정 파일 없이도 기본 포트로 Docker를 기동한다."""
+    run, root, config = runner
+    config.unlink()
+
+    result, call = run()
+
+    assert result.returncode == 0, result.stderr
+    assert call["port"] == "8000"
+    assert call["configDirectory"] == str(root / "config")
+    assert call["containerConfigFile"] == "/app/config/application.toml"
+
+
+@pytest.mark.parametrize("contents", ["[server\n", "[server]\nport = true\n"])
 def test_start_rejects_invalid_config_before_docker(runner, contents):
     """설정 관련 동작을 검증한다."""
     run, _, config = runner
-    if contents is None:
-        config.unlink()
-    else:
-        config.write_text(contents, encoding="utf-8")
+    config.write_text(contents, encoding="utf-8")
     result, call = run()
     assert result.returncode == 2
     assert "compose_config_error:" in result.stderr

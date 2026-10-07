@@ -1,4 +1,5 @@
 .env
+config/application.toml
 .venv/
 venv/
 __pycache__/

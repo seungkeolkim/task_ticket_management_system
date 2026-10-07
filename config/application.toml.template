@@ -1,3 +1,6 @@
+# 선택 사항: config/application.toml로 복사해 호스트별 설정을 변경합니다.
+# 파일이 없어도 아래 값과 동일한 애플리케이션 기본값을 사용합니다.
+
 [app]
 name = "Task Ticket Management System"
 environment = "development"

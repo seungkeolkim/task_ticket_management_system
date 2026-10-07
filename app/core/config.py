@@ -58,12 +58,46 @@ class DatabaseSettings(StrictSettingsModel):
     pool_pre_ping: bool = True
 
 
+def default_allowed_attachment_extensions() -> list[str]:
+    """기본 첨부파일 허용 확장자를 반환한다."""
+    return [
+        "png", "jpg", "jpeg", "gif", "webp", "pdf", "txt", "md", "csv",
+        "docx", "xlsx", "pptx", "zip",
+    ]
+
+
+def default_blocked_attachment_extensions() -> list[str]:
+    """기본 첨부파일 차단 확장자를 반환한다."""
+    return ["exe", "com", "bat", "cmd", "ps1", "sh", "js", "vbs", "msi", "dll", "scr"]
+
+
+def default_attachment_media_types() -> dict[str, list[str]]:
+    """기본 첨부파일 확장자별 MIME type을 반환한다."""
+    return {
+        "png": ["image/png"],
+        "jpg": ["image/jpeg"],
+        "jpeg": ["image/jpeg"],
+        "gif": ["image/gif"],
+        "webp": ["image/webp"],
+        "pdf": ["application/pdf"],
+        "txt": ["text/plain"],
+        "md": ["text/markdown", "text/plain"],
+        "csv": ["text/csv", "text/plain", "application/csv"],
+        "docx": ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+        "xlsx": ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
+        "pptx": ["application/vnd.openxmlformats-officedocument.presentationml.presentation"],
+        "zip": ["application/zip", "application/x-zip-compressed"],
+    }
+
+
 class AttachmentSettings(StrictSettingsModel):
     max_file_size_mb: int = Field(default=25, gt=0)
     deleted_file_retention_days: int = Field(default=30, ge=0)
-    allowed_extensions: list[str] = Field(default_factory=list)
-    blocked_extensions: list[str] = Field(default_factory=list)
-    allowed_media_types: dict[str, list[str]] = Field(default_factory=dict)
+    allowed_extensions: list[str] = Field(default_factory=default_allowed_attachment_extensions)
+    blocked_extensions: list[str] = Field(default_factory=default_blocked_attachment_extensions)
+    allowed_media_types: dict[str, list[str]] = Field(
+        default_factory=default_attachment_media_types
+    )
 
     @model_validator(mode="after")
     def validate_attachment_allowlist(self) -> AttachmentSettings:

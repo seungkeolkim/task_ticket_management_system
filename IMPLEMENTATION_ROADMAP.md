@@ -95,6 +95,8 @@
 
 2026-09-19 Compose 개발 mount 검증: Windows Docker Desktop에서 기본 이미지에 `app`·`migrations`·`alembic.ini`가 없고 Compose 실행 시에만 해당 경로가 bind mount되는 것을 확인했다. 설정 파일은 읽기 전용으로 mount된다. `down` 후 `start`를 반복해 의존성 설치 레이어가 `CACHED`로 유지되고 readiness가 성공하는지 검증했으며, pytest 187개와 Ruff 검사를 통과했다. macOS 실환경 검증은 후속이다.
 
+2026-10-07 선택적 로컬 설정: `config/application.toml`을 Git 추적에서 제외하고 `config/application.toml.template`을 제공한다. 설정 파일이 없으면 앱과 Compose가 동일한 기본 설정으로 기동하며, 존재하는 잘못된 설정은 계속 거부한다. 호스트별 설정 변경이 pull과 충돌하지 않도록 설정 디렉터리를 읽기 전용으로 마운트한다. Windows 전체 pytest(선택 실행 Browser 2개 제외)와 Ruff를 통과했고 Docker에서 설정 파일 없는 기동·readiness 및 원래 설정 경로 복구를 확인했다.
+
 2026-09-18 사용자·조직 연결 검증: Windows Python 3.13 및 Docker Linux Python 3.12에서 각각 pytest 149개와 Ruff 검사를 통과했다. 임시 DB와 Headless Edge에서 조직 생성 → 사용자 등록 → 실제 목록 갱신을 확인하고 1440px 화면의 배치·가로 넘침·브라우저 오류를 점검했다. 관리 기능 테스트는 관리자 권한·CSRF·중복·비활성 상위 조직·검색/페이지 이동·감사 실패 롤백과 새 사용자 로그인/비밀번호 변경을 검증한다. 조직 트리가 있는 DB의 base downgrade·재적용 회귀 테스트를 추가했다. 신규 revision 없이 head `20260917_0002`를 유지한다.
 
 2026-09-17 인증 연결 검증: Windows Python 3.13 및 Docker Linux Python 3.12에서 각각 pytest 128개와 Ruff 검사를 통과했다. 임시 DB의 브라우저에서 최초 접근 → 로그인 → 초기 비밀번호 변경 화면 → 로그아웃을 확인했고, 변경·재로그인·원래 경로 복귀·전체 세션 폐기는 HTTP 통합 테스트로 검증했다. 인증용 migration은 추가하지 않았으며 당시 Alembic head는 `20260917_0002`였다. 당시 업무 화면은 예시 데이터로 남아 있었다. 테스트 도구의 deprecation 경고 2건과 macOS 실환경 검증은 후속이다.

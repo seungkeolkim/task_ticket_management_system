@@ -60,7 +60,7 @@ $env:APP_CONFIG_FILE = 'C:\deployment\config\application.toml'
 
 Docker Compose는 개발 중인 `app`, `migrations`, `alembic.ini`를 컨테이너의 대응 경로에 bind mount합니다. Dockerfile은 frontend build stage에서 고정된 Tiptap package로 정적 bundle을 만든 뒤 Python runtime에 결과물만 포함하며 Node.js와 npm은 runtime에 포함하지 않습니다. Python 소스와 migration은 복사하지 않고 bind mount하므로 해당 변경 때문에 이미 설치한 라이브러리를 다시 설치하지 않습니다. 런타임 라이브러리는 `pyproject.toml`이 변경될 때만 이미지의 의존성 레이어에서 다시 설치됩니다. 소스를 포함하는 단독 배포 이미지는 릴리즈 구성을 도입할 때 별도로 구성합니다.
 
-호스트의 `data` 디렉터리는 컨테이너의 `/app/data`에 마운트하고, `config/application.toml`은 `/app/config/application.toml`에 읽기 전용으로 별도 마운트합니다. `run_compose.sh start`는 `[server].port`를 읽어 애플리케이션 수신 포트, 호스트 공개 포트와 health check에 동일하게 적용합니다. 예를 들어 포트를 `9123`으로 바꾸고 다시 시작하면 `http://localhost:9123`으로 접속합니다.
+호스트의 `data` 디렉터리는 컨테이너의 `/app/data`에 마운트하고, 선택한 설정 파일의 디렉터리는 `/app/config`에 읽기 전용으로 별도 마운트합니다. `config/application.toml`이 없으면 앱과 Compose 모두 기본값을 사용합니다. `run_compose.sh start`는 환경 변수 또는 TOML의 `[server].port`를 읽어 애플리케이션 수신 포트, 호스트 공개 포트와 health check에 동일하게 적용합니다. 예를 들어 포트를 `9123`으로 바꾸고 다시 시작하면 `http://localhost:9123`으로 접속합니다.
 
 Compose는 TOML을 직접 해석할 수 없으므로 직접 `docker compose up`을 실행하면 필수 포트 변수가 없다는 오류와 함께 중단됩니다. 항상 실행 래퍼를 사용하면 설정 변경과 포트 매핑이 어긋나지 않습니다. 다른 호스트 설정 파일을 사용하려면 절대 경로로 `APP_CONFIG_FILE=/path/to/application.toml sh ./run_compose.sh start`를 실행합니다.
 
@@ -108,7 +108,9 @@ Remove-Item Env:PLAYWRIGHT_CHANNEL
 
 ## 설정
 
-기본 설정 파일은 `config/application.toml`입니다. 다른 파일을 사용하려면 `APP_CONFIG_FILE` 환경 변수를 지정합니다. 로컬 실행에서는 애플리케이션이 이 경로를 직접 읽고, Docker 실행에서는 래퍼가 같은 파일을 컨테이너 설정 경로에 마운트합니다.
+`config/application.toml.template`은 추적되는 설정 예시입니다. 호스트별 값을 지정하려면 이를 `config/application.toml`로 복사해 수정하세요. `config/application.toml`은 Git에서 제외되며, 파일이 없으면 모든 항목에 애플리케이션 기본값을 적용합니다. 다른 파일을 사용하려면 `APP_CONFIG_FILE` 환경 변수를 지정합니다. 로컬 실행에서는 애플리케이션이 해당 파일을 읽고, Docker 실행에서는 래퍼가 파일이 있는 디렉터리를 컨테이너에 읽기 전용으로 마운트합니다. 존재하는 설정 파일이나 환경 변수의 값이 잘못되면 기동에 실패합니다.
+
+기존 clone에서 `application.toml`을 수정했다면 이 변경을 처음 pull할 때는 아직 해당 파일이 추적 상태이므로 충돌할 수 있습니다. 먼저 파일을 저장소 밖에 백업하고, 추적 파일의 로컬 수정만 되돌린 뒤 pull하세요. 이후 백업을 `config/application.toml`에 복원하면 로컬 설정이 Git 추적에서 제외됩니다.
 
 설정 우선순위는 다음과 같습니다.
 

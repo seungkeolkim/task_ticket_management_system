@@ -77,6 +77,19 @@ def test_default_database_path_is_under_data_root(
     assert settings.log_file_path == str(tmp_path / "logs" / "application.log")
 
 
+def test_missing_config_uses_template_defaults(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """설정 파일 없이도 템플릿과 동일한 기본 설정을 제공한다."""
+    monkeypatch.delenv("APP_CONFIG_FILE", raising=False)
+    missing_settings = load_settings(str(tmp_path / "missing.toml"))
+    template_settings = load_settings("config/application.toml.template")
+
+    assert missing_settings == template_settings
+    assert missing_settings.attachments.allowed_extensions
+    assert missing_settings.attachments.allowed_media_types
+
+
 def test_logging_rotation_settings_can_be_overridden(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -117,10 +130,10 @@ def test_attachment_allowlist_requires_media_type_for_each_extension(tmp_path: P
     config_file = tmp_path / "application.toml"
     config_file.write_text(
         "[attachments]\n"
-        'allowed_extensions = ["pdf"]\n'
+        'allowed_extensions = ["custom"]\n'
         "blocked_extensions = []\n",
         encoding="utf-8",
     )
 
-    with pytest.raises(ValidationError, match="missing extensions: pdf"):
+    with pytest.raises(ValidationError, match="missing extensions: custom"):
         load_settings(str(config_file))
