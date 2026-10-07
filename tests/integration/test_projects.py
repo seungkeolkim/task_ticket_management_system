@@ -89,15 +89,17 @@ def test_create_register_and_my_projects_flow(client, people, db_session):
     assert created.json()["key"] == "DEV"
     assert client.get("/api/projects").json()["total"] == 0
     assert client.get("/api/admin/projects").json()["total"] == 1
-    assert 'href="/projects/DEV">프로젝트 열기 →</a>' in client.get(
-        "/admin/projects"
-    ).text
+    administrator_projects_page = client.get("/admin/projects").text
+    assert 'href="/projects/DEV/board">프로젝트 열기 →</a>' in administrator_projects_page
+    assert 'href="/projects/DEV/settings">프로젝트 설정</a>' in administrator_projects_page
+    assert client.get("/projects/DEV/board").status_code == 200
     login(client, "manager")
     mine = client.get("/api/projects").json()
     assert mine["total"] == 1 and mine["projects"][0]["role"] == "PROJECT_ADMIN"
     my_projects_page = client.get("/projects").text
     assert "실제 개발 프로젝트" in my_projects_page
-    assert 'href="/projects/DEV/tickets">프로젝트 열기 →</a>' in my_projects_page
+    assert 'href="/projects/DEV/board">프로젝트 열기 →</a>' in my_projects_page
+    assert client.get("/projects/DEV/board").status_code == 200
     assert (
         post(
             client,
@@ -609,8 +611,8 @@ def test_project_favorite_toggle_and_sidebar_navigation(client, people, db_sessi
     favorite_page = client.get("/projects")
     assert 'class="project-favorite-toggle is-favorite"' in favorite_page.text
     assert 'aria-pressed="true"' in favorite_page.text
-    assert 'class="nav-favorite-project" href="/projects/DEV/tickets"' in favorite_page.text
-    assert 'class="nav-favorite-project" href="/projects/DEV/tickets"' in client.get("/").text
+    assert 'class="nav-favorite-project" href="/projects/DEV/board"' in favorite_page.text
+    assert 'class="nav-favorite-project" href="/projects/DEV/board"' in client.get("/").text
 
     unfavorite_response = client.post(
         "/projects/DEV/favorite",

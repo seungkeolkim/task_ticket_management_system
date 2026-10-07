@@ -431,6 +431,8 @@
 
 2026-10-02 사용성 개선 브랜치 문서 정합성 점검: 현재 Alembic head `20260929_0006`을 인증·관리·MVP 데이터 문서에 동기화하고 migration 목록에 프로젝트 즐겨찾기 revision을 보완했다. Tiptap 본문 계약에 link `title` 호환 입력과 canonical 제거 규칙을 명시하고, 프로젝트 전문 문서에 일반 사용자·관리자별 진입 경로와 접이식 navigation을 반영했으며 README에 주요 데이터 계약 문서를 연결했다. 실제 공통 app shell과 design token 적용 상태에 맞춰 10단계 checklist도 완료 처리했다. 과거 roadmap의 당시 test 수와 migration head는 시점별 검증 이력으로 유지했다. decision ID와 로컬 Markdown link 검사를 통과했으며 Windows Python 환경 전체 pytest 339개와 Ruff 및 diff 검사를 다시 통과했다.
 
+2026-10-07 프로젝트 기본 진입점 변경: 내 프로젝트와 전체 프로젝트 관리 카드의 `프로젝트 열기`, 즐겨찾기 프로젝트를 해당 프로젝트의 칸반보드에 연결했다. 전체 프로젝트 관리 카드에는 별도의 프로젝트 설정 링크를 둔다. 프로젝트 통합 테스트와 Ruff·diff 검사를 통과했다.
+
 ## 11단계 — 운영 준비 및 최종 검증
 
 - [x] 공통 cron scheduler의 DB 일정·실행 이력 구조와 기동 시 복원 구현

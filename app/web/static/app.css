@@ -315,6 +315,7 @@ kbd { padding: 1px 6px; border: 1px solid var(--border-strong); border-radius: 5
 .project-live-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 20px; }
 .project-live-grid .project-card { min-width: 0; }
 .project-live-grid .project-card-copy { overflow-wrap: anywhere; }
+.project-card-links { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 12px; }
 .project-card-title-row { display: flex; align-items: flex-start; gap: 10px; }
 .project-card-title-row h2 { min-width: 0; flex: 1; }
 .project-favorite-form { flex: 0 0 auto; margin: -5px -5px 0 0; }

@@ -17,7 +17,6 @@
   <div class="panel-header"><div><h2>프로젝트 목록</h2><p>총 {{ result.total }}개 · 이름순</p></div></div>
   <div class="project-card-grid project-live-grid">
   {% for item in result.projects %}
-    {% set project_open_url = '/projects/' ~ item.key if admin_page else '/projects/' ~ item.key ~ '/tickets' %}
     <article class="project-card">
       <div class="project-card-head"><span class="ticket-key">{{ item.key }}</span><span class="role-pill">{{ '관리자' if item.role == 'PROJECT_ADMIN' else ('사용자' if item.role == 'PROJECT_USER' else ('게스트' if item.role == 'PROJECT_GUEST' else '시스템 관리자 접근')) }}</span></div>
       <div class="project-card-copy">
@@ -34,7 +33,7 @@
         </div>
         <p>{{ item.description or '등록된 설명이 없습니다.' }}</p>
       </div>
-      <div class="project-card-foot"><span>{{ '활성' if item.is_active else '비활성' }}</span><a href="{{ project_open_url }}">프로젝트 열기 →</a></div>
+      <div class="project-card-foot"><span>{{ '활성' if item.is_active else '비활성' }}</span><span class="project-card-links">{% if admin_page %}<a href="/projects/{{ item.key }}/settings">프로젝트 설정</a>{% endif %}<a href="/projects/{{ item.key }}/board">프로젝트 열기 →</a></span></div>
     </article>
   {% else %}<p class="empty-state">표시할 프로젝트가 없습니다.{% if not admin_page %} 프로젝트 관리자에게 참여자 등록을 요청하세요.{% endif %}</p>{% endfor %}
   </div>
