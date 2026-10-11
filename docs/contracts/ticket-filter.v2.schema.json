@@ -1,0 +1,171 @@
+{
+  "$defs": {
+    "FilterCondition": {
+      "additionalProperties": false,
+      "description": "필드별 허용 연산자와 고정값을 검증하는 개별 조건이다.",
+      "properties": {
+        "kind": {
+          "const": "condition",
+          "default": "condition",
+          "title": "Kind",
+          "type": "string"
+        },
+        "field": {
+          "enum": [
+            "search",
+            "type",
+            "status",
+            "priority",
+            "epic",
+            "parent",
+            "creator",
+            "assignee",
+            "created_date",
+            "updated_date",
+            "due_date"
+          ],
+          "title": "Field",
+          "type": "string"
+        },
+        "operator": {
+          "enum": [
+            "in",
+            "not_in",
+            "contains",
+            "not_contains",
+            "is_empty",
+            "is_not_empty",
+            "on",
+            "before",
+            "after",
+            "between"
+          ],
+          "title": "Operator",
+          "type": "string"
+        },
+        "values": {
+          "items": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ]
+          },
+          "maxItems": 30,
+          "title": "Values",
+          "type": "array"
+        },
+        "negated": {
+          "default": false,
+          "title": "Negated",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "field",
+        "operator"
+      ],
+      "title": "FilterCondition",
+      "type": "object"
+    },
+    "FilterGroup": {
+      "additionalProperties": false,
+      "description": "조건 또는 그룹의 결과를 AND/OR로 묶고 선택적으로 반전한다.",
+      "properties": {
+        "kind": {
+          "const": "group",
+          "default": "group",
+          "title": "Kind",
+          "type": "string"
+        },
+        "operator": {
+          "default": "AND",
+          "enum": [
+            "AND",
+            "OR"
+          ],
+          "title": "Operator",
+          "type": "string"
+        },
+        "children": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "condition": "#/$defs/FilterCondition",
+                "group": "#/$defs/FilterGroup"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/FilterCondition"
+              },
+              {
+                "$ref": "#/$defs/FilterGroup"
+              }
+            ]
+          },
+          "maxItems": 60,
+          "title": "Children",
+          "type": "array"
+        },
+        "negated": {
+          "default": false,
+          "title": "Negated",
+          "type": "boolean"
+        }
+      },
+      "title": "FilterGroup",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "목록·칸반·저장·URL에서 동일하게 사용하는 v2 조건 및 조회 설정이다.",
+  "properties": {
+    "schema_version": {
+      "const": 2,
+      "default": 2,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "expression": {
+      "$ref": "#/$defs/FilterGroup"
+    },
+    "sort_by": {
+      "default": "updated_at",
+      "enum": [
+        "created_at",
+        "updated_at",
+        "due_date",
+        "priority",
+        "number"
+      ],
+      "title": "Sort By",
+      "type": "string"
+    },
+    "sort_direction": {
+      "default": "desc",
+      "enum": [
+        "asc",
+        "desc"
+      ],
+      "title": "Sort Direction",
+      "type": "string"
+    },
+    "page_size": {
+      "default": 20,
+      "enum": [
+        10,
+        20,
+        50
+      ],
+      "title": "Page Size",
+      "type": "integer"
+    }
+  },
+  "title": "TicketFilter",
+  "type": "object"
+}

@@ -103,6 +103,18 @@ def example_contracts() -> dict:
         generation_defaults={"temperature": 0},
     )
     return {
+        "ticket-filter.v2.example.ko.json": TicketFilter(
+            expression={
+                "children": [
+                    {
+                        "kind": "condition",
+                        "field": "status",
+                        "operator": "not_in",
+                        "values": ["DONE", "CANCELLED"],
+                    }
+                ],
+            }
+        ).model_dump(mode="json"),
         "weekly-report-input.v1.json": report_input.model_dump(mode="json"),
         "weekly-report-output.v1.json": report_output.model_dump(mode="json"),
         "weekly-report-skill.v1.json": skill.model_dump(mode="json"),

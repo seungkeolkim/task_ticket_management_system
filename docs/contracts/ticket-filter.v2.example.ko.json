@@ -1,0 +1,23 @@
+{
+  "schema_version": 2,
+  "expression": {
+    "kind": "group",
+    "operator": "AND",
+    "children": [
+      {
+        "kind": "condition",
+        "field": "status",
+        "operator": "not_in",
+        "values": [
+          "DONE",
+          "CANCELLED"
+        ],
+        "negated": false
+      }
+    ],
+    "negated": false
+  },
+  "sort_by": "updated_at",
+  "sort_direction": "desc",
+  "page_size": 20
+}

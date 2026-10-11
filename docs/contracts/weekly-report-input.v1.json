@@ -10,22 +10,13 @@
     1
   ],
   "selection": {
-    "schema_version": 1,
-    "query": "",
-    "types": [],
-    "statuses": [],
-    "priorities": [],
-    "epic_id": null,
-    "parent_id": null,
-    "creator_ids": [],
-    "assignee_ids": [],
-    "unassigned": false,
-    "created_from": null,
-    "created_before": null,
-    "updated_from": null,
-    "updated_before": null,
-    "due_from": null,
-    "due_through": null,
+    "schema_version": 2,
+    "expression": {
+      "kind": "group",
+      "operator": "AND",
+      "children": [],
+      "negated": false
+    },
     "sort_by": "updated_at",
     "sort_direction": "desc",
     "page_size": 20

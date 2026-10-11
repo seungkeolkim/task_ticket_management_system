@@ -1,0 +1,22 @@
+.ticket-filter-editor { margin:16px 0 10px; padding:16px; border:1px solid var(--border); border-radius:10px; background:var(--surface); font-size:14px; }
+.filter-group { min-width:0; }
+.filter-group.nested { margin:12px 0; padding:12px; border:1px solid var(--border); border-left:3px solid var(--primary); border-radius:8px; }
+.filter-group-header, .filter-group-actions, .ticket-filter-footer, .filter-condition { display:flex; align-items:center; flex-wrap:wrap; gap:10px; }
+.filter-group-header { margin-bottom:10px; }
+.filter-group-actions { margin:10px 0; }
+.filter-condition { padding:8px 0; border-bottom:1px solid var(--border); }
+.ticket-filter-editor select, .ticket-filter-editor input:not([type=checkbox]) { padding:7px 10px; min-height:36px; border:1px solid var(--border); border-radius:6px; background:var(--surface); color:var(--text); font:inherit; max-width:100%; }
+.ticket-filter-editor label { display:flex; align-items:center; gap:6px; font-size:13px; }
+.ticket-filter-editor input[type=checkbox] { width:16px; height:16px; min-height:0; }
+.filter-value-picker { width:300px; max-width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; }
+.filter-value-picker summary { cursor:pointer; overflow-wrap:anywhere; }
+.filter-value-picker input[type=search] { width:100%; margin:8px 0; }
+.filter-value-options { max-height:180px; overflow:auto; }
+.filter-value-options label { padding:6px 0; overflow-wrap:anywhere; }
+.filter-value-options label[hidden] { display:none; }
+.filter-condition-values { display:flex; align-items:center; flex-wrap:wrap; gap:8px; min-width:0; }
+.ticket-filter-footer { margin-top:14px; }
+[data-filter-dirty] { font-size:13px; color:var(--text-soft); }
+.ticket-filter-summary { margin-top:12px; color:var(--text-soft); }
+.ticket-filter-summary p { white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.6; }
+.ticket-filter-editor [hidden] { display:none; }

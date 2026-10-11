@@ -377,15 +377,15 @@
 
 ## 필터 확장 — 복합 조건·생성기 UI와 동적 기준값
 
-2026-10-11 설계를 확정했다. [상세 설계](docs/ticket_filter_design.md), 요구사항 7.6, UI-034·UI-035·DB-027을 따른다. 기존 9단계의 완료 이력과 별개인 새 작업이며 아래 두 단계는 모두 미착수다. 현재 커밋은 문서만 변경하며 코드·v1 schema artifact·DB·기존 저장 필터를 변경하지 않는다.
+2026-10-11 1단계 구현과 검증을 완료했다. [상세 설계](docs/ticket_filter_design.md), 요구사항 7.6, UI-034~UI-037·DB-027·DB-028을 따른다. 기존 9단계의 완료 이력과 별개인 새 작업이며 2단계는 미착수다. v1 schema artifact와 호환 입력은 제거했으며 데이터 정리는 새 Alembic migration을 임시 DB에서 검증했다. 실제 사용 DB에는 아직 적용하지 않았다.
 
-- [ ] 1단계 — 복합 조합의 필터와 생성기 UI 개선
-  - [ ] typed 조건 트리와 중첩 AND/OR, 조건·그룹 NOT 및 NULL·빈 값 의미 구현
-  - [ ] Dropdown 필드 추가와 필드·연산자별 입력, 복수 사용자·미지정 조합 및 조건 요약 구현
-  - [ ] 개인·공유 공통 저장·불러오기·편집과 공개 범위·미적용 편집 상태 표시
-  - [ ] API·URL·목록/count·칸반·페이지 이동·화면 전환·drag 재조회에 동일 조건 보존
-  - [ ] TicketFilter v1 schema·reader·converter·호환 입력 제거와 v1 저장 필터 정리 절차 검증
-  - [ ] 권한·참조·CSRF·stale·감사 rollback 및 조건 트리·실제 Browser 회귀 검증
+- [x] 1단계 — 복합 조합의 필터와 생성기 UI 개선
+  - [x] typed 조건 트리와 중첩 AND/OR, 조건·그룹 NOT 및 NULL·빈 값 의미 구현
+  - [x] Dropdown 필드 추가와 필드·연산자별 입력, 복수 사용자·미지정 조합 및 조건 요약 구현
+  - [x] 개인·공유 공통 저장·불러오기·편집과 공개 범위·미적용 편집 상태 표시
+  - [x] API·URL·목록/count·칸반·페이지 이동·화면 전환·drag 재조회에 동일 조건 보존
+  - [x] TicketFilter v1 schema·reader·converter·호환 입력 제거와 v1 저장 필터 정리 절차 검증
+  - [x] 권한·참조·CSRF·stale·감사 rollback 및 조건 트리·실제 Browser 회귀 검증
 - [ ] 2단계 — 동적 기준값 (1단계 완료 후 착수)
   - [ ] 날짜의 오늘·상대 기간·이번/지난 working week와 고정값 선택 구현
   - [ ] 담당자·생성자의 현재 사용자와 고정 사용자 선택 구현
@@ -393,6 +393,8 @@
   - [ ] Asia/Seoul·주/월/연도 경계·공휴일 포함 월~금·사용자별 결과·규칙 재적용 및 Browser 검증
 
 1단계 완료 기준: 새 조건 트리를 저장·복원·조회하고 v1 호환 없이 필드 추가형 편집기로 복합 조건을 만들 수 있으며 기존 권한·업무 데이터와 목록·칸반 동작이 보존된다.
+
+2026-10-11 검증: Windows 전체 pytest 487개가 실제 Edge Browser 시나리오를 포함해 통과했다. 임시 Docker 환경의 Linux 전체 pytest는 461개 통과·14개 skip이며 Ruff도 통과했다. JavaScript 문법, 문서 링크·결정 ID, diff 검사와 데이터가 있는 migration upgrade/downgrade 검증을 완료했다. Browser 검증은 필드 추가·타입 전환·중첩·NOT·복수 사용자·요약·개인/공유 저장 복원·미적용 편집·stale·목록/칸반/drag 조건 보존을 포함한다. 기존 dependency deprecation 경고는 Windows 2개·Linux 1개이며 macOS와 PostgreSQL은 검증하지 않았다.
 
 2단계 완료 기준: 동적 날짜·현재 사용자 규칙을 저장하고 적용 시점의 동일 기준으로 재해석하며 공용 필터를 각 사용자의 내 이슈 조회에 사용할 수 있다. 변경 이력 기반 주간보고·LLM·Label·Ad-hoc 필터는 제외한다.
 

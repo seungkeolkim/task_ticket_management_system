@@ -3,6 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
 
 import pytest
+from filter_helpers import filter_condition, filter_definition, filter_url
 from sqlalchemy import event, func, select
 
 from app.core.config import get_settings
@@ -378,7 +379,9 @@ def test_create_list_detail_and_history(client, ticket_people, db_session):
     assert ticket["assignee"]["login_id"] == "manager"
     assert ticket["status"] == "TODO" and ticket["priority"] == "CRITICAL"
 
-    page = client.get("/api/projects/DEV/tickets?q=실제").json()
+    page = client.get(
+        filter_url("/api/projects/DEV/tickets", filter_condition("search", "contains", "실제"))
+    ).json()
     assert page["total"] == 1 and page["tickets"][0]["key"] == "DEV-1"
     detail = client.get("/api/projects/DEV/tickets/DEV-1").json()
     assert detail == ticket | {
@@ -1520,13 +1523,31 @@ def test_search_and_stable_pagination(client, ticket_people, db_session):
         )
     project.next_ticket_number = 24
     db_session.commit()
-    first = client.get("/api/projects/DEV/tickets?q=검색&page_size=10").json()
-    second = client.get("/api/projects/DEV/tickets?q=검색&page_size=10&page=2").json()
+    first = client.get(
+        filter_url(
+            "/api/projects/DEV/tickets",
+            filter_condition("search", "contains", "검색"),
+            page_size=10,
+        )
+    ).json()
+    second = client.get(
+        filter_url(
+            "/api/projects/DEV/tickets",
+            filter_condition("search", "contains", "검색"),
+            page_size=10,
+            page=2,
+        )
+    ).json()
     assert first["total"] == second["total"] == 23
     assert len(first["tickets"]) == len(second["tickets"]) == 10
     assert not ({row["id"] for row in first["tickets"]} & {row["id"] for row in second["tickets"]})
-    assert client.get("/api/projects/DEV/tickets?q=%25").json()["total"] == 0
-    assert client.get("/api/projects/DEV/tickets?page_size=100").status_code == 400
+    assert (
+        client.get(
+            filter_url("/api/projects/DEV/tickets", filter_condition("search", "contains", "%"))
+        ).json()["total"]
+        == 0
+    )
+    assert client.get(filter_url("/api/projects/DEV/tickets", page_size=100)).status_code == 400
     assert client.get("/api/projects/DEV/tickets?page=0").status_code == 400
 
 
@@ -1590,37 +1611,59 @@ def test_project_ticket_list_filters_hierarchy_users_dates_and_sorting(
         assert response.status_code == 200
         return [ticket["key"] for ticket in response.json()["tickets"]]
 
-    assert ticket_keys("/api/projects/DEV/tickets?type=TASK&type=SUBTASK") == [
+    assert ticket_keys(
+        filter_url("/api/projects/DEV/tickets", filter_condition("type", "in", "TASK", "SUBTASK"))
+    ) == [
         "DEV-3",
         "DEV-2",
     ]
-    assert ticket_keys("/api/projects/DEV/tickets?status=IN_PROGRESS&priority=BLOCKER") == [
-        "DEV-2"
-    ]
-    assert ticket_keys(f"/api/projects/DEV/tickets?epic_id={epic.id}") == [
+    assert ticket_keys(
+        filter_url(
+            "/api/projects/DEV/tickets",
+            filter_condition("status", "in", "IN_PROGRESS"),
+            filter_condition("priority", "in", "BLOCKER"),
+        )
+    ) == ["DEV-2"]
+    assert ticket_keys(
+        filter_url("/api/projects/DEV/tickets", filter_condition("epic", "in", epic.id))
+    ) == [
         "DEV-3",
         "DEV-2",
         "DEV-1",
     ]
-    assert ticket_keys(f"/api/projects/DEV/tickets?parent_id={task.id}") == ["DEV-3"]
     assert ticket_keys(
-        f"/api/projects/DEV/tickets?creator_id={people['manager'].id}"
+        filter_url("/api/projects/DEV/tickets", filter_condition("parent", "in", task.id))
+    ) == ["DEV-3"]
+    assert ticket_keys(
+        filter_url(
+            "/api/projects/DEV/tickets", filter_condition("creator", "in", people["manager"].id)
+        )
     ) == ["DEV-1"]
     assert ticket_keys(
-        f"/api/projects/DEV/tickets?assignee_id={people['manager'].id}"
+        filter_url(
+            "/api/projects/DEV/tickets", filter_condition("assignee", "in", people["manager"].id)
+        )
     ) == ["DEV-2"]
-    assert ticket_keys("/api/projects/DEV/tickets?unassigned=true") == ["DEV-3", "DEV-1"]
     assert ticket_keys(
-        "/api/projects/DEV/tickets?created_from=2026-09-10&created_through=2026-09-15"
+        filter_url("/api/projects/DEV/tickets", filter_condition("assignee", "is_empty"))
+    ) == ["DEV-3", "DEV-1"]
+    assert ticket_keys(
+        filter_url(
+            "/api/projects/DEV/tickets",
+            filter_condition("created_date", "between", "2026-09-10", "2026-09-15"),
+        )
     ) == ["DEV-3", "DEV-2"]
     assert ticket_keys(
-        "/api/projects/DEV/tickets?due_from=2026-10-02&due_through=2026-10-12"
+        filter_url(
+            "/api/projects/DEV/tickets",
+            filter_condition("due_date", "between", "2026-10-02", "2026-10-12"),
+        )
     ) == ["DEV-2"]
     assert ticket_keys(
-        "/api/projects/DEV/tickets?sort_by=priority&sort_direction=desc"
+        filter_url("/api/projects/DEV/tickets", sort_by="priority", sort_direction="desc")
     ) == ["DEV-2", "DEV-3", "DEV-1"]
     assert ticket_keys(
-        "/api/projects/DEV/tickets?sort_by=due_date&sort_direction=asc"
+        filter_url("/api/projects/DEV/tickets", sort_by="due_date", sort_direction="asc")
     ) == ["DEV-1", "DEV-2", "DEV-3"]
     filter_options = client.get("/api/projects/DEV/tickets/filter-options").json()
     assert {item["key"] for item in filter_options["hierarchy"]} == {"DEV-1", "DEV-2"}
@@ -1641,27 +1684,32 @@ def test_project_ticket_filter_page_preserves_query_state_and_validates_ranges(
         assignee_id=people["manager"].id,
         priority="CRITICAL",
     ).json()
-    query = (
-        "type=TASK&status=TODO&priority=CRITICAL"
-        f"&assignee_id={people['manager'].id}"
-        "&created_from=2026-01-01&created_through=2026-12-31"
-        "&sort_by=number&sort_direction=asc&page_size=10"
+    applied_definition = filter_definition(
+        filter_condition("type", "in", "TASK"),
+        filter_condition("status", "in", "TODO"),
+        filter_condition("priority", "in", "CRITICAL"),
+        filter_condition("assignee", "in", people["manager"].id),
+        filter_condition("created_date", "between", "2026-01-01", "2026-12-31"),
+        sort_by="number",
+        sort_direction="asc",
+        page_size=10,
     )
-
-    page = client.get(f"/projects/DEV/tickets?{query}")
-
+    page = client.get("/projects/DEV/tickets", params={"filter": json.dumps(applied_definition)})
     assert page.status_code == 200
-    assert 'name="type" value="TASK" checked' in page.text
-    assert 'name="status" value="TODO" checked' in page.text
-    assert 'name="priority" value="CRITICAL" checked' in page.text
-    assert f"assignee_id={people['manager'].id}" in page.text
-    assert "created_from=2026-01-01" in page.text
-    assert "sort_by=number" in page.text
+    assert "data-ticket-filter-editor" in page.text
+    assert "data-filter-definition" in page.text
+    assert "filter=" in page.text
     assert f"selected={ticket['key']}" in page.text
-    assert client.get(
-        "/api/projects/DEV/tickets?created_from=2026-10-02&created_through=2026-10-01"
-    ).status_code == 400
-    assert client.get("/projects/DEV/tickets?epic_id=&due_from=").status_code == 200
+    assert (
+        client.get(
+            filter_url(
+                "/api/projects/DEV/tickets",
+                filter_condition("created_date", "between", "2026-10-02", "2026-10-01"),
+            )
+        ).status_code
+        == 400
+    )
+    assert client.get("/projects/DEV/tickets").status_code == 200
 
 
 def test_concurrent_number_allocation_is_monotonic(client, ticket_people, db_session_factory):
@@ -2698,41 +2746,50 @@ def test_board_filters_preserve_ancestor_context_and_match_list(client, ticket_p
     epic = create_ticket(client, type="EPIC", title="분류용 Epic").json()
     task = create_ticket(client, title="상위 업무", parent_key=epic["key"]).json()
     subtask = create_ticket(
-        client, type="SUBTASK", parent_key=task["key"], title="선택할 하위 업무",
-        priority="CRITICAL", assignee_id=people["manager"].id, due_date="2026-10-10",
+        client,
+        type="SUBTASK",
+        parent_key=task["key"],
+        title="선택할 하위 업무",
+        priority="CRITICAL",
+        assignee_id=people["manager"].id,
+        due_date="2026-10-10",
     ).json()
     create_ticket(client, title="관계없는 업무")
     stored_subtask = db_session.get(Ticket, subtask["id"])
     stored_subtask.created_at = datetime(2026, 10, 3, 15, 0, tzinfo=UTC)
     stored_subtask.updated_at = datetime(2026, 10, 4, 14, 59, 59, tzinfo=UTC)
     db_session.commit()
-    queries = [
-        [("type", "SUBTASK")],
-        [("q", "선택할 하위")],
-        [("priority", "CRITICAL"), ("status", "TODO")],
-        [("epic_id", epic["id"])],
-        [("parent_id", task["id"])],
-        [("creator_id", people["member"].id)],
-        [("assignee_id", people["manager"].id)],
-        [("unassigned", "true")],
-        [("created_from", "2026-10-04"), ("created_through", "2026-10-04")],
-        [("updated_from", "2026-10-04"), ("updated_through", "2026-10-04")],
-        [("due_from", "2026-10-10"), ("due_through", "2026-10-10")],
-        [("type", "TASK"), ("type", "SUBTASK"), ("status", "TODO"), ("status", "DONE")],
-        [("type", "EPIC")],
-        [("q", "%_")],
+    condition_sets = [
+        [filter_condition("type", "in", "SUBTASK")],
+        [filter_condition("search", "contains", "선택할 하위")],
+        [filter_condition("priority", "in", "CRITICAL"), filter_condition("status", "in", "TODO")],
+        [filter_condition("epic", "in", epic["id"])],
+        [filter_condition("parent", "in", task["id"])],
+        [filter_condition("creator", "in", people["member"].id)],
+        [filter_condition("assignee", "in", people["manager"].id)],
+        [filter_condition("assignee", "is_empty")],
+        [filter_condition("created_date", "on", "2026-10-04")],
+        [filter_condition("updated_date", "on", "2026-10-04")],
+        [filter_condition("due_date", "on", "2026-10-10")],
+        [
+            filter_condition("type", "in", "TASK", "SUBTASK"),
+            filter_condition("status", "in", "TODO", "DONE"),
+        ],
+        [filter_condition("type", "in", "EPIC")],
+        [filter_condition("search", "contains", "%_")],
     ]
-    for query_parameters in queries:
-        board_response = client.get("/api/projects/DEV/tickets/board", params=query_parameters)
-        list_response = client.get("/api/projects/DEV/tickets", params=query_parameters)
+    for conditions in condition_sets:
+        board_response = client.get(filter_url("/api/projects/DEV/tickets/board", *conditions))
+        list_response = client.get(filter_url("/api/projects/DEV/tickets", *conditions))
         assert board_response.status_code == list_response.status_code == 200
         expected_keys = {
-            ticket["key"] for ticket in list_response.json()["tickets"]
-            if ticket["type"] != "EPIC"
+            ticket["key"] for ticket in list_response.json()["tickets"] if ticket["type"] != "EPIC"
         }
         assert {card["key"] for card in board_filter_cards(board_response.json())} == expected_keys
 
-    payload = client.get("/api/projects/DEV/tickets/board?type=SUBTASK").json()
+    payload = client.get(
+        filter_url("/api/projects/DEV/tickets/board", filter_condition("type", "in", "SUBTASK"))
+    ).json()
     assert len(payload["groups"]) == 1
     selected_group = payload["groups"][0]
     assert selected_group["key"] == epic["key"]
@@ -2742,75 +2799,149 @@ def test_board_filters_preserve_ancestor_context_and_match_list(client, ticket_p
     assert todo_column["detached_groups"][0]["parent_key"] == task["key"]
     assert board_filter_cards(payload)[0]["can_transition"] is True
 
-    response = client.get("/projects/DEV/board?type=SUBTASK&status=TODO&priority=CRITICAL")
+    response = client.get(
+        filter_url(
+            "/projects/DEV/board",
+            filter_condition("type", "in", "SUBTASK"),
+            filter_condition("status", "in", "TODO"),
+            filter_condition("priority", "in", "CRITICAL"),
+        )
+    )
     assert response.status_code == 200
     assert f'data-ticket-key="{subtask["key"]}"' in response.text
     assert f'data-ticket-key="{task["key"]}"' not in response.text
-    assert 'name="type" value="SUBTASK" checked' in response.text
-    assert 'type=SUBTASK&amp;status=TODO&amp;priority=CRITICAL' in response.text
-    empty_response = client.get("/projects/DEV/board?q=absent-query")
+    assert "data-filter-definition" in response.text
+    assert "filter=" in response.text
+    empty_response = client.get(
+        filter_url("/projects/DEV/board", filter_condition("search", "contains", "absent-query"))
+    )
     assert "조건에 맞는 카드가 없습니다" in empty_response.text
 
 
 def test_board_filter_keeps_hidden_dependencies_and_reapplies_after_transition(
-    client, ticket_people, db_session,
+    client,
+    ticket_people,
+    db_session,
 ):
     """화면 밖 의존 대상도 완료를 차단하고 전이 후 같은 필터로 카드를 재선택한다."""
     _, project = ticket_people
     dependency = create_ticket(client, title="숨겨진 선행 업무").json()
     blocked = create_ticket(client, title="필터 대상").json()
-    db_session.add(TicketRelation(
-        project_id=project.id, source_ticket_id=blocked["id"],
-        target_ticket_id=dependency["id"], relation_type="DEPENDS_ON", dependency_kind="FS",
-        created_by_id=ticket_people[0]["member"].id,
-    ))
+    db_session.add(
+        TicketRelation(
+            project_id=project.id,
+            source_ticket_id=blocked["id"],
+            target_ticket_id=dependency["id"],
+            relation_type="DEPENDS_ON",
+            dependency_kind="FS",
+            created_by_id=ticket_people[0]["member"].id,
+        )
+    )
     db_session.commit()
-    board_url = "/api/projects/DEV/tickets/board?q=필터 대상&status=TODO"
+    board_url = filter_url(
+        "/api/projects/DEV/tickets/board",
+        filter_condition("search", "contains", "필터 대상"),
+        filter_condition("status", "in", "TODO"),
+    )
     cards = board_filter_cards(client.get(board_url).json())
     assert len(cards) == 1 and cards[0]["completion_blocked"] is True
-    response = post(client, f'/api/projects/DEV/tickets/{blocked["key"]}/transitions', {
-        "target_status": "IN_PROGRESS", "expected_version": blocked["version"],
-    })
+    response = post(
+        client,
+        f"/api/projects/DEV/tickets/{blocked['key']}/transitions",
+        {
+            "target_status": "IN_PROGRESS",
+            "expected_version": blocked["version"],
+        },
+    )
     assert response.status_code == 200
     assert board_filter_cards(client.get(board_url).json()) == []
-    assert len(board_filter_cards(client.get(
-        "/api/projects/DEV/tickets/board?q=필터 대상&status=IN_PROGRESS"
-    ).json())) == 1
+    assert (
+        len(
+            board_filter_cards(
+                client.get(
+                    filter_url(
+                        "/api/projects/DEV/tickets/board",
+                        filter_condition("search", "contains", "필터 대상"),
+                        filter_condition("status", "in", "IN_PROGRESS"),
+                    )
+                ).json()
+            )
+        )
+        == 1
+    )
 
 
 def test_board_filter_does_not_paginate_and_keeps_project_isolation(
-    client, ticket_people, db_session,
+    client,
+    ticket_people,
+    db_session,
 ):
     """목록 표시 개수가 카드를 자르지 않고 다른 프로젝트 조건은 데이터를 노출하지 않는다."""
     people, project = ticket_people
     for ticket_number in range(1, 26):
-        db_session.add(Ticket(
-            project_id=project.id, number=ticket_number, key=f"DEV-{ticket_number}",
-            type="TASK", title="모든 카드", creator_id=people["member"].id,
-        ))
+        db_session.add(
+            Ticket(
+                project_id=project.id,
+                number=ticket_number,
+                key=f"DEV-{ticket_number}",
+                type="TASK",
+                title="모든 카드",
+                creator_id=people["member"].id,
+            )
+        )
     hidden_project = Project(
         key="SECRET", name="비공개 프로젝트", created_by_id=people["sysadmin"].id
     )
     db_session.add(hidden_project)
     db_session.flush()
     hidden_epic = Ticket(
-        project_id=hidden_project.id, number=1, key="SECRET-1", type="EPIC",
-        title="비공개 Epic", creator_id=people["sysadmin"].id,
+        project_id=hidden_project.id,
+        number=1,
+        key="SECRET-1",
+        type="EPIC",
+        title="비공개 Epic",
+        creator_id=people["sysadmin"].id,
     )
     db_session.add(hidden_epic)
     db_session.commit()
-    payload = client.get("/api/projects/DEV/tickets/board?type=TASK&page_size=10").json()
+    payload = client.get(
+        filter_url(
+            "/api/projects/DEV/tickets/board", filter_condition("type", "in", "TASK"), page_size=10
+        )
+    ).json()
     assert len(board_filter_cards(payload)) == 25
     assert "SECRET" not in str(payload)
-    assert board_filter_cards(client.get(
-        f"/api/projects/DEV/tickets/board?epic_id={hidden_epic.id}"
-    ).json()) == []
-    assert client.get("/api/projects/SECRET/tickets/board?type=TASK").status_code == 404
-    assert client.get("/projects/SECRET/board?type=TASK").status_code == 404
+    assert (
+        client.get(
+            filter_url(
+                "/api/projects/DEV/tickets/board", filter_condition("epic", "in", hidden_epic.id)
+            )
+        ).status_code
+        == 400
+    )
+    assert (
+        client.get(
+            filter_url("/api/projects/SECRET/tickets/board", filter_condition("type", "in", "TASK"))
+        ).status_code
+        == 404
+    )
+    assert (
+        client.get(
+            filter_url("/projects/SECRET/board", filter_condition("type", "in", "TASK"))
+        ).status_code
+        == 404
+    )
     login(client, "guest")
-    assert all(not card["can_transition"] for card in board_filter_cards(client.get(
-        "/api/projects/DEV/tickets/board?type=TASK"
-    ).json()))
+    assert all(
+        not card["can_transition"]
+        for card in board_filter_cards(
+            client.get(
+                filter_url(
+                    "/api/projects/DEV/tickets/board", filter_condition("type", "in", "TASK")
+                )
+            ).json()
+        )
+    )
 
 
 @pytest.mark.parametrize("query", [

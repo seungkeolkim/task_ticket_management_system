@@ -30,6 +30,67 @@ MVP_TABLES = {
 }
 
 
+def test_compound_filter_migration_removes_only_v1_and_preserves_business_data(
+    alembic_config, database_url
+):
+    """개인·공유 v1만 정리하고 v2와 다른 업무 row를 유지하며 downgrade를 검증한다."""
+    command.upgrade(alembic_config, "20261005_0009")
+    engine = create_database_engine(database_url)
+    try:
+        with engine.begin() as connection:
+            connection.execute(text("INSERT INTO organizations (key, name) VALUES ('org', '조직')"))
+            connection.execute(
+                text(
+                    "INSERT INTO users (login_id, display_name, password_hash, organization_id) "
+                    "VALUES ('member', '사용자', 'hash', 1)"
+                )
+            )
+            connection.execute(
+                text("INSERT INTO projects (key, name, created_by_id) VALUES ('DEV', '개발', 1)")
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO tickets (project_id, number, key, title, creator_id) "
+                    "VALUES (1, 1, 'DEV-1', '기존 업무', 1)"
+                )
+            )
+            for filter_name, visibility, schema_version in [
+                ("개인 v1", "PERSONAL", 1),
+                ("공유 v1", "PROJECT", 1),
+                ("v2", "PERSONAL", 2),
+            ]:
+                connection.execute(
+                    text(
+                        "INSERT INTO saved_filters "
+                        "(project_id, owner_id, name, visibility, schema_version, definition) "
+                        "VALUES (1, 1, :name, :visibility, :schema_version, '{}')"
+                    ),
+                    {
+                        "name": filter_name,
+                        "visibility": visibility,
+                        "schema_version": schema_version,
+                    },
+                )
+            original_tickets = connection.execute(text("SELECT * FROM tickets")).all()
+        command.upgrade(alembic_config, "head")
+        command.check(alembic_config)
+        with engine.connect() as connection:
+            assert connection.execute(text("SELECT name FROM saved_filters")).scalars().all() == [
+                "v2"
+            ]
+            assert connection.execute(text("SELECT * FROM tickets")).all() == original_tickets
+            assert connection.execute(text("SELECT COUNT(*) FROM users")).scalar() == 1
+            assert connection.exec_driver_sql("PRAGMA foreign_key_check").all() == []
+        command.downgrade(alembic_config, "20261005_0009")
+        with engine.connect() as connection:
+            assert connection.execute(text("SELECT COUNT(*) FROM saved_filters")).scalar() == 0
+            assert connection.execute(text("SELECT * FROM tickets")).all() == original_tickets
+        command.upgrade(alembic_config, "head")
+        command.check(alembic_config)
+    finally:
+        engine.dispose()
+
+
 def test_ticket_properties_populated_upgrade_and_downgrade(alembic_config, database_url):
     """기존 ticket·이력을 보존하며 속성 컬럼 upgrade/downgrade를 검증한다."""
     command.upgrade(alembic_config, "20260929_0006")

@@ -1,15 +1,15 @@
 # 티켓 필터 확장 설계
 
-정리일: 2026-10-11. 상태: 설계 확정, 구현 미착수.
+정리일: 2026-10-11. 상태: 1단계 구현·검증 완료, 2단계 미착수.
 
-이 문서는 대화 기록 없이 이어서 구현할 수 있도록 두 단계의 범위, UI, 조건 의미와 검증 기준을 정리한다. 제품 요구사항은 [REQUIREMENTS.md](../REQUIREMENTS.md), 진척도는 [IMPLEMENTATION_ROADMAP.md](../IMPLEMENTATION_ROADMAP.md), 결정은 [UI-034·UI-035](decisions/ui-search-and-notifications.md)와 [DB-027](decisions/database-and-data-lifecycle.md)을 따른다.
+이 문서는 대화 기록 없이 이어서 구현할 수 있도록 두 단계의 범위, UI, 조건 의미와 검증 기준을 정리한다. 제품 요구사항은 [REQUIREMENTS.md](../REQUIREMENTS.md), 진척도는 [IMPLEMENTATION_ROADMAP.md](../IMPLEMENTATION_ROADMAP.md), 결정은 [UI-034~UI-037](decisions/ui-search-and-notifications.md)와 [DB-027·DB-028](decisions/database-and-data-lifecycle.md)을 따른다.
 
 ## 1. 작업 순서와 현재 상태
 
 1. 복합 조건과 필터 생성기 UI를 구현하고 TicketFilter v1 schema·호환 로직·저장 데이터를 제거한다.
 2. 1단계를 완료한 뒤 날짜와 담당자·생성자의 동적 기준값을 구현한다.
 
-현재 코드는 평면 TicketFilter v1을 사용한다. 이 문서의 UI와 새 schema, 동적 값은 아직 구현되지 않았다. 이번 문서화 작업에서는 코드·schema artifact·DB를 변경하지 않고 기존 필터도 삭제하지 않는다.
+현재 코드는 TicketFilter v2 조건 트리와 필드 추가형 UI를 사용한다. v1 schema artifact·평면 입력 경로는 제거했다. 동적 값은 아직 구현하지 않았다. Alembic `20261011_0010`의 v1 정리는 임시 DB에서 검증했으며 실제 사용 DB에는 아직 적용하지 않았다.
 
 사용자는 유지할 v1 저장 필터가 없고, 남아 있어도 테스트 데이터이므로 삭제해도 된다고 확인했다. v1 reader, converter, dual-read나 기존 평면 조건의 호환 adapter를 만들지 않는다. 제거 범위는 티켓 필터에 한정하며 본문·이력·보고서 등의 다른 v1 계약 및 과거 migration 이력을 삭제하지 않는다.
 
@@ -74,7 +74,7 @@ Epic 조건은 Epic 자체와 하위 Task·Subtask를 포함하고 직접 상위
 - 칸반은 일치하는 Task·Subtask만 카드로 표시하고 미일치 조상은 계층 식별에만 사용한다. 상태 열과 필터 밖 의존성 검증, 기존 보드 순서·페이지 미분할 정책을 유지한다.
 - IAM-017·IAM-018의 개인 소유권·공유 관리 권한·게스트·비활성 프로젝트·시스템 관리자 override 정책을 유지한다. 편집기에서 공유를 선택해도 서버가 관리 권한을 재검증한다.
 - CSRF·same-origin, 중복 이름, optimistic locking, no-op과 감사 rollback 규칙을 유지한다. 진단·감사 context에 필터 이름·검색 내용·조건 원문을 넣지 않는다.
-- saved_filters의 JSON definition과 schema_version 저장 공간을 우선 재사용한다. 기존 v1 데이터 정리 절차를 구현·검증하되 이 설계 커밋에서 DB에 적용하지 않는다.
+- saved_filters의 JSON definition과 schema_version 저장 공간을 우선 재사용한다. 기존 v1 데이터 정리는 Alembic `20261011_0010`에서 한 번 수행한다. upgrade는 v1 row만 삭제하고 version 기본값을 2로 바꾸며 downgrade는 v2 row를 삭제하고 기본값 1을 복원한다. 삭제된 row는 자동 복구하지 않는다.
 
 ## 5. 2단계 — 동적 기준값
 
@@ -118,8 +118,20 @@ Label·Ad-hoc 필터, 전문 검색과 별도 보고서 기능은 이번 두 단
 
 ## 7. 구현 전에 구체화할 사항
 
-- 연산자별 정확한 JSON 표현·허용 목록, 최대 조건 개수·중첩 깊이·입력 크기.
-- 조건 트리의 URL encoding·길이 제한·오류 처리와 v1 저장 데이터 정리의 실행 경로.
 - 상대 날짜의 선택 가능한 단위·offset 범위와 오늘 포함/미포함 경계. UI에서 최근 기간과 이전 경계를 혼동하지 않게 한다.
 
 위 항목은 두 단계의 범위를 바꾸는 미확정 요구사항이 아니라 구현 세부사항이며 확정 시 같은 작업에서 결정 문서를 갱신한다.
+
+## 8. 확정된 1단계 계약
+
+- [JSON Schema](contracts/ticket-filter.v2.schema.json)와 [고정값 예시](contracts/ticket-filter.v2.example.ko.json)를 게시한다. 조건은 kind=condition, field, operator, values, negated이며 그룹은 kind=group, operator=AND/OR, children, negated다.
+- JSON은 UTF-8 최대 4 KiB, group 포함 node 60개, root 포함 깊이 5, 조건당 선택값 30개다. URI encoding한 filter 값은 최대 12 KiB다(UI-036·UI-037).
+- 선택 필드의 연산자는 in/not_in, 검색은 contains/not_contains, 날짜는 on/before/after/between이다. assignee·parent·due_date만 is_empty/is_not_empty를 허용한다.
+- on/between은 양 끝 날짜 전체를 포함하고 before/after는 선택일 전체를 제외한다. 값은 엄격한 정수 ID 또는 YYYY-MM-DD이며 Date 경계는 0002-01-01~9998-12-31이다.
+- API·Web은 `filter=<v2 JSON>`만 조건 입력으로 받는다. 구형 q/type/status 등의 평면 필터, 알 수 없는 parameter와 중복 query는 400이다. page·selected·created·loaded_scope·loaded_id는 화면 상태로 별도 유지한다.
+- 저장 관리 중 미적용 편집이 있으면 생성·덮어쓰기를 비활성화한다. 이름 변경·삭제는 선택한 row의 updated_at과 관리 권한을 검사한다.
+- migration의 제거 범위와 로그·downgrade는 DB-028을 따른다. 현재 실제 운영 데이터 적용은 별도 실행 전이며 기동 시마다 정리하는 서비스는 없다.
+
+## 9. 1단계 검증 결과
+
+2026-10-11 Windows 전체 pytest 487개가 실제 Edge Browser 시나리오를 포함해 통과했다. 임시 Docker 환경의 Linux 전체 pytest는 461개 통과·14개 skip이며 Ruff도 통과했다. JavaScript 문법·문서 링크·결정 ID·diff 검사와 데이터가 있는 migration upgrade/downgrade를 검증했다. Browser에서는 필드별 입력, 중첩·NOT·복수 선택, 개인/공유 저장·복원과 미적용 편집, 목록·칸반·drag 재조회 시 조건 보존을 확인했다. 실제 사용 DB migration과 배포는 실행하지 않았으며 2단계 구현은 시작하지 않았다.
