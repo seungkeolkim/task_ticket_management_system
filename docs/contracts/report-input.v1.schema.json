@@ -1,5 +1,51 @@
 {
   "$defs": {
+    "CurrentUserRule": {
+      "additionalProperties": false,
+      "description": "필터를 적용하는 인증된 사용자를 참조한다.",
+      "properties": {
+        "kind": {
+          "const": "current_user",
+          "default": "current_user",
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "title": "CurrentUserRule",
+      "type": "object"
+    },
+    "DayOffsetRule": {
+      "additionalProperties": false,
+      "description": "오늘에서 지정한 달력 일수 전후의 날짜를 참조한다.",
+      "properties": {
+        "kind": {
+          "const": "day_offset",
+          "default": "day_offset",
+          "title": "Kind",
+          "type": "string"
+        },
+        "days": {
+          "maximum": 3650,
+          "minimum": 1,
+          "title": "Days",
+          "type": "integer"
+        },
+        "direction": {
+          "enum": [
+            "past",
+            "future"
+          ],
+          "title": "Direction",
+          "type": "string"
+        }
+      },
+      "required": [
+        "days",
+        "direction"
+      ],
+      "title": "DayOffsetRule",
+      "type": "object"
+    },
     "FieldChange": {
       "additionalProperties": false,
       "properties": {
@@ -81,6 +127,44 @@
           "maxItems": 30,
           "title": "Values",
           "type": "array"
+        },
+        "rule": {
+          "anyOf": [
+            {
+              "discriminator": {
+                "mapping": {
+                  "current_user": "#/$defs/CurrentUserRule",
+                  "day_offset": "#/$defs/DayOffsetRule",
+                  "relative_period": "#/$defs/RelativePeriodRule",
+                  "today": "#/$defs/TodayRule",
+                  "working_week": "#/$defs/WorkingWeekRule"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/CurrentUserRule"
+                },
+                {
+                  "$ref": "#/$defs/TodayRule"
+                },
+                {
+                  "$ref": "#/$defs/DayOffsetRule"
+                },
+                {
+                  "$ref": "#/$defs/RelativePeriodRule"
+                },
+                {
+                  "$ref": "#/$defs/WorkingWeekRule"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rule"
         },
         "negated": {
           "default": false,
@@ -223,6 +307,38 @@
       ],
       "title": "RelationType",
       "type": "string"
+    },
+    "RelativePeriodRule": {
+      "additionalProperties": false,
+      "description": "오늘을 포함하는 총 N개 달력 날짜의 기간을 참조한다.",
+      "properties": {
+        "kind": {
+          "const": "relative_period",
+          "default": "relative_period",
+          "title": "Kind",
+          "type": "string"
+        },
+        "days": {
+          "maximum": 3650,
+          "minimum": 1,
+          "title": "Days",
+          "type": "integer"
+        },
+        "direction": {
+          "enum": [
+            "past",
+            "future"
+          ],
+          "title": "Direction",
+          "type": "string"
+        }
+      },
+      "required": [
+        "days",
+        "direction"
+      ],
+      "title": "RelativePeriodRule",
+      "type": "object"
     },
     "ReportPeriod": {
       "additionalProperties": false,
@@ -426,11 +542,11 @@
     },
     "TicketFilter": {
       "additionalProperties": false,
-      "description": "목록·칸반·저장·URL에서 동일하게 사용하는 v2 조건 및 조회 설정이다.",
+      "description": "목록·칸반·저장·URL에서 동일하게 사용하는 v3 조건 및 조회 설정이다.",
       "properties": {
         "schema_version": {
-          "const": 2,
-          "default": 2,
+          "const": 3,
+          "default": 3,
           "title": "Schema Version",
           "type": "integer"
         },
@@ -734,6 +850,45 @@
       ],
       "title": "TicketType",
       "type": "string"
+    },
+    "TodayRule": {
+      "additionalProperties": false,
+      "description": "요청 기준의 한국 날짜를 참조한다.",
+      "properties": {
+        "kind": {
+          "const": "today",
+          "default": "today",
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "title": "TodayRule",
+      "type": "object"
+    },
+    "WorkingWeekRule": {
+      "additionalProperties": false,
+      "description": "이번 또는 지난 달력 주의 월요일부터 금요일까지를 참조한다.",
+      "properties": {
+        "kind": {
+          "const": "working_week",
+          "default": "working_week",
+          "title": "Kind",
+          "type": "string"
+        },
+        "week": {
+          "enum": [
+            "this",
+            "last"
+          ],
+          "title": "Week",
+          "type": "string"
+        }
+      },
+      "required": [
+        "week"
+      ],
+      "title": "WorkingWeekRule",
+      "type": "object"
     }
   },
   "additionalProperties": false,

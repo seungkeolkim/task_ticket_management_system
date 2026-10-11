@@ -4,7 +4,7 @@
 .filter-group-header, .filter-group-actions, .ticket-filter-footer, .filter-condition { display:flex; align-items:center; flex-wrap:wrap; gap:10px; }
 .filter-group-header { margin-bottom:10px; }
 .filter-group-actions { margin:10px 0; }
-.filter-condition { padding:8px 0; border-bottom:1px solid var(--border); }
+.filter-condition { display:grid; grid-template-columns:minmax(110px,.9fr) minmax(170px,1.35fr) minmax(0,2.4fr) auto auto; padding:8px 0; border-bottom:1px solid var(--border); }
 .ticket-filter-editor select, .ticket-filter-editor input:not([type=checkbox]) { padding:7px 10px; min-height:36px; border:1px solid var(--border); border-radius:6px; background:var(--surface); color:var(--text); font:inherit; max-width:100%; }
 .ticket-filter-editor label { display:flex; align-items:center; gap:6px; font-size:13px; }
 .ticket-filter-editor input[type=checkbox] { width:16px; height:16px; min-height:0; }
@@ -20,3 +20,6 @@
 .ticket-filter-summary { margin-top:12px; color:var(--text-soft); }
 .ticket-filter-summary p { white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.6; }
 .ticket-filter-editor [hidden] { display:none; }
+.ticket-filter-editor input[type=number] { width:100px; }
+.filter-rule-preview { flex-basis:100%; color:var(--text-soft); font-size:13px; line-height:1.6; overflow-wrap:anywhere; }
+.filter-applied-resolution { color:var(--text-soft); font-size:13px; line-height:1.6; overflow-wrap:anywhere; }

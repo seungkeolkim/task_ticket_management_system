@@ -68,3 +68,5 @@ TicketState는 티켓의 업무 필드·일정·관계를 보존한다. 댓글·
 2026-10-04: TicketState의 `body_schema_version`은 2·3을 허용한다. v3 mention node는 사용자 ID와 저장 시점 label을 포함한다. 기존 snapshot은 수정하지 않으며 신규 계약을 모르는 구 reader로 v3 이력을 전달하는 호환성은 보장하지 않는다.
 
 2026-10-11: 보고서 입력의 selection은 TicketFilter v2의 조건 트리를 사용한다. 상위 report-input/v1과 다른 본문·이력 계약을 삭제하지 않고 중첩 selection의 schema·합성 예시만 갱신했다. 보고서 실행기와 기존 보고서 데이터 변환은 구현하지 않는다.
+
+2026-10-12: 새 selection 계약은 TicketFilter v3다. 공개 schema·합성 예시의 중첩 version을 갱신하고 실제 report snapshot은 변경하지 않는다. 보고서 실행 시 동적 규칙과 captured_at 기준 해석값의 동결 방식은 실행기 구현 범위에서 별도로 정의한다.

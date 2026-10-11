@@ -4,6 +4,7 @@
   {% if request.query_params.get(metadata_name) %}<input type="hidden" name="{{ metadata_name }}" value="{{ request.query_params.get(metadata_name) }}">{% endif %}
   {% endfor %}
   <div data-filter-expression></div>
+  <p class="filter-applied-resolution" data-filter-applied-resolution role="status"></p>
   <div class="ticket-filter-footer">
     {% if not is_board_filter %}
     <label>정렬<select data-filter-sort>{% for value, label in [('updated_at','수정일'),('created_at','생성일'),('due_date','마감일'),('priority','중요도'),('number','티켓 번호')] %}<option value="{{ value }}" {% if filters.sort_by == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
@@ -19,6 +20,7 @@
   <noscript>조건 편집과 적용에는 JavaScript가 필요합니다.</noscript>
   <script type="application/json" data-filter-definition>{{ filters.model_dump(mode='json')|tojson }}</script>
   <script type="application/json" data-filter-options>{{ filter_options.model_dump(mode='json')|tojson }}</script>
+  <script type="application/json" data-filter-resolution>{{ (board.filter_resolution if is_board_filter else result.filter_resolution).model_dump(mode='json')|tojson }}</script>
 </form>
 <link rel="stylesheet" href="{{ url_for('static', path='ticket-filters.css') }}">
 <script src="{{ url_for('static', path='ticket-filters.js') }}" defer></script>

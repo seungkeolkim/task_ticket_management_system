@@ -30,7 +30,9 @@ def validate_saved_filter_definition(
     user_conditions = [
         condition
         for condition in conditions
-        if condition.field in {"creator", "assignee"} and condition.values
+        if condition.field in {"creator", "assignee"}
+        and condition.rule is None
+        and condition.values
     ]
     if user_conditions:
         valid_user_ids = {

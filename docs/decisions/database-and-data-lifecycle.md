@@ -33,6 +33,8 @@
 | DB-027 | 2026-10-11 | DECIDED | 복합 필터 1단계에서 TicketFilter v1 schema artifact·reader·converter·dual-read·호환 입력 경로를 제거하고 v1 개인·공유 저장 필터를 삭제한다. 새 v2 조건 트리는 기존 saved_filters의 versioned JSON 저장 공간을 우선 재사용한다. | 사용자가 보존할 v1 필터가 없으며 남아 있어도 테스트 데이터이므로 삭제해도 된다고 확인했다. 삭제 범위는 티켓 저장 필터에 한정하고 다른 계약·업무 데이터와 과거 migration은 보존한다. DB-024의 transaction·권한·stale·감사 규칙은 유지한다. |
 | DB-028 | 2026-10-11 | DECIDED | Alembic 20261011_0010의 upgrade가 schema_version=1인 saved_filters만 삭제하고 컬럼 기본값을 2로 변경한다. 기동 시마다 실행하는 정리 서비스나 converter는 만들지 않는다. downgrade는 v2 저장 필터를 삭제하고 기본값 1을 복원하며 이미 제거된 v1 row는 복원하지 않는다. | 다른 업무 row·감사 기록과 이미 있는 v2 row는 upgrade에서 유지한다. DB-027의 허가된 데이터 정리를 versioned migration 한 번으로 수행하고 삭제 개수만 시스템 로그에 남긴다. 데이터 손실 없는 rollback을 요구할 경우 일관된 사전 백업을 사용한다. |
 
+| DB-029 | 2026-10-12 | DECIDED | Alembic 20261012_0011은 v2 saved_filters의 row·이름·범위·소유자·시각·조건·정렬을 보존하며 JSON version과 저장 version을 3으로 바꾸고 컬럼 기본값을 3으로 변경한다. runtime reader는 v3 하나만 사용한다. downgrade는 동적 rule이 있으면 row/schema 변경 전에 중단하고 고정 조건만 v2로 복원한다. | v1 삭제 허가를 새 v2 필터 삭제로 확대하지 않는다. 저장 규칙을 임의의 날짜·사용자로 고정하거나 삭제하는 rollback을 피한다. 기존 v2 schema artifact와 migration 이력은 보존하며 새 계약 예시는 v3로 게시한다. |
+
 ## Open decisions
 
 - PostgreSQL migration·repository 검증을 CI에서 언제 필수화할지는 실제 전환 필요성과 함께 확정한다.

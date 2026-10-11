@@ -1,13 +1,21 @@
-"""실행 코드 대신 검증된 조건 트리로 표현하는 티켓 필터 v2 계약이다."""
+"""고정값과 동적 기준값을 검증된 조건 트리로 표현하는 티켓 필터 v3 계약이다."""
 
 from __future__ import annotations
 
 import json
 from collections.abc import Iterator
-from datetime import date
+from datetime import date, datetime
 from typing import Annotated, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictInt,
+    StrictStr,
+    model_serializer,
+    model_validator,
+)
 
 from app.domain.codes import Priority, TicketStatus, TicketType
 
@@ -15,6 +23,71 @@ MAX_FILTER_BYTES = 4096
 MAX_FILTER_NODES = 60
 MAX_FILTER_DEPTH = 5
 MAX_CONDITION_VALUES = 30
+
+
+class CurrentUserRule(BaseModel):
+    """필터를 적용하는 인증된 사용자를 참조한다."""
+
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["current_user"] = "current_user"
+
+
+class TodayRule(BaseModel):
+    """요청 기준의 한국 날짜를 참조한다."""
+
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["today"] = "today"
+
+
+class DayOffsetRule(BaseModel):
+    """오늘에서 지정한 달력 일수 전후의 날짜를 참조한다."""
+
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["day_offset"] = "day_offset"
+    days: StrictInt = Field(ge=1, le=3650)
+    direction: Literal["past", "future"]
+
+
+class RelativePeriodRule(BaseModel):
+    """오늘을 포함하는 총 N개 달력 날짜의 기간을 참조한다."""
+
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["relative_period"] = "relative_period"
+    days: StrictInt = Field(ge=1, le=3650)
+    direction: Literal["past", "future"]
+
+
+class WorkingWeekRule(BaseModel):
+    """이번 또는 지난 달력 주의 월요일부터 금요일까지를 참조한다."""
+
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["working_week"] = "working_week"
+    week: Literal["this", "last"]
+
+
+DynamicFilterRule = Annotated[
+    CurrentUserRule | TodayRule | DayOffsetRule | RelativePeriodRule | WorkingWeekRule,
+    Field(discriminator="kind"),
+]
+
+
+class ResolvedFilterCondition(BaseModel):
+    """조건 트리 위치와 이번 요청에서 계산한 동적 값을 공개한다."""
+
+    path: str
+    field: str
+    values: list[str | int]
+
+
+class FilterResolution(BaseModel):
+    """조회·count·화면 설명이 공유하는 요청별 기준과 해석 결과다."""
+
+    evaluated_at: datetime
+    reference_date: date
+    timezone: Literal["Asia/Seoul"] = "Asia/Seoul"
+    user_id: int
+    user_label: str
+    conditions: list[ResolvedFilterCondition] = Field(default_factory=list)
 
 
 class FilterCondition(BaseModel):
@@ -48,11 +121,40 @@ class FilterCondition(BaseModel):
         "between",
     ]
     values: list[StrictStr | StrictInt] = Field(default_factory=list, max_length=30)
+    rule: DynamicFilterRule | None = None
     negated: bool = False
+
+    @model_serializer(mode="wrap")
+    def serialize_condition(self, serializer):
+        """고정 조건에는 불필요한 null 규칙을 추가하지 않아 기존 크기를 보존한다."""
+        serialized_condition = serializer(self)
+        if self.rule is None:
+            serialized_condition.pop("rule", None)
+        return serialized_condition
 
     @model_validator(mode="after")
     def validate_condition(self) -> Self:
         """필드·연산자·값의 조합을 검증하고 날짜 및 선택값을 정규화한다."""
+        if self.rule is not None:
+            if self.values:
+                raise ValueError("고정값과 동적 규칙을 함께 지정할 수 없습니다.")
+            if isinstance(self.rule, CurrentUserRule):
+                if self.field not in {"creator", "assignee"} or self.operator not in {
+                    "in",
+                    "not_in",
+                }:
+                    raise ValueError("현재 사용자 조건의 필드·연산자를 확인하세요.")
+            else:
+                if self.field not in {"created_date", "updated_date", "due_date"}:
+                    raise ValueError("날짜 규칙은 날짜 필드에만 사용할 수 있습니다.")
+                allowed_operators = (
+                    {"between"}
+                    if isinstance(self.rule, (RelativePeriodRule, WorkingWeekRule))
+                    else {"on", "before", "after"}
+                )
+                if self.operator not in allowed_operators:
+                    raise ValueError("날짜 규칙의 연산자를 확인하세요.")
+            return self
         empty_operators = {"is_empty", "is_not_empty"}
         if self.operator in empty_operators:
             if self.field not in {"assignee", "parent", "due_date"} or self.values:
@@ -116,10 +218,10 @@ FilterGroup.model_rebuild()
 
 
 class TicketFilter(BaseModel):
-    """목록·칸반·저장·URL에서 동일하게 사용하는 v2 조건 및 조회 설정이다."""
+    """목록·칸반·저장·URL에서 동일하게 사용하는 v3 조건 및 조회 설정이다."""
 
     model_config = ConfigDict(extra="forbid")
-    schema_version: Literal[2] = 2
+    schema_version: Literal[3] = 3
     expression: FilterGroup = Field(default_factory=FilterGroup)
     sort_by: Literal["created_at", "updated_at", "due_date", "priority", "number"] = "updated_at"
     sort_direction: Literal["asc", "desc"] = "desc"

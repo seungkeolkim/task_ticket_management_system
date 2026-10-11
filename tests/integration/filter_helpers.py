@@ -1,11 +1,11 @@
-"""테스트에서 실제 v2 조건과 URL을 읽기 쉽게 작성하는 도우미다."""
+"""테스트에서 실제 v3 조건과 URL을 읽기 쉽게 작성하는 도우미다."""
 
 import json
 from urllib.parse import urlencode
 
 
 def filter_condition(field_name, operator, *values, negated=False):
-    """고정값을 사용하는 v2 조건 하나를 구성한다."""
+    """고정값을 사용하는 v3 조건 하나를 구성한다."""
     return {
         "kind": "condition",
         "field": field_name,
@@ -16,9 +16,9 @@ def filter_condition(field_name, operator, *values, negated=False):
 
 
 def filter_definition(*conditions, logical_operator="AND", negated=False, **settings):
-    """중첩 조건과 조회 설정으로 저장 가능한 v2 정의를 구성한다."""
+    """중첩 조건과 조회 설정으로 저장 가능한 v3 정의를 구성한다."""
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "expression": {
             "kind": "group",
             "operator": logical_operator,

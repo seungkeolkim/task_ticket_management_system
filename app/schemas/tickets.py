@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from app.domain.codes import Priority, RelationType, TicketStatus, TicketType
 from app.domain.rich_text import empty_body_document, validate_body_document
+from app.schemas.ticket_filters import FilterResolution
 from app.schemas.ticket_properties import TicketCustomFields, TicketLabels
 
 
@@ -232,6 +233,7 @@ class TicketPage(BaseModel):
     total: int
     page: int
     page_size: int
+    filter_resolution: FilterResolution | None = None
 
 
 class TicketFilterHierarchyOption(BaseModel):
@@ -333,3 +335,4 @@ class BoardStatusOption(BaseModel):
 class BoardView(BaseModel):
     groups: list[BoardEpicGroup]
     statuses: list[BoardStatusOption]
+    filter_resolution: FilterResolution | None = None

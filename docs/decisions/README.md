@@ -27,8 +27,8 @@
 | [organizations-and-projects.md](organizations-and-projects.md) | `ORG`, `PRJ` | 조직 계층, 프로젝트, 구성원 격리 | `ORG-008`, `PRJ-011` |
 | [tickets-and-workflow.md](tickets-and-workflow.md) | `TKT` | 티켓 계층, 속성, 상태, 관계, 삭제 | `TKT-015` |
 | [content-comments-and-attachments.md](content-comments-and-attachments.md) | `CNT` | 구조화 본문, 댓글, 멘션, 첨부파일 | `CNT-017` |
-| [database-and-data-lifecycle.md](database-and-data-lifecycle.md) | `DB` | DB 타입, migration, transaction, 보존 | `DB-029` |
-| [ui-search-and-notifications.md](ui-search-and-notifications.md) | `UI` | 화면, 목록, 검색, 칸반, 알림 범위 | `UI-038` |
+| [database-and-data-lifecycle.md](database-and-data-lifecycle.md) | `DB` | DB 타입, migration, transaction, 보존 | `DB-030` |
+| [ui-search-and-notifications.md](ui-search-and-notifications.md) | `UI` | 화면, 목록, 검색, 칸반, 알림 범위 | `UI-040` |
 | [planning-and-reporting.md](planning-and-reporting.md) | `RPT` | 간트 일정, 기간 이력, 보고서·LLM·스킬 계약 | `RPT-009` |
 
-마지막 정리일: 2026-10-11
+마지막 정리일: 2026-10-12

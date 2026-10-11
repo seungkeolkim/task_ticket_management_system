@@ -1,12 +1,12 @@
 const assert = require("node:assert/strict");
 
-/** 직접 작성한 v2 조건으로 테스트 URL을 만든다. */
+/** 직접 작성한 v3 조건으로 테스트 URL을 만든다. */
 function filterUrl(baseUrl, view, conditions, settings = {}) {
-  const definition = { schema_version: 2, expression: { kind: "group", operator: "AND", children: conditions, negated: false }, ...settings };
+  const definition = { schema_version: 3, expression: { kind: "group", operator: "AND", children: conditions, negated: false }, ...settings };
   return `${baseUrl}/projects/DEV/${view}?filter=${encodeURIComponent(JSON.stringify(definition))}`;
 }
 
-/** 조건 하나를 v2 고정값 계약으로 만든다. */
+/** 조건 하나를 v3 고정값 계약으로 만든다. */
 function condition(field, operator, values = []) {
   return { kind: "condition", field, operator, values, negated: false };
 }

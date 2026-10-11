@@ -66,6 +66,7 @@ from app.schemas.tickets import (
 from app.services import mentions as mention_service
 from app.services import projects as project_service
 from app.services.saved_filter_definitions import validate_saved_filter_definition
+from app.services.ticket_filter_resolution import resolve_ticket_filter
 
 logger = logging.getLogger(__name__)
 
@@ -663,12 +664,13 @@ def list_project_tickets(
     with project_service.project_operation_context(session, actor, "ticket_list"):
         project = _get_project(session, actor, project_key)
         validate_saved_filter_definition(session, project.id, ticket_filter)
+        resolved_filter, filter_resolution = resolve_ticket_filter(ticket_filter, actor)
         rows, total = repository.ticket_rows(
             session,
             project.id,
             actor.id,
             override=uses_system_administrator_override(project),
-            ticket_filter=ticket_filter,
+            ticket_filter=resolved_filter,
             page=page,
         )
         result = TicketPage(
@@ -676,6 +678,7 @@ def list_project_tickets(
             total=total,
             page=page,
             page_size=ticket_filter.page_size,
+            filter_resolution=filter_resolution,
         )
         filter_options = (
             _build_project_ticket_filter_options(session, project.id)
@@ -768,12 +771,13 @@ def build_ticket_board(
     with project_service.project_operation_context(session, actor, "ticket_board"):
         project = _get_project(session, actor, project_key)
         validate_saved_filter_definition(session, project.id, ticket_filter)
+        resolved_filter, filter_resolution = resolve_ticket_filter(ticket_filter, actor)
         rows = repository.board_rows(
             session,
             project.id,
             actor.id,
             override=uses_system_administrator_override(project),
-            ticket_filter=ticket_filter,
+            ticket_filter=resolved_filter,
         )
         matching_ticket_ids = {row[0].id for row in rows if row.matches_filter}
         dependency_blocked_ids = repository.incomplete_dependency_source_ids(session, project.id)
@@ -870,6 +874,7 @@ def build_ticket_board(
             )
         return project, BoardView(
             groups=groups,
+            filter_resolution=filter_resolution,
             statuses=[
                 BoardStatusOption(
                     status=status, label=STATUS_LABELS[status][0], code=STATUS_LABELS[status][1]
