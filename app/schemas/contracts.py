@@ -1,4 +1,4 @@
-"""Version 1 storage/exchange contracts, independent of a web editor or LLM vendor."""
+"""Versioned storage/exchange contracts, independent of a web editor or LLM vendor."""
 
 from datetime import UTC, date, datetime
 from typing import Annotated, Literal, Self
@@ -17,6 +17,7 @@ from pydantic import (
 
 from app.domain.codes import HistoryEventType, Priority, RelationType, TicketStatus, TicketType
 from app.domain.rich_text import empty_body_document, validate_body_document
+from app.schemas.ticket_filters import TicketFilter as TicketFilter
 from app.schemas.ticket_properties import TicketCustomFields, TicketLabels
 
 PositiveId = Annotated[int, Field(gt=0)]
@@ -24,43 +25,6 @@ PositiveId = Annotated[int, Field(gt=0)]
 
 class Contract(BaseModel):
     model_config = ConfigDict(extra="forbid")
-
-
-class TicketFilter(Contract):
-    schema_version: Literal[1] = 1
-    query: str = Field(default="", max_length=200)
-    types: list[TicketType] = Field(default_factory=list)
-    statuses: list[TicketStatus] = Field(default_factory=list)
-    priorities: list[Priority] = Field(default_factory=list)
-    epic_id: PositiveId | None = None
-    parent_id: PositiveId | None = None
-    creator_ids: list[PositiveId] = Field(default_factory=list)
-    assignee_ids: list[PositiveId] = Field(default_factory=list)
-    unassigned: bool = False
-    created_from: AwareDatetime | None = None
-    created_before: AwareDatetime | None = None
-    updated_from: AwareDatetime | None = None
-    updated_before: AwareDatetime | None = None
-    due_from: date | None = None
-    due_through: date | None = None
-    sort_by: Literal["created_at", "updated_at", "due_date", "priority", "number"] = "updated_at"
-    sort_direction: Literal["asc", "desc"] = "desc"
-    page_size: Literal[10, 20, 50] = 20
-
-    @model_validator(mode="after")
-    def valid_filters(self) -> Self:
-        """저장 필터의 필드와 연산자 조합을 검증한다."""
-        if self.unassigned and self.assignee_ids:
-            raise ValueError("unassigned and assignee_ids are mutually exclusive")
-        for start, end in (
-            (self.created_from, self.created_before),
-            (self.updated_from, self.updated_before),
-        ):
-            if start is not None and end is not None and start >= end:
-                raise ValueError("timestamp filters use a nonempty half-open interval")
-        if self.due_from and self.due_through and self.due_from > self.due_through:
-            raise ValueError("due date range is reversed")
-        return self
 
 
 class RelationSnapshot(Contract):

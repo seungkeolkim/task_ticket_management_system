@@ -1,9 +1,8 @@
 import logging
-from datetime import date, datetime, time, timedelta
+from datetime import datetime, timedelta
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
-from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -66,6 +65,8 @@ from app.schemas.tickets import (
 )
 from app.services import mentions as mention_service
 from app.services import projects as project_service
+from app.services.saved_filter_definitions import validate_saved_filter_definition
+from app.services.ticket_filter_resolution import resolve_ticket_filter
 
 logger = logging.getLogger(__name__)
 
@@ -662,12 +663,14 @@ def list_project_tickets(
         raise AuthError("invalid_filter", "검색 조건과 페이지 범위를 확인하세요.")
     with project_service.project_operation_context(session, actor, "ticket_list"):
         project = _get_project(session, actor, project_key)
+        validate_saved_filter_definition(session, project.id, ticket_filter)
+        resolved_filter, filter_resolution = resolve_ticket_filter(ticket_filter, actor)
         rows, total = repository.ticket_rows(
             session,
             project.id,
             actor.id,
             override=uses_system_administrator_override(project),
-            ticket_filter=ticket_filter,
+            ticket_filter=resolved_filter,
             page=page,
         )
         result = TicketPage(
@@ -675,6 +678,7 @@ def list_project_tickets(
             total=total,
             page=page,
             page_size=ticket_filter.page_size,
+            filter_resolution=filter_resolution,
         )
         filter_options = (
             _build_project_ticket_filter_options(session, project.id)
@@ -682,65 +686,6 @@ def list_project_tickets(
             else None
         )
         return project, result, filter_options
-
-
-def build_project_ticket_filter(
-    *,
-    search_query: str = "",
-    types: list[str] | None = None,
-    statuses: list[str] | None = None,
-    priorities: list[str] | None = None,
-    epic_id: int | None = None,
-    parent_id: int | None = None,
-    creator_ids: list[int] | None = None,
-    assignee_ids: list[int] | None = None,
-    unassigned: bool = False,
-    created_from: date | None = None,
-    created_through: date | None = None,
-    updated_from: date | None = None,
-    updated_through: date | None = None,
-    due_from: date | None = None,
-    due_through: date | None = None,
-    sort_by: str = "updated_at",
-    sort_direction: str = "desc",
-    page_size: int | None = None,
-) -> TicketFilter:
-    """HTTP query 값을 검증된 프로젝트 티켓 filter 계약으로 변환한다."""
-    timezone = ZoneInfo("Asia/Seoul")
-
-    def start_of_day(value: date | None) -> datetime | None:
-        """선택한 한국 날짜의 시작을 timezone-aware datetime으로 변환한다."""
-        return datetime.combine(value, time.min, tzinfo=timezone) if value else None
-
-    def day_after(value: date | None) -> datetime | None:
-        """선택한 한국 날짜 다음 날의 시작을 exclusive datetime으로 반환한다."""
-        return start_of_day(value + timedelta(days=1)) if value else None
-
-    try:
-        return TicketFilter(
-            query=search_query.strip(),
-            types=types or [],
-            statuses=statuses or [],
-            priorities=priorities or [],
-            epic_id=epic_id,
-            parent_id=parent_id,
-            creator_ids=creator_ids or [],
-            assignee_ids=[] if unassigned else (assignee_ids or []),
-            unassigned=unassigned,
-            created_from=start_of_day(created_from),
-            created_before=day_after(created_through),
-            updated_from=start_of_day(updated_from),
-            updated_before=day_after(updated_through),
-            due_from=due_from,
-            due_through=due_through,
-            sort_by=sort_by,
-            sort_direction=sort_direction,
-            page_size=(
-                page_size if page_size is not None else get_settings().pagination.default_size
-            ),
-        )
-    except ValidationError as error:
-        raise AuthError("invalid_filter", "검색 조건과 페이지 범위를 확인하세요.") from error
 
 
 def get_project_ticket_filter_options(
@@ -825,12 +770,14 @@ def build_ticket_board(
     ticket_filter = ticket_filter or TicketFilter()
     with project_service.project_operation_context(session, actor, "ticket_board"):
         project = _get_project(session, actor, project_key)
+        validate_saved_filter_definition(session, project.id, ticket_filter)
+        resolved_filter, filter_resolution = resolve_ticket_filter(ticket_filter, actor)
         rows = repository.board_rows(
             session,
             project.id,
             actor.id,
             override=uses_system_administrator_override(project),
-            ticket_filter=ticket_filter,
+            ticket_filter=resolved_filter,
         )
         matching_ticket_ids = {row[0].id for row in rows if row.matches_filter}
         dependency_blocked_ids = repository.incomplete_dependency_source_ids(session, project.id)
@@ -858,11 +805,7 @@ def build_ticket_board(
             ):
                 subtasks_by_parent.setdefault(ticket.parent_id, []).append(item)
 
-        has_filter_conditions = any(
-            ticket_filter.model_dump(
-                exclude={"schema_version", "sort_by", "sort_direction", "page_size"}
-            ).values()
-        )
+        has_filter_conditions = bool(ticket_filter.expression.children)
         groups: list[BoardEpicGroup] = []
         for epic_item in [*epics, None]:
             epic_id = epic_item[0].id if epic_item else None
@@ -931,6 +874,7 @@ def build_ticket_board(
             )
         return project, BoardView(
             groups=groups,
+            filter_resolution=filter_resolution,
             statuses=[
                 BoardStatusOption(
                     status=status, label=STATUS_LABELS[status][0], code=STATUS_LABELS[status][1]

@@ -1,6 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
+from filter_helpers import filter_condition, filter_definition
 from sqlalchemy import select
 from test_tickets import create_ticket, delete, login, patch, post
 from test_tickets import ticket_people as ticket_people
@@ -27,17 +28,19 @@ def test_shared_filter_lifecycle_conflict_and_csrf(client, ticket_people, db_ses
     """조건 왕복·중복·CSRF·no-op·stale 방어와 감사 기록을 검증한다."""
     summary = create_shared_filter(
         client,
-        definition={
-            "types": ["TASK"],
-            "created_from": "2026-10-03T15:00:00Z",
-            "sort_by": "number",
-            "page_size": 10,
-        },
+        definition=filter_definition(
+            filter_condition("type", "in", "TASK"),
+            filter_condition("created_date", "after", "2026-10-03"),
+            sort_by="number",
+            page_size=10,
+        ),
     )
     assert summary["visibility"] == "PROJECT"
     assert client.get(ENDPOINT).json() == [summary]
     endpoint = f"{ENDPOINT}/{summary['id']}"
-    assert client.get(endpoint).json()["definition"]["types"] == ["TASK"]
+    assert client.get(endpoint).json()["definition"]["expression"]["children"][0]["values"] == [
+        "TASK"
+    ]
     assert post(client, ENDPOINT, {"name": " 팀 미완료 ", "definition": {}}).status_code == 409
     assert client.post(ENDPOINT, json={"name": "CSRF", "definition": {}}).status_code == 403
     payload = {"expected_updated_at": summary["updated_at"], "name": "팀 미완료"}
@@ -62,18 +65,19 @@ def test_shared_filter_lifecycle_conflict_and_csrf(client, ticket_people, db_ses
         )
         assert response.status_code == 303
         assert f"/projects/DEV/{view}?" in response.headers["location"]
-        assert "created_from=2026-10-04" in response.headers["location"]
-        assert "page_size=10" in response.headers["location"]
+        assert "filter=" in response.headers["location"]
         assert client.get(response.headers["location"]).status_code == 200
     overwritten = patch(
         client,
         endpoint,
         {
             "expected_updated_at": renamed["updated_at"],
-            "definition": {"statuses": ["TODO"]},
+            "definition": filter_definition(filter_condition("status", "in", "TODO")),
         },
     ).json()
-    assert client.get(endpoint).json()["definition"]["statuses"] == ["TODO"]
+    assert client.get(endpoint).json()["definition"]["expression"]["children"][0]["values"] == [
+        "TODO"
+    ]
     assert (
         delete(client, endpoint, {"expected_updated_at": overwritten["updated_at"]}).status_code
         == 204
@@ -115,8 +119,8 @@ def test_shared_filter_role_permissions(client, ticket_people, login_id, read_st
     assert delete(client, endpoint, revision).status_code == write_status
     if read_status == 200:
         page = client.get("/projects/DEV/board").text
-        assert "data-shared-filter-id=" in page
-        assert "data-shared-filter-create" not in page
+        assert f'value="shared:{summary["id"]}"' in page
+        assert '<option value="shared">' not in page
 
 
 def test_shared_filter_project_scope_and_private_isolation(client, ticket_people, db_session):
@@ -221,10 +225,12 @@ def test_inactive_project_shared_filters_are_read_only(client, ticket_people, db
 def test_shared_filter_reference_revalidation_and_repair(client, ticket_people, db_session):
     """저장 후 삭제된 계층 참조·지원하지 않는 schema를 거부하고 관리자가 복구한다."""
     epic = create_ticket(client, type="EPIC").json()
-    summary = create_shared_filter(client, definition={"epic_id": epic["id"]})
+    summary = create_shared_filter(
+        client, definition=filter_definition(filter_condition("epic", "in", epic["id"]))
+    )
     endpoint = f"{ENDPOINT}/{summary['id']}"
     saved_filter = db_session.get(SavedFilter, summary["id"])
-    saved_filter.definition = {"epic_id": 999999}
+    saved_filter.definition = filter_definition(filter_condition("epic", "in", 999999))
     db_session.commit()
     assert client.get(endpoint).status_code == 409
     assert client.get(f"/projects/DEV/shared-filters/{summary['id']}/apply").status_code == 409
@@ -236,7 +242,10 @@ def test_shared_filter_reference_revalidation_and_repair(client, ticket_people, 
         patch(
             client,
             endpoint,
-            {"expected_updated_at": current["updated_at"], "definition": {"epic_id": 999999}},
+            {
+                "expected_updated_at": current["updated_at"],
+                "definition": filter_definition(filter_condition("epic", "in", 999999)),
+            },
         ).status_code
         == 400
     )

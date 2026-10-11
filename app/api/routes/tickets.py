@@ -1,4 +1,3 @@
-from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -27,6 +26,7 @@ from app.schemas.tickets import (
 )
 from app.services import tickets as service
 from app.web.security import require_api_user, verify_csrf
+from app.web.ticket_filter_inputs import project_ticket_filter_parameters
 
 router = APIRouter(prefix="/api/projects/{project_key}/tickets", tags=["tickets"])
 global_router = APIRouter(prefix="/api/tickets", tags=["tickets"])
@@ -54,49 +54,6 @@ def list_global_tickets_api(
         due=due,
         search_query=search_query,
         page=page,
-        page_size=page_size,
-    )
-
-
-def project_ticket_filter_parameters(
-    search_query: Annotated[str, Query(alias="q")] = "",
-    types: Annotated[list[str] | None, Query(alias="type")] = None,
-    statuses: Annotated[list[str] | None, Query(alias="status")] = None,
-    priorities: Annotated[list[str] | None, Query(alias="priority")] = None,
-    epic_id: int | None = None,
-    parent_id: int | None = None,
-    creator_ids: Annotated[list[int] | None, Query(alias="creator_id")] = None,
-    assignee_ids: Annotated[list[int] | None, Query(alias="assignee_id")] = None,
-    unassigned: bool = False,
-    created_from: date | None = None,
-    created_through: date | None = None,
-    updated_from: date | None = None,
-    updated_through: date | None = None,
-    due_from: date | None = None,
-    due_through: date | None = None,
-    sort_by: str = "updated_at",
-    sort_direction: str = "desc",
-    page_size: int | None = None,
-) -> TicketFilter:
-    """목록과 칸반 API의 query를 동일한 filter 계약으로 검증한다."""
-    return service.build_project_ticket_filter(
-        search_query=search_query,
-        types=types,
-        statuses=statuses,
-        priorities=priorities,
-        epic_id=epic_id,
-        parent_id=parent_id,
-        creator_ids=creator_ids,
-        assignee_ids=assignee_ids,
-        unassigned=unassigned,
-        created_from=created_from,
-        created_through=created_through,
-        updated_from=updated_from,
-        updated_through=updated_through,
-        due_from=due_from,
-        due_through=due_through,
-        sort_by=sort_by,
-        sort_direction=sort_direction,
         page_size=page_size,
     )
 

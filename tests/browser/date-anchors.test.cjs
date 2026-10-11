@@ -1,0 +1,70 @@
+const { test } = require("node:test");
+const assert = require("node:assert/strict");
+const { chromium } = require("playwright");
+const { authenticatedContext, saveFilter } = require("./filter-helpers.cjs");
+
+/** 독립된 날짜 경계와 단일 주 요일을 편집·저장·복원하고 역순을 거부한다. */
+test("date anchors allow independent weekdays and preserve rules across views", async () => {
+  const baseUrl = process.env.TTMS_BROWSER_BASE_URL;
+  const browser = await chromium.launch({ headless: true, channel: process.env.PLAYWRIGHT_CHANNEL });
+  try {
+    const context = await authenticatedContext(browser, baseUrl);
+    const page = await context.newPage();
+    const errors = [];
+    page.on("pageerror", error => errors.push(error.message));
+    await page.goto(`${baseUrl}/projects/DEV/tickets`);
+    const root = page.locator(".filter-group").first();
+    await root.locator(":scope > .filter-group-actions [data-filter-add-field]").selectOption("updated_date");
+    const row = page.locator(".filter-condition").first();
+    await row.locator("[data-filter-value-source]").selectOption("date_range");
+    const start = row.locator('[data-filter-boundary="start"]');
+    const end = row.locator('[data-filter-boundary="end"]');
+    assert.equal(await start.locator("[data-date-anchor-week]").inputValue(), "last");
+    assert.equal(await start.locator("[data-date-anchor-weekday]").inputValue(), "0");
+    assert.equal(await end.locator("[data-date-anchor-weekday]").inputValue(), "4");
+    assert.match(await row.locator("[data-filter-rule-preview]").innerText(), /지난주 월요일.*지난주 금요일/);
+    await start.locator("[data-date-anchor-weekday]").selectOption("4");
+    await end.locator("[data-date-anchor-weekday]").selectOption("0");
+    await page.getByRole("button", { name: "적용", exact: true }).click();
+    assert.match(await page.locator("[data-filter-error]").innerText(), /기간 시작은 종료보다 늦을 수 없습니다/);
+    assert.equal(new URL(page.url()).searchParams.has("filter"), false);
+    await start.locator("[data-date-anchor-weekday]").selectOption("0");
+    await end.locator("[data-date-anchor-weekday]").selectOption("4");
+    await end.locator("[data-date-anchor-source]").selectOption("today");
+    assert.equal(await start.locator("[data-date-anchor-weekday]").inputValue(), "0");
+    await end.locator("[data-date-anchor-source]").selectOption("day_offset");
+    await end.getByLabel("종료 일수", { exact: true }).fill("1");
+    assert.match(await row.locator("[data-filter-rule-preview]").innerText(), /오늘 기준 1일 전/);
+    await end.locator("[data-date-anchor-source]").selectOption("fixed_date");
+    await end.getByLabel("종료 날짜", { exact: true }).fill("2026-10-09");
+    await end.locator("[data-date-anchor-source]").selectOption("week_day");
+    await end.locator("[data-date-anchor-week]").selectOption("last");
+    await end.locator("[data-date-anchor-weekday]").selectOption("4");
+    await Promise.all([page.waitForNavigation(), page.getByRole("button", { name: "적용", exact: true }).click()]);
+    const definition = JSON.parse(new URL(page.url()).searchParams.get("filter"));
+    assert.equal(definition.schema_version, 4);
+    assert.deepEqual(definition.expression.children[0].rule, { kind: "date_range", start: { kind: "week_day", week: "last", weekday: 0 }, end: { kind: "week_day", week: "last", weekday: 4 } });
+    await saveFilter(page, "지난주 월~금 보고용", "personal");
+    const selectedValue = await page.locator("[data-saved-filter-selection]").inputValue();
+    await page.goto(`${baseUrl}/projects/DEV/board`);
+    await page.locator("[data-saved-filter-selection]").selectOption(selectedValue);
+    await Promise.all([page.waitForNavigation(), page.getByRole("button", { name: "불러오기", exact: true }).click()]);
+    assert.deepEqual(JSON.parse(new URL(page.url()).searchParams.get("filter")).expression, definition.expression);
+    assert.equal(await page.locator('[data-filter-boundary="end"] [data-date-anchor-weekday]').inputValue(), "4");
+    await page.getByRole("link", { name: "☷ 목록 보기" }).click();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+    if (process.env.TTMS_DATE_ANCHOR_SCREENSHOT) await page.screenshot({ path: process.env.TTMS_DATE_ANCHOR_SCREENSHOT, fullPage: true });
+    await Promise.all([page.waitForNavigation(), page.waitForEvent("dialog").then(dialog => dialog.accept()), page.getByRole("button", { name: "삭제", exact: true }).last().click()]);
+    await page.goto(`${baseUrl}/projects/DEV/tickets`);
+    await root.locator(":scope > .filter-group-actions [data-filter-add-field]").selectOption("due_date");
+    await row.locator("[data-filter-value-source]").selectOption("week_day");
+    await row.locator("[data-date-anchor-week]").selectOption("this");
+    await row.locator("[data-date-anchor-weekday]").selectOption("4");
+    await row.locator("[data-condition-operator]").selectOption("before");
+    await Promise.all([page.waitForNavigation(), page.getByRole("button", { name: "적용", exact: true }).click()]);
+    assert.deepEqual(JSON.parse(new URL(page.url()).searchParams.get("filter")).expression.children[0].rule, { kind: "week_day", week: "this", weekday: 4 });
+    assert.deepEqual(errors, []);
+  } finally {
+    await browser.close();
+  }
+});

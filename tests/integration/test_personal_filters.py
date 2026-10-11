@@ -1,6 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
+from filter_helpers import filter_condition, filter_definition
 from sqlalchemy import func, select
 from test_tickets import create_ticket, delete, login, patch, post
 from test_tickets import ticket_people as ticket_people
@@ -19,16 +20,15 @@ def test_personal_filter_lifecycle_and_date_roundtrip(client, ticket_people, db_
     """개인 조건의 생성·이름 변경·덮어쓰기·삭제 및 화면 적용을 검증한다."""
     people, _ = ticket_people
     ticket = create_ticket(client, title="필터 적용 대상").json()
-    definition = {
-        "types": ["TASK"],
-        "statuses": ["TODO"],
-        "creator_ids": [people["member"].id],
-        "created_from": "2026-10-03T15:00:00Z",
-        "created_before": "2026-10-04T15:00:00Z",
-        "sort_by": "number",
-        "sort_direction": "asc",
-        "page_size": 10,
-    }
+    definition = filter_definition(
+        filter_condition("type", "in", "TASK"),
+        filter_condition("status", "in", "TODO"),
+        filter_condition("creator", "in", people["member"].id),
+        filter_condition("created_date", "on", "2026-10-04"),
+        sort_by="number",
+        sort_direction="asc",
+        page_size=10,
+    )
     created = post(client, ENDPOINT, {"name": "  내 업무  ", "definition": definition})
     assert created.status_code == 201
     summary = created.json()
@@ -42,9 +42,12 @@ def test_personal_filter_lifecycle_and_date_roundtrip(client, ticket_people, db_
     )
     assert response.status_code == 303
     location = response.headers["location"]
-    assert "created_from=2026-10-04" in location
-    assert "created_through=2026-10-04" in location
-    assert "sort_by=number" in location and "page_size=10" in location
+    import json
+    from urllib.parse import parse_qs, urlsplit
+
+    applied = json.loads(parse_qs(urlsplit(location).query)["filter"][0])
+    assert applied["expression"]["children"][3]["values"] == ["2026-10-04"]
+    assert applied["sort_by"] == "number" and applied["page_size"] == 10
     assert client.get(location).status_code == 200
 
     renamed = patch(
@@ -70,11 +73,13 @@ def test_personal_filter_lifecycle_and_date_roundtrip(client, ticket_people, db_
         client,
         filter_url,
         {
-            "definition": {"query": ticket["key"]},
+            "definition": filter_definition(filter_condition("search", "contains", ticket["key"])),
             "expected_updated_at": renamed["updated_at"],
         },
     ).json()
-    assert client.get(filter_url).json()["definition"]["query"] == ticket["key"]
+    assert client.get(filter_url).json()["definition"]["expression"]["children"][0]["values"] == [
+        ticket["key"]
+    ]
     assert (
         delete(client, filter_url, {"expected_updated_at": renamed["updated_at"]}).status_code
         == 409
@@ -171,7 +176,7 @@ def test_guest_and_inactive_project_allow_personal_preferences(client, ticket_pe
         {"name": "숨김\u200b이름", "definition": {}},
         {"name": "필터", "definition": {}, "owner_id": 1},
         {"name": "필터", "definition": {}, "visibility": "PROJECT"},
-        {"name": "필터", "definition": {"schema_version": 2}},
+        {"name": "필터", "definition": {"schema_version": 1}},
         {"name": "필터", "definition": {"sql": "SELECT * FROM users"}},
         {"name": "필터", "definition": {"types": ["UNKNOWN"]}},
         {"name": "필터", "definition": {"unassigned": True, "assignee_ids": [1]}},
@@ -199,11 +204,9 @@ def test_personal_filter_reference_revalidation_and_recovery(client, ticket_peop
     db_session.add(hidden_epic)
     db_session.commit()
     for definition in [
-        {"epic_id": hidden_epic.id},
-        {"parent_id": hidden_epic.id},
-        {"assignee_ids": [people["outsider"].id]},
-        {"created_from": "2026-10-04T00:00:00Z"},
-        {"created_before": "0001-01-01T00:00:00+09:00"},
+        filter_definition(filter_condition("epic", "in", hidden_epic.id)),
+        filter_definition(filter_condition("parent", "in", hidden_epic.id)),
+        filter_definition(filter_condition("assignee", "in", people["outsider"].id)),
     ]:
         assert (
             post(client, ENDPOINT, {"name": "잘못된 조건", "definition": definition}).status_code

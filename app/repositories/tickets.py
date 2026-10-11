@@ -13,6 +13,7 @@ from app.models import (
     TicketRelation,
     User,
 )
+from app.repositories.ticket_filter_expressions import build_filter_expression
 from app.schemas.contracts import TicketFilter
 
 
@@ -198,67 +199,7 @@ def filtered_project_ticket_query(
 ):
     """목록과 칸반이 공유하는 프로젝트 권한·업무 필터 query를 구성한다."""
     query = ticket_query(project_id, actor_id, override=override)
-    if ticket_filter.query:
-        query = query.where(
-            or_(
-                Ticket.key.icontains(ticket_filter.query, autoescape=True),
-                Ticket.title.icontains(ticket_filter.query, autoescape=True),
-            )
-        )
-    if ticket_filter.types:
-        query = query.where(Ticket.type.in_(ticket_filter.types))
-    if ticket_filter.statuses:
-        query = query.where(Ticket.status.in_(ticket_filter.statuses))
-    if ticket_filter.priorities:
-        query = query.where(Ticket.priority.in_(ticket_filter.priorities))
-    if ticket_filter.epic_id is not None:
-        selected_epic_ids = select(Ticket.id).where(
-            Ticket.project_id == project_id,
-            Ticket.id == ticket_filter.epic_id,
-            Ticket.type == "EPIC",
-            Ticket.deleted_at.is_(None),
-        )
-        task_ids = select(Ticket.id).where(
-            Ticket.project_id == project_id,
-            Ticket.type == "TASK",
-            Ticket.parent_id.in_(selected_epic_ids),
-            Ticket.deleted_at.is_(None),
-        )
-        query = query.where(
-            or_(
-                Ticket.id.in_(selected_epic_ids),
-                Ticket.parent_id.in_(selected_epic_ids),
-                and_(Ticket.type == "SUBTASK", Ticket.parent_id.in_(task_ids)),
-            )
-        )
-    if ticket_filter.parent_id is not None:
-        selected_parent_ids = select(Ticket.id).where(
-            Ticket.project_id == project_id,
-            Ticket.id == ticket_filter.parent_id,
-            Ticket.type.in_(("EPIC", "TASK")),
-            Ticket.deleted_at.is_(None),
-        )
-        query = query.where(Ticket.parent_id.in_(selected_parent_ids))
-    if ticket_filter.creator_ids:
-        query = query.where(Ticket.creator_id.in_(ticket_filter.creator_ids))
-    if ticket_filter.unassigned:
-        query = query.where(Ticket.assignee_id.is_(None))
-    elif ticket_filter.assignee_ids:
-        query = query.where(Ticket.assignee_id.in_(ticket_filter.assignee_ids))
-    if ticket_filter.created_from is not None:
-        query = query.where(Ticket.created_at >= ticket_filter.created_from)
-    if ticket_filter.created_before is not None:
-        query = query.where(Ticket.created_at < ticket_filter.created_before)
-    if ticket_filter.updated_from is not None:
-        query = query.where(Ticket.updated_at >= ticket_filter.updated_from)
-    if ticket_filter.updated_before is not None:
-        query = query.where(Ticket.updated_at < ticket_filter.updated_before)
-    if ticket_filter.due_from is not None:
-        query = query.where(Ticket.due_date >= ticket_filter.due_from)
-    if ticket_filter.due_through is not None:
-        query = query.where(Ticket.due_date <= ticket_filter.due_through)
-
-    return query
+    return query.where(build_filter_expression(ticket_filter.expression, project_id))
 
 
 def ticket_rows(

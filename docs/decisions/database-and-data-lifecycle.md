@@ -30,6 +30,13 @@
 | DB-025 | 2026-10-04 | DECIDED | `20261004_0008`은 ticket·comment 본문 version CHECK를 2·3으로 확장하고 기존 row·이력은 변경하지 않는다. 멘션 포함 여부로 저장 version을 지정하고 v2를 계속 읽는다. | 본문 node 확장을 계약 version으로 구분한다. SQLite 재구성은 FK를 일시 해제하고 무결성을 검사하며 사전 중지·백업이 필요하다. downgrade는 mention을 표시 text로 변환하여 사용자 참조 의미를 잃으며 백업 없이 되돌릴 수 없다. |
 | DB-026 | 2026-10-05 | DECIDED | `20261005_0009`에서 고유 작업 key·cron 표현식·시간대·활성 상태를 `scheduled_jobs`에, 시작·완료·상태를 `scheduled_job_runs`에 저장한다. 두 테이블은 비어 있는 상태로 생성하고 삭제 작업은 등록하지 않는다. | DB를 일정 설정의 원본으로 삼되 실행 이력으로 다음 시각을 계산하지 않는다. 단일 scheduler의 작업 겹침은 data mount의 파일 잠금으로 차단하고, 다중 replica 조정은 후속 결정으로 둔다. |
 
+| DB-027 | 2026-10-11 | DECIDED | 복합 필터 1단계에서 TicketFilter v1 schema artifact·reader·converter·dual-read·호환 입력 경로를 제거하고 v1 개인·공유 저장 필터를 삭제한다. 새 v2 조건 트리는 기존 saved_filters의 versioned JSON 저장 공간을 우선 재사용한다. | 사용자가 보존할 v1 필터가 없으며 남아 있어도 테스트 데이터이므로 삭제해도 된다고 확인했다. 삭제 범위는 티켓 저장 필터에 한정하고 다른 계약·업무 데이터와 과거 migration은 보존한다. DB-024의 transaction·권한·stale·감사 규칙은 유지한다. |
+| DB-028 | 2026-10-11 | DECIDED | Alembic 20261011_0010의 upgrade가 schema_version=1인 saved_filters만 삭제하고 컬럼 기본값을 2로 변경한다. 기동 시마다 실행하는 정리 서비스나 converter는 만들지 않는다. downgrade는 v2 저장 필터를 삭제하고 기본값 1을 복원하며 이미 제거된 v1 row는 복원하지 않는다. | 다른 업무 row·감사 기록과 이미 있는 v2 row는 upgrade에서 유지한다. DB-027의 허가된 데이터 정리를 versioned migration 한 번으로 수행하고 삭제 개수만 시스템 로그에 남긴다. 데이터 손실 없는 rollback을 요구할 경우 일관된 사전 백업을 사용한다. |
+
+| DB-029 | 2026-10-12 | DECIDED | Alembic 20261012_0011은 v2 saved_filters의 row·이름·범위·소유자·시각·조건·정렬을 보존하며 JSON version과 저장 version을 3으로 바꾸고 컬럼 기본값을 3으로 변경한다. runtime reader는 v3 하나만 사용한다. downgrade는 동적 rule이 있으면 row/schema 변경 전에 중단하고 고정 조건만 v2로 복원한다. | v1 삭제 허가를 새 v2 필터 삭제로 확대하지 않는다. 저장 규칙을 임의의 날짜·사용자로 고정하거나 삭제하는 rollback을 피한다. 기존 v2 schema artifact와 migration 이력은 보존하며 새 계약 예시는 v3로 게시한다. |
+
+| DB-030 | 2026-10-12 | DECIDED | Alembic 20261012_0012는 v3 고정·동적 saved_filters의 조건·정렬·row·소유자·범위·이름·시각을 보존해 JSON/storage version과 기본값만 4로 바꾼다. runtime reader는 v4 하나다. downgrade는 week_day/date_range가 있으면 모든 row/schema 변경 전에 중단하고 기존 규칙만 v3로 복원한다. | 주 요일·독립 경계 계약을 명시적으로 versioning하며 이전 사용자 필터를 삭제하거나 임의 고정하지 않는다. v3 schema와 migration 이력은 보존한다. |
+
 ## Open decisions
 
 - PostgreSQL migration·repository 검증을 CI에서 언제 필수화할지는 실제 전환 필요성과 함께 확정한다.

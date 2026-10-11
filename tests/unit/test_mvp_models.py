@@ -284,7 +284,18 @@ def test_round_trip_schedule_body_filter_history_and_report(
         project_id=project.id,
         owner_id=user.id,
         name="내 업무",
-        definition=TicketFilter(assignee_ids=[user.id]).model_dump(mode="json"),
+        definition=TicketFilter(
+            expression={
+                "children": [
+                    {
+                        "kind": "condition",
+                        "field": "assignee",
+                        "operator": "in",
+                        "values": [user.id],
+                    }
+                ]
+            }
+        ).model_dump(mode="json"),
     )
     skill = ReportSkill(key="weekly-report", name="주간보고", created_by_id=user.id)
     db_session.add_all([history, saved, skill])
@@ -337,7 +348,7 @@ def test_round_trip_schedule_body_filter_history_and_report(
     assert ticket.actual_started_at == NOW
     assert "한글" in extract_body_document_text(ticket.description_document)
     assert history.after_state["status"] == "IN_PROGRESS"
-    assert saved.definition["assignee_ids"] == [user.id]
+    assert saved.definition["expression"]["children"][0]["values"] == [user.id]
     assert attempt.request_payload["messages"][0]["content"] == "주간보고"
     assert attempt.output_markdown.startswith("# 주간보고")
     # Ticket purge removes its live history, but preserves the report's frozen evidence.

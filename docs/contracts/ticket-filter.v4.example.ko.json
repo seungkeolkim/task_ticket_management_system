@@ -1,0 +1,43 @@
+{
+  "schema_version": 4,
+  "expression": {
+    "kind": "group",
+    "operator": "AND",
+    "children": [
+      {
+        "kind": "condition",
+        "field": "creator",
+        "operator": "in",
+        "values": [],
+        "rule": {
+          "kind": "current_user"
+        },
+        "negated": false
+      },
+      {
+        "kind": "condition",
+        "field": "updated_date",
+        "operator": "between",
+        "values": [],
+        "rule": {
+          "kind": "date_range",
+          "start": {
+            "kind": "week_day",
+            "week": "last",
+            "weekday": 0
+          },
+          "end": {
+            "kind": "week_day",
+            "week": "last",
+            "weekday": 4
+          }
+        },
+        "negated": false
+      }
+    ],
+    "negated": false
+  },
+  "sort_by": "updated_at",
+  "sort_direction": "desc",
+  "page_size": 20
+}

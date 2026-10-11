@@ -2,7 +2,7 @@
 
 이 문서는 태스크·티켓 관리 시스템의 권장 구현 순서와 현재 진척도를 관리한다.
 
-- 마지막 갱신일: 2026-10-05
+- 마지막 갱신일: 2026-10-11
 - 상세 요구사항: [REQUIREMENTS.md](REQUIREMENTS.md)
 - 기존 구현 차용 기준: [REFERENCE_IMPLEMENTATION.md](REFERENCE_IMPLEMENTATION.md)
 
@@ -375,6 +375,36 @@
 
 2026-10-04 프로젝트 공유 저장 필터: 프로젝트 관리자·시스템 관리자의 생성·이름 변경·덮어쓰기·삭제와 구성원·게스트의 목록·칸반 적용을 연결했다. 개인·공유 영역을 명시적으로 구분하며 공유 관리 control은 활성 프로젝트 관리자에게만 표시한다. 생성자 이탈 후 현재 관리자 관리, 비활성 프로젝트 읽기 전용, 공개 범위·프로젝트 격리, 입력·참조 재검증, CSRF·stale·동시 중복 방어와 감사 rollback을 검증했다. 공통 입력 DTO·조건 검증·UI script를 재사용하고 DB migration은 추가하지 않았다. Windows Python 전체 pytest 412개(실제 Edge Browser 시나리오 3개 포함), 개인·공유 통합 테스트 33개와 Ruff·JavaScript 문법·diff 검사를 통과했다. 기존 dependency deprecation 경고 2개는 남아 있다. 9단계의 모든 필수 항목과 완료 기준을 충족했으며 Label·Ad-hoc 필터 연계는 별도 후속 범위다.
 
+## 필터 확장 — 복합 조건·생성기 UI와 동적 기준값
+
+2026-10-11 1단계 구현과 검증을 완료했다. [상세 설계](docs/ticket_filter_design.md), 요구사항 7.6, UI-034~UI-037·DB-027·DB-028을 따른다. 기존 9단계의 완료 이력과 별개인 새 작업이며 2026-10-12 2단계 초안 구현·검증도 완료했다. v1 schema artifact와 호환 입력은 제거했으며 데이터 정리는 새 Alembic migration을 임시 DB에서 검증했다. 실제 사용 DB에는 아직 적용하지 않았다.
+
+- [x] 1단계 — 복합 조합의 필터와 생성기 UI 개선
+  - [x] typed 조건 트리와 중첩 AND/OR, 조건·그룹 NOT 및 NULL·빈 값 의미 구현
+  - [x] Dropdown 필드 추가와 필드·연산자별 입력, 복수 사용자·미지정 조합 및 조건 요약 구현
+  - [x] 개인·공유 공통 저장·불러오기·편집과 공개 범위·미적용 편집 상태 표시
+  - [x] API·URL·목록/count·칸반·페이지 이동·화면 전환·drag 재조회에 동일 조건 보존
+  - [x] TicketFilter v1 schema·reader·converter·호환 입력 제거와 v1 저장 필터 정리 절차 검증
+  - [x] 권한·참조·CSRF·stale·감사 rollback 및 조건 트리·실제 Browser 회귀 검증
+- [x] 2단계 — 동적 기준값 초안
+  - [x] 날짜의 오늘·상대 기간·이번/지난 working week와 고정값 선택 구현
+  - [x] 담당자·생성자의 현재 사용자와 고정 사용자 선택 구현
+  - [x] 규칙 저장·요청별 기준 해석·실제 날짜/사용자 표시와 공용 내 이슈 조건 연결
+  - [x] Asia/Seoul·주/월/연도 경계·공휴일 포함 월~금·사용자별 결과·규칙 재적용 및 Browser 검증
+
+- [x] 날짜 경계 확장 — 독립 시작·종료와 주 요일
+  - [x] 이번/지난주 월~일 단일 날짜와 고정·오늘·N일 전후 경계의 조합 구현
+  - [x] 시작·종료별 입력·해석값·역순 안내·저장/URL 복원 및 v3 보존 migration 구현
+  - [x] 전체 회귀·Browser·migration 검증 및 문서 완료
+
+1단계 완료 기준: 새 조건 트리를 저장·복원·조회하고 v1 호환 없이 필드 추가형 편집기로 복합 조건을 만들 수 있으며 기존 권한·업무 데이터와 목록·칸반 동작이 보존된다.
+
+2026-10-11 검증: Windows 전체 pytest 487개가 실제 Edge Browser 시나리오를 포함해 통과했다. 임시 Docker 환경의 Linux 전체 pytest는 461개 통과·14개 skip이며 Ruff도 통과했다. JavaScript 문법, 문서 링크·결정 ID, diff 검사와 데이터가 있는 migration upgrade/downgrade 검증을 완료했다. Browser 검증은 필드 추가·타입 전환·중첩·NOT·복수 사용자·요약·개인/공유 저장 복원·미적용 편집·stale·목록/칸반/drag 조건 보존을 포함한다. 기존 dependency deprecation 경고는 Windows 2개·Linux 1개이며 macOS와 PostgreSQL은 검증하지 않았다.
+
+2단계 완료 기준: 동적 날짜·현재 사용자 규칙을 저장하고 적용 시점의 동일 기준으로 재해석하며 공용 필터를 각 사용자의 내 이슈 조회에 사용할 수 있다. 변경 이력 기반 주간보고·LLM·Label·Ad-hoc 필터는 제외한다.
+
+2026-10-12 동적 기준값 초안: TicketFilter v3에 today·day_offset·relative_period·working_week·current_user 규칙과 요청별 Resolver를 추가했다. 숫자 입력·기준값 전환·날짜/사용자 미리보기와 적용 결과를 표시하며 저장·URL에는 규칙을 유지한다. v2 저장 필터를 보존하는 0011 migration과 동적 규칙이 있는 downgrade의 변경 전 중단을 검증했다. Windows 전체 pytest 519개(실제 Edge 포함), Linux 전체 pytest 492개 통과·15개 skip, Ruff·JavaScript 문법·문서 링크·결정 ID·diff 검사가 통과했다. 기존 dependency 경고는 Windows 2개·Linux 1개다. 실제 사용 DB migration·앱 재기동은 실행하지 않았고 macOS·PostgreSQL은 검증하지 않았다. 금요일 단일 기준일 선택은 초안 확인 후 별도 논의한다. 상세는 [동적 기준값](docs/dynamic_filter_criteria.md)을 따른다.
+
 ## 10단계 — 칸반 및 웹 UI 완성
 
 - [x] 화면 인벤토리 기반 탐색 가능한 비동작 UI 목업 구성
@@ -476,3 +506,5 @@
 - [ ] 외부 인증 연동
 - [ ] 오브젝트 스토리지 첨부파일 adapter
 - [ ] 필요 시 다크 모드
+
+2026-10-12 날짜 경계 확장 완료: TicketFilter v4에 이번/지난주 요일의 단일 날짜와 독립 시작·종료 규칙을 추가했다. 고정 날짜·오늘·N일 전후·주 요일을 경계마다 조합하고 양 끝 날짜 전체를 포함한다. 역순 안내와 저장/URL/목록/칸반 복원, 한국 날짜·월/연도 경계와 v3 보존 migration·신규 경계 downgrade 중단을 검증했다. Windows 전체 pytest 543개(실제 Edge 포함), Linux 전체 pytest 515개 통과·16개 skip, Ruff·JavaScript 문법·문서 링크·결정 ID·diff 검사가 통과했다. 기존 dependency 경고는 Windows 2개·Linux 1개이며 실제 사용 DB migration·앱 재기동과 macOS·PostgreSQL 검증은 실행하지 않았다.

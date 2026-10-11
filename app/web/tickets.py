@@ -1,8 +1,6 @@
 import json
-from datetime import date, timedelta
 from typing import Annotated, Literal
 from urllib.parse import urlencode
-from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
 from fastapi.responses import RedirectResponse
@@ -17,6 +15,7 @@ from app.domain.codes import TicketType
 from app.domain.rich_text import MAX_DOCUMENT_BYTES, empty_body_document
 from app.schemas.comments import CommentCreate, CommentDelete, CommentUpdate
 from app.schemas.contracts import TicketFilter
+from app.schemas.ticket_filters import serialize_ticket_filter
 from app.schemas.tickets import (
     TicketCreate,
     TicketCreateOptions,
@@ -38,6 +37,7 @@ from app.web.attachment_responses import (
 )
 from app.web.rendering import render
 from app.web.security import require_web_user, verify_csrf
+from app.web.ticket_filter_inputs import project_ticket_filter_parameters
 
 router = APIRouter(include_in_schema=False)
 Database = Annotated[Session, Depends(get_db_session)]
@@ -83,83 +83,9 @@ def _parse_comment_document(raw_document: str) -> object:
         raise ValueError("댓글 본문 JSON 형식이 올바르지 않습니다.") from error
 
 
-def _project_ticket_filter_query(ticket_filter: TicketFilter) -> list[tuple[str, str | int]]:
-    """검증된 filter를 반복 값을 보존하는 URL query 항목으로 변환한다."""
-    query_items: list[tuple[str, str | int]] = []
-    if ticket_filter.query:
-        query_items.append(("q", ticket_filter.query))
-    query_items.extend(("type", item.value) for item in ticket_filter.types)
-    query_items.extend(("status", item.value) for item in ticket_filter.statuses)
-    query_items.extend(("priority", item.value) for item in ticket_filter.priorities)
-    if ticket_filter.epic_id is not None:
-        query_items.append(("epic_id", ticket_filter.epic_id))
-    if ticket_filter.parent_id is not None:
-        query_items.append(("parent_id", ticket_filter.parent_id))
-    query_items.extend(("creator_id", item) for item in ticket_filter.creator_ids)
-    query_items.extend(("assignee_id", item) for item in ticket_filter.assignee_ids)
-    if ticket_filter.unassigned:
-        query_items.append(("unassigned", "true"))
-    timezone = ZoneInfo("Asia/Seoul")
-    if ticket_filter.created_from is not None:
-        created_from = ticket_filter.created_from.astimezone(timezone).date()
-        query_items.append(("created_from", created_from.isoformat()))
-    if ticket_filter.created_before is not None:
-        created_through = (
-            ticket_filter.created_before.astimezone(timezone).date() - timedelta(days=1)
-        )
-        query_items.append(("created_through", created_through.isoformat()))
-    if ticket_filter.updated_from is not None:
-        updated_from = ticket_filter.updated_from.astimezone(timezone).date()
-        query_items.append(("updated_from", updated_from.isoformat()))
-    if ticket_filter.updated_before is not None:
-        updated_through = (
-            ticket_filter.updated_before.astimezone(timezone).date() - timedelta(days=1)
-        )
-        query_items.append(("updated_through", updated_through.isoformat()))
-    if ticket_filter.due_from is not None:
-        query_items.append(("due_from", ticket_filter.due_from.isoformat()))
-    if ticket_filter.due_through is not None:
-        query_items.append(("due_through", ticket_filter.due_through.isoformat()))
-    query_items.extend(
-        (
-            ("sort_by", ticket_filter.sort_by),
-            ("sort_direction", ticket_filter.sort_direction),
-            ("page_size", ticket_filter.page_size),
-        )
-    )
-    return query_items
-
-
-def _optional_positive_integer(raw_value: str) -> int | None:
-    """빈 HTML query 값 또는 양의 정수를 안전하게 변환한다."""
-    if not raw_value:
-        return None
-    try:
-        value = int(raw_value)
-    except ValueError as error:
-        raise AuthError("invalid_filter", "검색 조건과 페이지 범위를 확인하세요.") from error
-    if value <= 0:
-        raise AuthError("invalid_filter", "검색 조건과 페이지 범위를 확인하세요.")
-    return value
-
-
-def _positive_integer_values(raw_values: list[str] | None) -> list[int]:
-    """HTML query의 비어 있지 않은 양의 정수 목록을 변환한다."""
-    return [
-        value
-        for raw_value in (raw_values or [])
-        if (value := _optional_positive_integer(raw_value)) is not None
-    ]
-
-
-def _optional_date(raw_value: str) -> date | None:
-    """빈 HTML date query 값 또는 ISO 날짜를 안전하게 변환한다."""
-    if not raw_value:
-        return None
-    try:
-        return date.fromisoformat(raw_value)
-    except ValueError as error:
-        raise AuthError("invalid_filter", "검색 조건과 페이지 범위를 확인하세요.") from error
+def _project_ticket_filter_query(ticket_filter: TicketFilter) -> list[tuple[str, str]]:
+    """중첩 조건과 정렬을 손실 없이 단일 filter JSON query로 보존한다."""
+    return [("filter", serialize_ticket_filter(ticket_filter))]
 
 
 def _parse_ticket_properties(
@@ -269,49 +195,6 @@ def global_ticket_list_page(
     )
 
 
-def project_ticket_filter_parameters(
-    search_query: Annotated[str, Query(alias="q")] = "",
-    types: Annotated[list[str] | None, Query(alias="type")] = None,
-    statuses: Annotated[list[str] | None, Query(alias="status")] = None,
-    priorities: Annotated[list[str] | None, Query(alias="priority")] = None,
-    epic_id: str = "",
-    parent_id: str = "",
-    creator_ids: Annotated[list[str] | None, Query(alias="creator_id")] = None,
-    assignee_ids: Annotated[list[str] | None, Query(alias="assignee_id")] = None,
-    unassigned: bool = False,
-    created_from: str = "",
-    created_through: str = "",
-    updated_from: str = "",
-    updated_through: str = "",
-    due_from: str = "",
-    due_through: str = "",
-    sort_by: str = "updated_at",
-    sort_direction: str = "desc",
-    page_size: int | None = None,
-) -> TicketFilter:
-    """빈 HTML 입력을 처리하고 목록·칸반의 공통 filter를 구성한다."""
-    return service.build_project_ticket_filter(
-        search_query=search_query,
-        types=types,
-        statuses=statuses,
-        priorities=priorities,
-        epic_id=_optional_positive_integer(epic_id),
-        parent_id=_optional_positive_integer(parent_id),
-        creator_ids=_positive_integer_values(creator_ids),
-        assignee_ids=_positive_integer_values(assignee_ids),
-        unassigned=unassigned,
-        created_from=_optional_date(created_from),
-        created_through=_optional_date(created_through),
-        updated_from=_optional_date(updated_from),
-        updated_through=_optional_date(updated_through),
-        due_from=_optional_date(due_from),
-        due_through=_optional_date(due_through),
-        sort_by=sort_by,
-        sort_direction=sort_direction,
-        page_size=page_size,
-    )
-
-
 @router.get("/projects/{project_key}/personal-filters/{filter_id}/apply")
 def apply_personal_filter_page(
     project_key: str, filter_id: int, session: Database, actor: Actor,
@@ -322,6 +205,7 @@ def apply_personal_filter_page(
         session, actor, project_key, filter_id
     )
     query_items = _project_ticket_filter_query(personal_filter.definition)
+    query_items.extend([("loaded_scope", "personal"), ("loaded_id", str(filter_id))])
     return RedirectResponse(
         f"/projects/{project_key}/{view}?" + urlencode(query_items), status_code=303
     )
@@ -337,6 +221,7 @@ def apply_shared_filter_page(
         session, actor, project_key, filter_id
     )
     query_items = _project_ticket_filter_query(shared_filter.definition)
+    query_items.extend([("loaded_scope", "shared"), ("loaded_id", str(filter_id))])
     return RedirectResponse(
         f"/projects/{project_key}/{view}?" + urlencode(query_items), status_code=303
     )
@@ -356,6 +241,9 @@ def project_ticket_board_page(
     )
     filter_options = service.get_project_ticket_filter_options(session, actor, project_key)
     query_items = _project_ticket_filter_query(ticket_filter)
+    for metadata_name in ("loaded_scope", "loaded_id"):
+        if metadata_name in request.query_params:
+            query_items.append((metadata_name, request.query_params[metadata_name]))
     return render(
         request,
         "board.html",
@@ -367,9 +255,7 @@ def project_ticket_board_page(
         filters=ticket_filter,
         personal_filters=personal_filter_service.list_personal_filters(session, actor, project_key),
         shared_filters=shared_filter_service.list_shared_filters(session, actor, project_key),
-        q=ticket_filter.query,
         filter_options=filter_options,
-        filter_dates=dict(query_items),
         filter_action=f"/projects/{project.key}/board",
         is_board_filter=True,
         ticket_list_url=f"/projects/{project.key}/tickets?" + urlencode(query_items),
@@ -626,6 +512,9 @@ def project_ticket_list_page(
     if selected:
         _, selected_ticket = service.get_ticket_detail(session, actor, project_key, selected)
     query_items = _project_ticket_filter_query(ticket_filter)
+    for metadata_name in ("loaded_scope", "loaded_id"):
+        if metadata_name in request.query_params:
+            query_items.append((metadata_name, request.query_params[metadata_name]))
     current_page_url = f"/projects/{project.key}/tickets?" + urlencode(
         query_items + [("page", page)], doseq=True
     )
@@ -637,12 +526,10 @@ def project_ticket_list_page(
         active="tickets",
         project=project,
         result=result,
-        q=ticket_filter.query,
         filters=ticket_filter,
         personal_filters=personal_filter_service.list_personal_filters(session, actor, project_key),
         shared_filters=shared_filter_service.list_shared_filters(session, actor, project_key),
         filter_options=filter_options,
-        filter_dates=dict(query_items),
         filter_action=f"/projects/{project.key}/tickets",
         board_url=f"/projects/{project.key}/board?" + urlencode(query_items),
         selected_ticket=selected_ticket,
