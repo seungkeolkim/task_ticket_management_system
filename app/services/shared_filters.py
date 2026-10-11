@@ -72,7 +72,7 @@ def get_shared_filter(session: Session, actor: Identity, project_key: str, filte
         project = project_service.require_project_member(session, actor, project_key)
         saved_filter = require_shared_filter(session, project.id, filter_id)
         try:
-            if saved_filter.schema_version != 3:
+            if saved_filter.schema_version != 4:
                 raise ValueError("unsupported schema")
             definition = TicketFilter.model_validate(saved_filter.definition)
             validate_saved_filter_definition(session, project.id, definition)
@@ -103,7 +103,7 @@ def create_shared_filter(
             owner_id=actor.id,
             name=payload.name,
             visibility="PROJECT",
-            schema_version=3,
+            schema_version=4,
             definition=payload.definition.model_dump(mode="json"),
         )
         session.add(saved_filter)
@@ -137,13 +137,13 @@ def update_shared_filter(
         if (
             name == saved_filter.name
             and definition == saved_filter.definition
-            and (payload.definition is None or saved_filter.schema_version == 3)
+            and (payload.definition is None or saved_filter.schema_version == 4)
         ):
             return shared_filter_summary(saved_filter)
         saved_filter.name = name
         saved_filter.definition = definition
         if payload.definition is not None:
-            saved_filter.schema_version = 3
+            saved_filter.schema_version = 4
         saved_filter.updated_at = max(
             datetime.now(UTC), saved_filter.updated_at + timedelta(microseconds=1)
         )

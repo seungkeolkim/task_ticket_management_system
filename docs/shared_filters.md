@@ -1,6 +1,6 @@
 # 프로젝트 공유 저장 필터
 
-현재 계약은 TicketFilter v3다. 개인/공유 공통 편집기와 중첩 조건·URL·검증은 [필터 설계](ticket_filter_design.md), UI-034·UI-036·UI-037을 따른다. 현재 사용자·동적 날짜의 입력과 해석은 [동적 기준값](dynamic_filter_criteria.md)을 따른다.
+현재 계약은 TicketFilter v4다. 개인/공유 공통 편집기와 중첩 조건·URL·검증은 [필터 설계](ticket_filter_design.md), UI-034·UI-036·UI-037을 따른다. 현재 사용자·동적 날짜의 입력과 해석은 [동적 기준값](dynamic_filter_criteria.md)을 따른다.
 
 ## 사용과 권한
 
@@ -26,7 +26,7 @@
 - 공개 범위는 PROJECT로 고정하고 입력으로 owner·visibility를 받지 않는다. 개인 row·다른 프로젝트 row는 조회·수정·삭제 대상에 포함하지 않는다.
 - 적용 주소는 `/projects/{project_key}/shared-filters/{filter_id}/apply?view=tickets` 또는 `view=board`다. 조건을 재검증한 뒤 기존 필터 URL로 303 이동한다.
 - 이름은 NFC·trim 후 1~200자, 제어 문자 금지이며 프로젝트 공유 범위에서 대소문자를 구분해 중복을 거부한다. 개인 필터와 같은 이름은 허용한다.
-- 개인·공유는 같은 입력 DTO 기반과 TicketFilter v3 참조·날짜 검증을 사용한다. 잘못된 저장 schema·현재 참조는 409로 안내하며 관리자가 유효한 조건으로 덮어쓰거나 삭제할 수 있다.
+- 개인·공유는 같은 입력 DTO 기반과 TicketFilter v4 참조·날짜 검증을 사용한다. 잘못된 저장 schema·현재 참조는 409로 안내하며 관리자가 유효한 조건으로 덮어쓰거나 삭제할 수 있다.
 - 쓰기는 CSRF·same-origin을 검증한다. expected_updated_at이 오래되면 409, no-op은 수정 시각·변경 감사를 추가하지 않는다.
 
 ## 저장과 검증

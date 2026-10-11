@@ -148,4 +148,4 @@ def test_resolution_rejects_naive_clock_and_old_contract():
     with pytest.raises(ValueError):
         resolve_ticket_filter(TicketFilter(), ACTOR, evaluated_at=datetime(2026, 10, 12))
     with pytest.raises(ValidationError):
-        TicketFilter(schema_version=2)
+        TicketFilter(schema_version=3)

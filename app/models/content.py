@@ -173,5 +173,5 @@ class SavedFilter(IntegerPrimaryKeyMixin, TimestampMixin, Base):
     visibility: Mapped[str] = mapped_column(
         String(16), default="PERSONAL", server_default="PERSONAL"
     )
-    schema_version: Mapped[int] = mapped_column(Integer, default=3, server_default="3")
+    schema_version: Mapped[int] = mapped_column(Integer, default=4, server_default="4")
     definition: Mapped[dict[str, Any]] = mapped_column(JSON)

@@ -1,7 +1,7 @@
 # MVP 데이터 구조
 
 이 문서는 ORM·DB 제약·입출력 계약·migration을 중심으로 설명한다. 현재 인증, 사용자·조직 관리와 JSON 입출력, 프로젝트 권한, 티켓 생성·조회·편집·상태 전이, 대시보드·칸반 이동, 관계, 계층 단위 휴지통·복구, 댓글·멘션, 저장 필터, 일반 첨부파일과 본문 이미지는 서비스·API·화면까지 연결되어 있고 티켓 쓰기는 변경 이력을 같은 transaction에 기록한다. 휴지통·첨부파일 삭제와 영구 정리, 간트·보고서 실행은 아직 연결하지 않았다.
-원본은 `app/models/`, 데이터 계약은 `app/schemas/`, 최신 추가 revision은 `20261012_0011`다.
+원본은 `app/models/`, 데이터 계약은 `app/schemas/`, 최신 추가 revision은 `20261012_0012`다.
 
 ## 요구사항과 저장 구조
 
@@ -90,6 +90,8 @@
 
 `20261004_0008`은 기존 데이터를 보존하고 본문 v3 멘션을 허용한다. downgrade와 읽음 lifecycle은 [멘션 계약](mentions.md)을 따른다.
 
-## 복합 필터와 동적 기준값 v3
+## 복합 필터와 동적 기준값
 
-TicketFilter v3는 중첩 group/condition의 AND·OR·NOT과 고정값·동적 rule을 사용한다. `20261011_0010`은 v1 저장 필터만 제거하고 기본값을 2로 바꾼다. `20261012_0011`은 고정 v2 필터와 다른 업무 데이터를 보존하면서 저장 JSON version·기본값을 3으로 바꾼다. runtime reader는 v3 하나이며 v1 호환 reader는 없다. 상세 범위는 [필터 설계](ticket_filter_design.md)를 따른다.
+TicketFilter v4는 중첩 group/condition의 AND·OR·NOT과 고정값·동적 rule·독립 날짜 경계를 사용한다. `20261011_0010`은 v1 저장 필터만 제거하고 기본값을 2로 바꾼다. `20261012_0011`은 고정 v2 필터와 다른 업무 데이터를 보존하면서 저장 JSON version·기본값을 3으로 바꾼다. 현재 runtime reader는 v4 하나이며 v1 호환 reader는 없다. 상세 범위는 [필터 설계](ticket_filter_design.md)를 따른다.
+
+`20261012_0012`는 v3 저장 필터를 보존하면서 주 요일·독립 날짜 경계를 지원하는 TicketFilter v4로 이관한다. 상세는 [동적 기준값](dynamic_filter_criteria.md)을 따른다.

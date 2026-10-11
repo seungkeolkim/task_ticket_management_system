@@ -21,7 +21,7 @@ def read_artifact(name: str) -> dict:
 def test_published_json_schemas_match_python_contracts() -> None:
     """schema·계약 관련 동작을 검증한다."""
     for artifact_name, model in (
-        ("ticket-filter.v3.schema.json", TicketFilter),
+        ("ticket-filter.v4.schema.json", TicketFilter),
         ("ticket-event.v2.schema.json", TicketEvent),
         ("report-input.v1.schema.json", ReportInput),
         ("report-output.v1.schema.json", ReportOutput),

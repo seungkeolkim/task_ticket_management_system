@@ -1,4 +1,4 @@
-"""고정값과 동적 기준값을 검증된 조건 트리로 표현하는 티켓 필터 v3 계약이다."""
+"""고정값·동적 기준값·독립 날짜 경계를 표현하는 티켓 필터 v4 계약이다."""
 
 from __future__ import annotations
 
@@ -23,6 +23,16 @@ MAX_FILTER_BYTES = 4096
 MAX_FILTER_NODES = 60
 MAX_FILTER_DEPTH = 5
 MAX_CONDITION_VALUES = 30
+
+
+def validate_filter_calendar_date(value: str) -> date:
+    """고정 날짜와 기간 경계에 동일한 형식·달력·허용 범위 검증을 적용한다."""
+    if len(value) != 10:
+        raise ValueError("날짜는 YYYY-MM-DD 형식이어야 합니다.")
+    parsed_date = date.fromisoformat(value)
+    if not date(2, 1, 1) <= parsed_date <= date(9998, 12, 31):
+        raise ValueError("날짜 범위를 확인하세요.")
+    return parsed_date
 
 
 class CurrentUserRule(BaseModel):
@@ -65,8 +75,60 @@ class WorkingWeekRule(BaseModel):
     week: Literal["this", "last"]
 
 
+class WeekdayRule(BaseModel):
+    """월요일부터 시작하는 이번 또는 지난 달력 주의 특정 요일을 참조한다."""
+
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["week_day"] = "week_day"
+    week: Literal["this", "last"]
+    weekday: StrictInt = Field(ge=0, le=6)
+
+
+class FixedDateAnchor(BaseModel):
+    """직접 지정한 날짜를 기간의 시작 또는 종료 경계로 사용한다."""
+
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["fixed_date"] = "fixed_date"
+    value: StrictStr
+
+    @model_validator(mode="after")
+    def validate_date(self) -> Self:
+        """다른 고정 날짜와 동일한 허용 범위를 검증한다."""
+        validate_filter_calendar_date(self.value)
+        return self
+
+
+DateAnchor = Annotated[
+    FixedDateAnchor | TodayRule | DayOffsetRule | WeekdayRule,
+    Field(discriminator="kind"),
+]
+
+
+class DateRangeRule(BaseModel):
+    """시작과 종료를 각각 고정 또는 동적 단일 날짜로 지정한다."""
+
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["date_range"] = "date_range"
+    start: DateAnchor
+    end: DateAnchor
+
+    @model_validator(mode="after")
+    def validate_fixed_order(self) -> Self:
+        """두 경계가 고정 날짜이면 저장 전에도 역순 범위를 거부한다."""
+        if isinstance(self.start, FixedDateAnchor) and isinstance(self.end, FixedDateAnchor):
+            if self.start.value > self.end.value:
+                raise ValueError("기간 시작은 종료보다 늦을 수 없습니다.")
+        return self
+
+
 DynamicFilterRule = Annotated[
-    CurrentUserRule | TodayRule | DayOffsetRule | RelativePeriodRule | WorkingWeekRule,
+    CurrentUserRule
+    | TodayRule
+    | DayOffsetRule
+    | RelativePeriodRule
+    | WorkingWeekRule
+    | WeekdayRule
+    | DateRangeRule,
     Field(discriminator="kind"),
 ]
 
@@ -149,7 +211,7 @@ class FilterCondition(BaseModel):
                     raise ValueError("날짜 규칙은 날짜 필드에만 사용할 수 있습니다.")
                 allowed_operators = (
                     {"between"}
-                    if isinstance(self.rule, (RelativePeriodRule, WorkingWeekRule))
+                    if isinstance(self.rule, (RelativePeriodRule, WorkingWeekRule, DateRangeRule))
                     else {"on", "before", "after"}
                 )
                 if self.operator not in allowed_operators:
@@ -178,11 +240,9 @@ class FilterCondition(BaseModel):
             if len(self.values) != expected_count:
                 raise ValueError("날짜 경계를 확인하세요.")
             for date_value in self.values:
-                if not isinstance(date_value, str) or len(date_value) != 10:
+                if not isinstance(date_value, str):
                     raise ValueError("날짜는 YYYY-MM-DD 형식이어야 합니다.")
-                parsed_date = date.fromisoformat(date_value)
-                if not date(2, 1, 1) <= parsed_date <= date(9998, 12, 31):
-                    raise ValueError("날짜 범위를 확인하세요.")
+                validate_filter_calendar_date(date_value)
             if expected_count == 2 and self.values[0] > self.values[1]:
                 raise ValueError("날짜 범위가 역순입니다.")
         else:
@@ -218,10 +278,10 @@ FilterGroup.model_rebuild()
 
 
 class TicketFilter(BaseModel):
-    """목록·칸반·저장·URL에서 동일하게 사용하는 v3 조건 및 조회 설정이다."""
+    """목록·칸반·저장·URL에서 동일하게 사용하는 v4 조건 및 조회 설정이다."""
 
     model_config = ConfigDict(extra="forbid")
-    schema_version: Literal[3] = 3
+    schema_version: Literal[4] = 4
     expression: FilterGroup = Field(default_factory=FilterGroup)
     sort_by: Literal["created_at", "updated_at", "due_date", "priority", "number"] = "updated_at"
     sort_direction: Literal["asc", "desc"] = "desc"

@@ -14,6 +14,76 @@
       "title": "CurrentUserRule",
       "type": "object"
     },
+    "DateRangeRule": {
+      "additionalProperties": false,
+      "description": "시작과 종료를 각각 고정 또는 동적 단일 날짜로 지정한다.",
+      "properties": {
+        "kind": {
+          "const": "date_range",
+          "default": "date_range",
+          "title": "Kind",
+          "type": "string"
+        },
+        "start": {
+          "discriminator": {
+            "mapping": {
+              "day_offset": "#/$defs/DayOffsetRule",
+              "fixed_date": "#/$defs/FixedDateAnchor",
+              "today": "#/$defs/TodayRule",
+              "week_day": "#/$defs/WeekdayRule"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/FixedDateAnchor"
+            },
+            {
+              "$ref": "#/$defs/TodayRule"
+            },
+            {
+              "$ref": "#/$defs/DayOffsetRule"
+            },
+            {
+              "$ref": "#/$defs/WeekdayRule"
+            }
+          ],
+          "title": "Start"
+        },
+        "end": {
+          "discriminator": {
+            "mapping": {
+              "day_offset": "#/$defs/DayOffsetRule",
+              "fixed_date": "#/$defs/FixedDateAnchor",
+              "today": "#/$defs/TodayRule",
+              "week_day": "#/$defs/WeekdayRule"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/FixedDateAnchor"
+            },
+            {
+              "$ref": "#/$defs/TodayRule"
+            },
+            {
+              "$ref": "#/$defs/DayOffsetRule"
+            },
+            {
+              "$ref": "#/$defs/WeekdayRule"
+            }
+          ],
+          "title": "End"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "title": "DateRangeRule",
+      "type": "object"
+    },
     "DayOffsetRule": {
       "additionalProperties": false,
       "description": "오늘에서 지정한 달력 일수 전후의 날짜를 참조한다.",
@@ -134,9 +204,11 @@
               "discriminator": {
                 "mapping": {
                   "current_user": "#/$defs/CurrentUserRule",
+                  "date_range": "#/$defs/DateRangeRule",
                   "day_offset": "#/$defs/DayOffsetRule",
                   "relative_period": "#/$defs/RelativePeriodRule",
                   "today": "#/$defs/TodayRule",
+                  "week_day": "#/$defs/WeekdayRule",
                   "working_week": "#/$defs/WorkingWeekRule"
                 },
                 "propertyName": "kind"
@@ -156,6 +228,12 @@
                 },
                 {
                   "$ref": "#/$defs/WorkingWeekRule"
+                },
+                {
+                  "$ref": "#/$defs/WeekdayRule"
+                },
+                {
+                  "$ref": "#/$defs/DateRangeRule"
                 }
               ]
             },
@@ -227,6 +305,27 @@
         }
       },
       "title": "FilterGroup",
+      "type": "object"
+    },
+    "FixedDateAnchor": {
+      "additionalProperties": false,
+      "description": "직접 지정한 날짜를 기간의 시작 또는 종료 경계로 사용한다.",
+      "properties": {
+        "kind": {
+          "const": "fixed_date",
+          "default": "fixed_date",
+          "title": "Kind",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "value"
+      ],
+      "title": "FixedDateAnchor",
       "type": "object"
     },
     "HistoryEventType": {
@@ -542,11 +641,11 @@
     },
     "TicketFilter": {
       "additionalProperties": false,
-      "description": "목록·칸반·저장·URL에서 동일하게 사용하는 v3 조건 및 조회 설정이다.",
+      "description": "목록·칸반·저장·URL에서 동일하게 사용하는 v4 조건 및 조회 설정이다.",
       "properties": {
         "schema_version": {
-          "const": 3,
-          "default": 3,
+          "const": 4,
+          "default": 4,
           "title": "Schema Version",
           "type": "integer"
         },
@@ -863,6 +962,38 @@
         }
       },
       "title": "TodayRule",
+      "type": "object"
+    },
+    "WeekdayRule": {
+      "additionalProperties": false,
+      "description": "월요일부터 시작하는 이번 또는 지난 달력 주의 특정 요일을 참조한다.",
+      "properties": {
+        "kind": {
+          "const": "week_day",
+          "default": "week_day",
+          "title": "Kind",
+          "type": "string"
+        },
+        "week": {
+          "enum": [
+            "this",
+            "last"
+          ],
+          "title": "Week",
+          "type": "string"
+        },
+        "weekday": {
+          "maximum": 6,
+          "minimum": 0,
+          "title": "Weekday",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "week",
+        "weekday"
+      ],
+      "title": "WeekdayRule",
       "type": "object"
     },
     "WorkingWeekRule": {

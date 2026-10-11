@@ -1,6 +1,6 @@
 # 개인 저장 필터
 
-현재 계약은 TicketFilter v3다. 복합 조건과 필드 추가형 편집기, URL·NULL·규모 제한은 [필터 설계](ticket_filter_design.md), UI-034·UI-036·UI-037을 따른다. 날짜·현재 사용자의 동적 값은 [동적 기준값](dynamic_filter_criteria.md)을 따른다.
+현재 계약은 TicketFilter v4다. 복합 조건과 필드 추가형 편집기, URL·NULL·규모 제한은 [필터 설계](ticket_filter_design.md), UI-034·UI-036·UI-037을 따른다. 날짜·현재 사용자의 동적 값은 [동적 기준값](dynamic_filter_criteria.md)을 따른다.
 
 ## 사용과 공개 범위
 
@@ -18,7 +18,7 @@
 - 시스템 관리자도 타인 개인 필터에 접근할 수 없다. 비참여 프로젝트의 본인 필터 접근은 기존 관리자 override 감사를 따른다.
 - 게스트와 비활성 프로젝트도 개인 조회 설정을 저장할 수 있다. 프로젝트·티켓 쓰기 권한에는 영향을 주지 않는다(IAM-017).
 - 이름은 NFC·trim 후 1~200자, 제어 문자 금지다. 같은 사용자·프로젝트의 동일 이름을 거부하며 대소문자는 구분한다.
-- TicketFilter v3의 허용 필드·연산자만 저장하며 owner·visibility를 client 입력으로 받지 않는다.
+- TicketFilter v4의 허용 필드·연산자만 저장하며 owner·visibility를 client 입력으로 받지 않는다.
 - 생성·조건 덮어쓰기·불러오기 때 Epic·parent는 현재 프로젝트의 활성 계층 후보, creator·assignee는 기존 목록의 사용자 후보인지 확인한다. 이력상 참조된 과거 담당자는 기존 후보 규칙을 따른다.
 - 생성·수정·마감일은 YYYY-MM-DD 고정 날짜다. on/between은 날짜 전체를 포함하고 before/after는 선택일을 제외한다. 중첩 NOT 안의 참조도 재검증한다.
 - 불러올 수 없는 schema·참조는 409로 안내하고 조건을 임의 제거하지 않는다. 요약 목록·이름 변경·삭제와 유효한 조건으로 덮어쓰기는 가능하다.

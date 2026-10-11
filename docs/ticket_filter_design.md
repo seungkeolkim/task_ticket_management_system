@@ -2,14 +2,14 @@
 
 정리일: 2026-10-12. 상태: 1단계 구현·검증 완료, 2단계 초안 구현·검증 완료.
 
-이 문서는 대화 기록 없이 이어서 구현할 수 있도록 두 단계의 범위, UI, 조건 의미와 검증 기준을 정리한다. 제품 요구사항은 [REQUIREMENTS.md](../REQUIREMENTS.md), 진척도는 [IMPLEMENTATION_ROADMAP.md](../IMPLEMENTATION_ROADMAP.md), 결정은 [UI-034~UI-039](decisions/ui-search-and-notifications.md)와 [DB-027~DB-029](decisions/database-and-data-lifecycle.md)을 따른다.
+이 문서는 대화 기록 없이 이어서 구현할 수 있도록 두 단계의 범위, UI, 조건 의미와 검증 기준을 정리한다. 제품 요구사항은 [REQUIREMENTS.md](../REQUIREMENTS.md), 진척도는 [IMPLEMENTATION_ROADMAP.md](../IMPLEMENTATION_ROADMAP.md), 결정은 [UI-034~UI-040](decisions/ui-search-and-notifications.md)와 [DB-027~DB-030](decisions/database-and-data-lifecycle.md)을 따른다.
 
 ## 1. 작업 순서와 현재 상태
 
 1. 복합 조건과 필터 생성기 UI를 구현하고 TicketFilter v1 schema·호환 로직·저장 데이터를 제거한다.
 2. 1단계를 완료한 뒤 날짜와 담당자·생성자의 동적 기준값을 구현한다.
 
-현재 코드는 TicketFilter v2 조건 트리와 필드 추가형 UI를 사용한다. v1 schema artifact·평면 입력 경로는 제거했다. 동적 값은 TicketFilter v3 계약과 요청별 Resolver로 연결했다. Alembic `20261011_0010`의 v1 정리는 임시 DB에서 검증했으며 실제 사용 DB에는 아직 적용하지 않았다.
+현재 코드는 TicketFilter v2 조건 트리와 필드 추가형 UI를 사용한다. v1 schema artifact·평면 입력 경로는 제거했다. 동적 값은 TicketFilter v4 계약과 요청별 Resolver로 연결했다. Alembic `20261011_0010`의 v1 정리는 임시 DB에서 검증했으며 실제 사용 DB에는 아직 적용하지 않았다.
 
 사용자는 유지할 v1 저장 필터가 없고, 남아 있어도 테스트 데이터이므로 삭제해도 된다고 확인했다. v1 reader, converter, dual-read나 기존 평면 조건의 호환 adapter를 만들지 않는다. 제거 범위는 티켓 필터에 한정하며 본문·이력·보고서 등의 다른 v1 계약 및 과거 migration 이력을 삭제하지 않는다.
 
@@ -116,9 +116,9 @@ OR
 
 Label·Ad-hoc 필터, 전문 검색과 별도 보고서 기능은 이번 두 단계의 범위에 추가하지 않는다.
 
-## 7. 초안 확인 후 논의할 사항
+## 7. 독립 날짜 경계 확장
 
-- 이번/지난 working week의 금요일을 기간 대신 단일 기준일로 사용하는 선택 UI와 범위. 현재 구현에는 추가하지 않는다.
+- 이번/지난주의 월~일을 단일 기준일로 선택하고 기간의 시작·종료에도 각각 지정한다. 고정 날짜·오늘·N일 전후와 혼합할 수 있으며 양 끝 날짜를 포함한다. UI-040·DB-030을 따른다.
 
 위 항목은 두 단계의 범위를 바꾸는 미확정 요구사항이 아니라 구현 세부사항이며 확정 시 같은 작업에서 결정 문서를 갱신한다.
 
@@ -138,4 +138,4 @@ Label·Ad-hoc 필터, 전문 검색과 별도 보고서 기능은 이번 두 단
 
 ## 10. 2단계 초안
 
-상대 기간의 입력·경계, v3 규칙, 요청별 해석과 v2 보존 migration은 [동적 기준값](dynamic_filter_criteria.md)을 따른다. working week의 금요일을 별도 기준일로 선택하는 기능은 초안 확인 후 논의한다.
+상대 기간의 입력·경계, v3 규칙, 요청별 해석과 v2 보존 migration은 [동적 기준값](dynamic_filter_criteria.md)을 따른다. 주 요일과 독립 시작·종료 기준 입력을 추가했으며 확장 구현·회귀 검증을 완료했다.

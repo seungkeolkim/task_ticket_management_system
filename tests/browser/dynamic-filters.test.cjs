@@ -34,7 +34,7 @@ test("dynamic criteria retain rules and resolve for each applying user", async (
     await addDynamicCondition(page, "created_date", "this_week");
     await Promise.all([page.waitForNavigation(), page.getByRole("button", { name: "적용", exact: true }).click()]);
     const definition = JSON.parse(new URL(page.url()).searchParams.get("filter"));
-    assert.equal(definition.schema_version, 3);
+    assert.equal(definition.schema_version, 4);
     assert.deepEqual(definition.expression.children[0].rule, { kind: "current_user" });
     assert.deepEqual(definition.expression.children[1].rule, { kind: "relative_period", days: 7, direction: "past" });
     assert.match(await page.locator("[data-filter-applied-resolution]").innerText(), /manager/);

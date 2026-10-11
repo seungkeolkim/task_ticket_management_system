@@ -2958,6 +2958,7 @@ def test_board_filter_rejects_invalid_conditions(client, ticket_people, query):
 @pytest.mark.parametrize("browser_files", [
     ("kanban-filters.test.cjs", "personal-filters.test.cjs", "shared-filters.test.cjs"),
     ("dynamic-filters.test.cjs",),
+    ("date-anchors.test.cjs",),
     ("mentions.test.cjs",),
 ])
 def test_board_filters_in_real_browser(client, ticket_people, monkeypatch, browser_files):

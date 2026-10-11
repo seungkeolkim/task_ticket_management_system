@@ -1,21 +1,41 @@
 """동적 규칙을 요청당 한 번 해석하고 저장용 원본 조건은 보존한다."""
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from app.db.types import utc_now
 from app.domain.auth import AuthError, Identity
 from app.schemas.ticket_filters import (
     CurrentUserRule,
+    DateAnchor,
+    DateRangeRule,
     DayOffsetRule,
     FilterCondition,
     FilterGroup,
     FilterResolution,
+    FixedDateAnchor,
     RelativePeriodRule,
     ResolvedFilterCondition,
     TicketFilter,
+    WeekdayRule,
     WorkingWeekRule,
+    validate_filter_calendar_date,
 )
+
+
+def resolve_date_anchor(anchor: DateAnchor, reference_date: date) -> date:
+    """고정 날짜·오늘·offset·주 요일을 공통 요청 날짜에서 해석한다."""
+    if isinstance(anchor, FixedDateAnchor):
+        return validate_filter_calendar_date(anchor.value)
+    if isinstance(anchor, DayOffsetRule):
+        offset = -anchor.days if anchor.direction == "past" else anchor.days
+        return reference_date + timedelta(days=offset)
+    if isinstance(anchor, WeekdayRule):
+        week_start = reference_date - timedelta(days=reference_date.weekday())
+        if anchor.week == "last":
+            week_start -= timedelta(days=7)
+        return week_start + timedelta(days=anchor.weekday)
+    return reference_date
 
 
 def resolve_ticket_filter(
@@ -49,10 +69,17 @@ def resolve_ticket_filter(
             else:
                 first_date = reference_date
                 last_date = reference_date
-                if isinstance(rule, DayOffsetRule):
-                    offset = -rule.days if rule.direction == "past" else rule.days
-                    first_date = reference_date + timedelta(days=offset)
+                if isinstance(rule, (DayOffsetRule, WeekdayRule)):
+                    first_date = resolve_date_anchor(rule, reference_date)
                     last_date = first_date
+                elif isinstance(rule, DateRangeRule):
+                    first_date = resolve_date_anchor(rule.start, reference_date)
+                    last_date = resolve_date_anchor(rule.end, reference_date)
+                    if first_date > last_date:
+                        raise AuthError(
+                            "invalid_filter",
+                            "기간 시작은 종료보다 늦을 수 없습니다. 경계를 확인하세요.",
+                        )
                 elif isinstance(rule, RelativePeriodRule):
                     if rule.direction == "past":
                         first_date -= timedelta(days=rule.days - 1)

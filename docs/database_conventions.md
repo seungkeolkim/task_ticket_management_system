@@ -52,6 +52,7 @@ alembic downgrade base
 
 ## MVP and reporting schema
 
+- Revision `20261012_0012` preserves v3 saved rules as v4. Downgrade stops before any row/schema change when week_day/date_range exists, otherwise restores v3 rules. See DB-030 and [dynamic criteria](dynamic_filter_criteria.md).
 - Revision `20261012_0011` preserves fixed v2 saved filters as v3 and changes the default to 3. Downgrade stops before changes if any dynamic rule exists; fixed filters can return to v2. No runtime dual reader is added. See [dynamic filter criteria](dynamic_filter_criteria.md) and DB-029.
 - Revision `20261011_0010` removes v1 saved ticket filters and changes their schema version default to 2. Upgrade preserves all other business rows and existing v2 filters. Downgrade deletes v2 filters without restoring discarded v1 rows. See [ticket filter design](ticket_filter_design.md) and DB-028; use a consistent backup for data recovery.
 

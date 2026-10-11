@@ -103,7 +103,7 @@ def example_contracts() -> dict:
         generation_defaults={"temperature": 0},
     )
     return {
-        "ticket-filter.v3.example.ko.json": TicketFilter(
+        "ticket-filter.v4.example.ko.json": TicketFilter(
             expression={
                 "children": [
                     {
@@ -116,8 +116,12 @@ def example_contracts() -> dict:
                         "kind": "condition",
                         "field": "updated_date",
                         "operator": "between",
-                        "rule": {"kind": "working_week", "week": "this"},
-                    }
+                        "rule": {
+                            "kind": "date_range",
+                            "start": {"kind": "week_day", "week": "last", "weekday": 0},
+                            "end": {"kind": "week_day", "week": "last", "weekday": 4},
+                        },
+                    },
                 ],
             }
         ).model_dump(mode="json"),

@@ -145,3 +145,67 @@ def test_working_week_sql_timestamp_bounds_and_negated_null(
         ]
         == 3
     )
+
+
+def test_independent_last_week_boundaries_save_and_query_both_date_types(
+    client, db_session, ticket_people, monkeypatch
+):
+    """월요일 보고용 지난주 월~금 전체와 Date·timestamp 경계 및 저장 규칙을 검증한다."""
+    rows = [create_ticket(client, title=f"지난주 경계 {index}").json() for index in range(3)]
+    timestamps = [
+        datetime(2026, 10, 4, 15, tzinfo=UTC),
+        datetime(2026, 10, 9, 14, 59, 59, tzinfo=UTC),
+        datetime(2026, 10, 9, 15, tzinfo=UTC),
+    ]
+    dates = [date(2026, 10, 5), date(2026, 10, 9), date(2026, 10, 10)]
+    for row, timestamp, due_date in zip(rows, timestamps, dates, strict=True):
+        ticket = db_session.get(Ticket, row["id"])
+        ticket.updated_at = timestamp
+        ticket.due_date = due_date
+    db_session.commit()
+    monkeypatch.setattr(
+        ticket_filter_resolution, "utc_now", lambda: datetime(2026, 10, 12, tzinfo=UTC)
+    )
+    rule = {
+        "kind": "date_range",
+        "start": {"kind": "week_day", "week": "last", "weekday": 0},
+        "end": {"kind": "week_day", "week": "last", "weekday": 4},
+    }
+    expected_keys = {rows[0]["key"], rows[1]["key"]}
+    for field in ["updated_date", "due_date"]:
+        definition = filter_definition(dynamic_condition(field, "between", rule))
+        result = client.get(
+            "/api/projects/DEV/tickets", params={"filter": json.dumps(definition)}
+        ).json()
+        assert {ticket["key"] for ticket in result["tickets"]} == expected_keys
+        assert result["total"] == 2
+        assert result["filter_resolution"]["conditions"][0]["values"] == [
+            "2026-10-05",
+            "2026-10-09",
+        ]
+        board = client.get(
+            "/api/projects/DEV/tickets/board", params={"filter": json.dumps(definition)}
+        ).json()
+        assert {card["key"] for card in board_filter_cards(board)} == expected_keys
+    saved = post(
+        client,
+        "/api/projects/DEV/personal-filters",
+        {"name": "지난주 보고용", "definition": definition},
+    ).json()
+    loaded = client.get(f"/api/projects/DEV/personal-filters/{saved['id']}").json()
+    assert loaded["definition"]["expression"]["children"][0]["rule"] == rule
+    assert loaded["definition"]["expression"]["children"][0]["values"] == []
+    single = filter_definition(
+        dynamic_condition("due_date", "on", {"kind": "week_day", "week": "last", "weekday": 4})
+    )
+    assert (
+        client.get("/api/projects/DEV/tickets", params={"filter": json.dumps(single)}).json()[
+            "tickets"
+        ][0]["key"]
+        == rows[1]["key"]
+    )
+    reverse = rule | {"start": rule["end"], "end": rule["start"]}
+    invalid = filter_definition(dynamic_condition("due_date", "between", reverse))
+    response = client.get("/api/projects/DEV/tickets", params={"filter": json.dumps(invalid)})
+    assert response.status_code == 400
+    assert "기간 시작은 종료보다 늦을 수 없습니다" in response.json()["message"]

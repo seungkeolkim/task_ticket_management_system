@@ -35,6 +35,8 @@
 
 | DB-029 | 2026-10-12 | DECIDED | Alembic 20261012_0011은 v2 saved_filters의 row·이름·범위·소유자·시각·조건·정렬을 보존하며 JSON version과 저장 version을 3으로 바꾸고 컬럼 기본값을 3으로 변경한다. runtime reader는 v3 하나만 사용한다. downgrade는 동적 rule이 있으면 row/schema 변경 전에 중단하고 고정 조건만 v2로 복원한다. | v1 삭제 허가를 새 v2 필터 삭제로 확대하지 않는다. 저장 규칙을 임의의 날짜·사용자로 고정하거나 삭제하는 rollback을 피한다. 기존 v2 schema artifact와 migration 이력은 보존하며 새 계약 예시는 v3로 게시한다. |
 
+| DB-030 | 2026-10-12 | DECIDED | Alembic 20261012_0012는 v3 고정·동적 saved_filters의 조건·정렬·row·소유자·범위·이름·시각을 보존해 JSON/storage version과 기본값만 4로 바꾼다. runtime reader는 v4 하나다. downgrade는 week_day/date_range가 있으면 모든 row/schema 변경 전에 중단하고 기존 규칙만 v3로 복원한다. | 주 요일·독립 경계 계약을 명시적으로 versioning하며 이전 사용자 필터를 삭제하거나 임의 고정하지 않는다. v3 schema와 migration 이력은 보존한다. |
+
 ## Open decisions
 
 - PostgreSQL migration·repository 검증을 CI에서 언제 필수화할지는 실제 전환 필요성과 함께 확정한다.

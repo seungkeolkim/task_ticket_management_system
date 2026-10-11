@@ -1,4 +1,4 @@
-/** 필드별 입력과 조건 그룹을 하나의 v2 편집기에서 관리한다. */
+/** 필드별 입력과 조건 그룹을 하나의 v4 편집기에서 관리한다. */
 function initializeTicketFilterEditor(editorForm) {
   const appliedDefinition = JSON.parse(editorForm.querySelector("[data-filter-definition]").textContent);
   const filterOptions = JSON.parse(editorForm.querySelector("[data-filter-options]").textContent);
@@ -65,7 +65,7 @@ function initializeTicketFilterEditor(editorForm) {
       operators = [...operators, ["is_empty", definition.emptyLabel], ["is_not_empty", `${definition.emptyLabel} 아님`]];
     }
     if (conditionNode?.rule && definition.type === "date") {
-      const isRange = ["relative_period", "working_week"].includes(conditionNode.rule.kind);
+      const isRange = ["relative_period", "working_week", "date_range"].includes(conditionNode.rule.kind);
       operators = operators.filter(choice => isRange ? choice[0] === "between" : ["on", "before", "after"].includes(choice[0]));
     }
     return operators;
@@ -78,10 +78,36 @@ function initializeTicketFilterEditor(editorForm) {
     return referenceDate.toISOString().slice(0, 10);
   }
 
+  /** 단일 경계의 실제 날짜를 서버가 제공한 한국 날짜로 계산한다. */
+  function resolveDateAnchor(anchor) {
+    if (anchor.kind === "fixed_date") return anchor.value || null;
+    if (anchor.kind === "today") return filterResolution.reference_date;
+    if (anchor.kind === "day_offset") {
+      if (!Number.isInteger(anchor.days) || anchor.days < 1 || anchor.days > 3650) return null;
+      return offsetReferenceDate(anchor.direction === "past" ? -anchor.days : anchor.days);
+    }
+    const weekday = new Date(`${filterResolution.reference_date}T00:00:00Z`).getUTCDay();
+    const weekStartOffset = -((weekday + 6) % 7) - (anchor.week === "last" ? 7 : 0);
+    return offsetReferenceDate(weekStartOffset + anchor.weekday);
+  }
+
+  /** 경계의 규칙 이름과 해석 날짜를 함께 표시한다. */
+  function describeDateAnchor(anchor) {
+    const resolvedDate = resolveDateAnchor(anchor);
+    if (!resolvedDate) return "날짜·일수를 입력하세요.";
+    if (anchor.kind === "fixed_date") return resolvedDate;
+    if (anchor.kind === "today") return `오늘 → ${resolvedDate}`;
+    if (anchor.kind === "day_offset") return `오늘 기준 ${anchor.days}일 ${anchor.direction === "past" ? "전" : "후"} → ${resolvedDate}`;
+    const weekdayLabels = ["월요일", "화요일", "수요일", "목요일", "금요일", "토요일", "일요일"];
+    return `${anchor.week === "last" ? "지난주" : "이번 주"} ${weekdayLabels[anchor.weekday]} → ${resolvedDate}`;
+  }
+
   /** 동적 규칙과 이번 화면 기준의 실제 값에 대한 설명을 만든다. */
   function describeRule(rule) {
     if (rule.kind === "current_user") return `현재 사용자 → ${filterResolution.user_label}`;
     if (rule.kind === "today") return `오늘 → ${filterResolution.reference_date}`;
+    if (rule.kind === "week_day") return describeDateAnchor(rule);
+    if (rule.kind === "date_range") return `시작: ${describeDateAnchor(rule.start)} / 종료: ${describeDateAnchor(rule.end)} · 양 끝 날짜 포함`;
     if (rule.kind !== "working_week" && (!Number.isInteger(rule.days) || rule.days < 1 || rule.days > 3650)) return "일수는 1~3650 사이 정수로 입력하세요.";
     if (rule.kind === "day_offset") {
       const sign = rule.direction === "past" ? -1 : 1;
@@ -101,6 +127,79 @@ function initializeTicketFilterEditor(editorForm) {
       label = `${rule.week === "last" ? "지난" : "이번"} working week · 월~금, 공휴일 포함`;
     }
     return `${label} → ${offsetReferenceDate(firstOffset)} ~ ${offsetReferenceDate(lastOffset)}`;
+  }
+
+  /** 주와 요일을 분리해 금요일 외의 단일 날짜도 지정한다. */
+  function renderWeekdayControls(anchor, labelText, onChange) {
+    const controls = createElement("div", "filter-anchor-controls");
+    const weekControl = createSelect([["this", "이번 주"], ["last", "지난주"]], anchor.week);
+    weekControl.dataset.dateAnchorWeek = "";
+    const weekdayControl = createSelect(["월요일", "화요일", "수요일", "목요일", "금요일", "토요일", "일요일"].map((label, index) => [index, label]), anchor.weekday);
+    weekdayControl.dataset.dateAnchorWeekday = "";
+    weekControl.addEventListener("change", () => {
+      anchor.week = weekControl.value;
+      onChange(anchor);
+    });
+    weekdayControl.addEventListener("change", () => {
+      anchor.weekday = Number(weekdayControl.value);
+      onChange(anchor);
+    });
+    controls.append(labelControl(`${labelText} 주`, weekControl), labelControl(`${labelText} 요일`, weekdayControl));
+    return controls;
+  }
+
+  /** 기간의 시작·종료 각각에 독립된 단일 기준값 입력을 제공한다. */
+  function renderDateAnchor(anchor, boundaryName, onChange) {
+    const labelText = boundaryName === "start" ? "시작" : "종료";
+    const container = createElement("fieldset", "filter-date-anchor");
+    container.dataset.filterBoundary = boundaryName;
+    container.append(createElement("legend", "", labelText));
+    const sourceControl = createSelect([["fixed_date", "날짜 직접 선택"], ["today", "오늘"], ["day_offset", "오늘 기준 N일 전/후"], ["week_day", "이번·지난주 요일"]], anchor.kind);
+    sourceControl.dataset.dateAnchorSource = "";
+    sourceControl.addEventListener("change", () => {
+      const source = sourceControl.value;
+      let nextAnchor = { kind: "today" };
+      if (source === "fixed_date") nextAnchor = { kind: source, value: "" };
+      if (source === "day_offset") nextAnchor = { kind: source, days: 7, direction: "past" };
+      if (source === "week_day") nextAnchor = { kind: source, week: "last", weekday: boundaryName === "start" ? 0 : 4 };
+      onChange(nextAnchor);
+      renderExpression();
+    });
+    container.append(labelControl(`${labelText} 기준`, sourceControl));
+    if (anchor.kind === "fixed_date") {
+      const dateControl = createElement("input");
+      dateControl.type = "date";
+      dateControl.required = true;
+      dateControl.min = "0002-01-01";
+      dateControl.max = "9998-12-31";
+      dateControl.value = anchor.value;
+      dateControl.addEventListener("input", () => {
+        anchor.value = dateControl.value;
+        onChange(anchor);
+      });
+      container.append(labelControl(`${labelText} 날짜`, dateControl));
+    } else if (anchor.kind === "week_day") {
+      container.append(renderWeekdayControls(anchor, labelText, onChange));
+    } else if (anchor.kind === "day_offset") {
+      const directionControl = createSelect([["past", "전"], ["future", "후"]], anchor.direction);
+      const daysControl = createElement("input");
+      daysControl.type = "number";
+      daysControl.min = "1";
+      daysControl.max = "3650";
+      daysControl.step = "1";
+      daysControl.required = true;
+      daysControl.value = anchor.days;
+      directionControl.addEventListener("change", () => {
+        anchor.direction = directionControl.value;
+        onChange(anchor);
+      });
+      daysControl.addEventListener("input", () => {
+        anchor.days = daysControl.value === "" ? null : Number(daysControl.value);
+        onChange(anchor);
+      });
+      container.append(labelControl(`${labelText} 전후`, directionControl), labelControl(`${labelText} 일수`, daysControl));
+    }
+    return container;
   }
 
   /** 프로젝트 후보에서 복수 선택 가능한 표시 값을 구성한다. */
@@ -202,7 +301,7 @@ function initializeTicketFilterEditor(editorForm) {
     if (["user", "date"].includes(definition.type)) {
       const sourceChoices = definition.type === "user"
         ? [["fixed", "사용자 직접 선택"], ["current_user", "현재 사용자"]]
-        : [["fixed", "날짜 직접 선택"], ["today", "오늘"], ["day_offset", "오늘 기준 N일 전/후"], ["relative_period", "상대 기간"], ["this_week", "이번 working week"], ["last_week", "지난 working week"]];
+        : [["fixed", "날짜 직접 선택"], ["today", "오늘"], ["day_offset", "오늘 기준 N일 전/후"], ["week_day", "이번·지난주 요일"], ["date_range", "시작·종료 직접 지정"], ["relative_period", "상대 기간"], ["this_week", "이번 working week"], ["last_week", "지난 working week"]];
       const selectedSource = conditionNode.rule?.kind === "working_week"
         ? `${conditionNode.rule.week}_week` : conditionNode.rule?.kind || "fixed";
       const sourceControl = createSelect(sourceChoices, selectedSource);
@@ -214,8 +313,10 @@ function initializeTicketFilterEditor(editorForm) {
         if (source === "current_user" || source === "today") conditionNode.rule = { kind: source };
         if (["day_offset", "relative_period"].includes(source)) conditionNode.rule = { kind: source, days: 7, direction: "past" };
         if (["this_week", "last_week"].includes(source)) conditionNode.rule = { kind: "working_week", week: source === "this_week" ? "this" : "last" };
+        if (source === "week_day") conditionNode.rule = { kind: source, week: "this", weekday: 4 };
+        if (source === "date_range") conditionNode.rule = { kind: source, start: { kind: "week_day", week: "last", weekday: 0 }, end: { kind: "week_day", week: "last", weekday: 4 } };
         if (conditionNode.rule && definition.type === "date") {
-          conditionNode.operator = ["relative_period", "working_week"].includes(conditionNode.rule.kind) ? "between" : "on";
+          conditionNode.operator = ["relative_period", "working_week", "date_range"].includes(conditionNode.rule.kind) ? "between" : "on";
         }
         renderExpression();
       });
@@ -223,6 +324,22 @@ function initializeTicketFilterEditor(editorForm) {
       if (conditionNode.rule) {
         const preview = createElement("span", "filter-rule-preview");
         preview.dataset.filterRulePreview = "";
+        if (conditionNode.rule.kind === "date_range") {
+          for (const boundaryName of ["start", "end"]) {
+            valuesContainer.append(renderDateAnchor(conditionNode.rule[boundaryName], boundaryName, nextAnchor => {
+              conditionNode.rule[boundaryName] = nextAnchor;
+              preview.textContent = describeRule(conditionNode.rule);
+              synchronizeEditingState();
+            }));
+          }
+        }
+        if (conditionNode.rule.kind === "week_day") {
+          valuesContainer.append(renderWeekdayControls(conditionNode.rule, "기준", nextAnchor => {
+            conditionNode.rule = nextAnchor;
+            preview.textContent = describeRule(conditionNode.rule);
+            synchronizeEditingState();
+          }));
+        }
         if (["day_offset", "relative_period"].includes(conditionNode.rule.kind)) {
           const isPeriod = conditionNode.rule.kind === "relative_period";
           const directionControl = createSelect(isPeriod ? [["past", "최근"], ["future", "앞으로"]] : [["past", "전"], ["future", "후"]], conditionNode.rule.direction);
@@ -274,6 +391,7 @@ function initializeTicketFilterEditor(editorForm) {
   /** 조건 행의 필드 변경·제외·삭제를 연결한다. */
   function renderCondition(conditionNode, parentGroup) {
     const conditionRow = createElement("div", "filter-condition");
+    conditionRow.classList.toggle("has-date-range", conditionNode.rule?.kind === "date_range");
     const fieldSelect = createSelect(Object.entries(fieldDefinitions).map(([name, definition]) => [name, definition.label]), conditionNode.field);
     fieldSelect.dataset.conditionField = conditionNode.field;
     const operatorSelect = createSelect(conditionOperators(conditionNode.field, conditionNode), conditionNode.operator);
@@ -307,7 +425,9 @@ function initializeTicketFilterEditor(editorForm) {
       renderExpression();
     });
     renderConditionValues(conditionNode, valuesContainer);
-    conditionRow.append(labelControl("필드", fieldSelect), labelControl("연산자", operatorSelect), valuesContainer, labelControl("NOT", negatedControl), deleteButton);
+    const negationLabel = labelControl("NOT", negatedControl);
+    negationLabel.classList.add("filter-condition-negation");
+    conditionRow.append(labelControl("필드", fieldSelect), labelControl("연산자", operatorSelect), valuesContainer, negationLabel, deleteButton);
     return conditionRow;
   }
 
@@ -379,6 +499,12 @@ function initializeTicketFilterEditor(editorForm) {
       for (const childNode of conditionNode.children) validateNode(childNode, depth + 1);
     } else if (conditionNode.rule) {
       if (["day_offset", "relative_period"].includes(conditionNode.rule.kind) && (!Number.isInteger(conditionNode.rule.days) || conditionNode.rule.days < 1 || conditionNode.rule.days > 3650)) throw new Error("일수는 1~3650 사이 정수로 입력하세요.");
+      if (conditionNode.rule.kind === "date_range") {
+        const startDate = resolveDateAnchor(conditionNode.rule.start);
+        const endDate = resolveDateAnchor(conditionNode.rule.end);
+        if (!startDate || !endDate) throw new Error("시작·종료 날짜와 일수를 모두 입력하세요.");
+        if (startDate > endDate) throw new Error("기간 시작은 종료보다 늦을 수 없습니다. 경계를 확인하세요.");
+      }
     } else if (!["is_empty", "is_not_empty"].includes(conditionNode.operator)) {
       const expectedCount = conditionNode.operator === "between" ? 2 : null;
       if (!conditionNode.values.length || conditionNode.values.some(value => value === "") || (expectedCount && conditionNode.values.length !== expectedCount)) throw new Error("모든 조건의 값을 입력하세요.");

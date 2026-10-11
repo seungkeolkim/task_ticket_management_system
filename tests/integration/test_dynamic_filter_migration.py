@@ -86,8 +86,7 @@ def test_dynamic_filter_migration_preserves_fixed_conditions_and_metadata(
             )
         ).all()
         original_tickets = connection.execute(text("SELECT * FROM tickets")).all()
-    command.upgrade(alembic_config, "head")
-    command.check(alembic_config)
+    command.upgrade(alembic_config, "20261012_0011")
     with engine.connect() as connection:
         assert (
             connection.execute(
@@ -125,7 +124,7 @@ def test_dynamic_filter_downgrade_stops_before_any_row_or_schema_change(
 ):
     """동적 필터가 뒤에 있어도 앞선 고정 필터를 먼저 변환하거나 규칙을 고정하지 않는다."""
     engine, definition = populated_filter_database
-    command.upgrade(alembic_config, "head")
+    command.upgrade(alembic_config, "20261012_0011")
     dynamic_definition = definition | {
         "schema_version": 3,
         "expression": {
